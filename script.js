@@ -257,28 +257,28 @@ async function eliminaCommessa(id) {
 }
 
 // Funzione per aggiornare la tabella delle ore lavorate
-async function aggiornaTabellaOreLavorate() {
-  const tbody = document.querySelector('#orelavorateTable tbody');
-  tbody.innerHTML = '';
+async function aggiornaTabellaOreLavorate(datiFiltrati = null) {
+    const tbody = document.querySelector('#orelavorateTable tbody');
+    tbody.innerHTML = '';
 
-  const querySnapshot = await getDocs(collection(db, "oreLavorate"));
-  querySnapshot.forEach(doc => {
-    const ore = doc.data();
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${ore.commessa}</td>
-      <td>${ore.nomeDipendente} ${ore.cognomeDipendente}</td>
-      <td>${ore.data}</td>
-      <td>${ore.oraInizio}</td>
-      <td>${ore.oraFine}</td>
-      <td>${ore.descrizione}</td>
-      <td>
-        <button onclick="modificaOreLavorate('${doc.id}')">Modifica</button>
-        <button onclick="eliminaOreLavorate('${doc.id}')">Elimina</button>
-      </td>
-    `;
-    tbody.appendChild(row);
-  });
+    const datiDaMostrare = datiFiltrati || (await getDocs(collection(db, "oreLavorate"))).docs.map(doc => doc.data());
+
+    datiDaMostrare.forEach(ore => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${ore.commessa}</td>
+            <td>${ore.nomeDipendente} ${ore.cognomeDipendente}</td>
+            <td>${ore.data}</td>
+            <td>${ore.oraInizio}</td>
+            <td>${ore.oraFine}</td>
+            <td>${ore.descrizione}</td>
+            <td>
+                <button onclick="modificaOreLavorate('${ore.id}')">Modifica</button>
+                <button onclick="eliminaOreLavorate('${ore.id}')">Elimina</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
 }
 
 // Funzione per aggiungere ore lavorate
@@ -349,7 +349,17 @@ document.addEventListener('DOMContentLoaded', function () {
   if (logoutButton) {
     logoutButton.addEventListener('click', logout);
   }
+// Filtri ore lavorate
+    document.getElementById('filtriOreLavorate').addEventListener('submit', function (e) {
+        e.preventDefault();
+        applicaFiltri();
+    });
 
+    // Pulsante Reset
+    const resetButton = document.querySelector('#filtriOreLavorate button[onclick="resetFiltri()"]');
+    if (resetButton) {
+        resetButton.addEventListener('click', resetFiltri);
+    }
   // Gestione Commesse
   const commessaForm = document.getElementById('commessaForm');
   if (commessaForm) {
@@ -403,3 +413,59 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 });
+async function applicaFiltri() {
+    const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
+    const filtroDipendente = document.getElementById('filtroDipendente').value.trim().toLowerCase();
+    const filtroMese = document.getElementById('filtroMese').value;
+
+    const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+    const oreFiltrate = querySnapshot.docs
+        .map(doc => doc.data())
+        .filter(ore => {
+            const corrispondeCommessa = filtroCommessa ? ore.commessa.toLowerCase().includes(filtroCommessa) : true;
+            const corrispondeDipendente = filtroDipendente ? (`${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
+            const corrispondeMese = filtroMese ? ore.data.startsWith(filtroMese) : true;
+
+            return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
+        });
+
+    aggiornaTabellaOreLavorate(oreFiltrate);
+}
+function resetFiltri() {
+    // Resetta i campi di input
+    document.getElementById('filtroCommessa').value = "";
+    document.getElementById('filtroDipendente').value = "";
+    document.getElementById('filtroMese').value = "";
+
+    // Mostra tutti i dati
+    aggiornaTabellaOreLavorate();
+}
+function generaPDFFiltrato() {
+    const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
+    const filtroDipendente = document.getElementById('filtroDipendente').value.trim().toLowerCase();
+    const filtroMese = document.getElementById('filtroMese').value;
+
+    const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+    const oreFiltrate = querySnapshot.docs
+        .map(doc => doc.data())
+        .filter(ore => {
+            const corrispondeCommessa = filtroCommessa ? ore.commessa.toLowerCase().includes(filtroCommessa) : true;
+            const corrispondeDipendente = filtroDipendente ? (`${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
+            const corrispondeMese = filtroMese ? ore.data.startsWith(filtroMese) : true;
+
+            return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
+        });
+
+    const doc = new jsPDF();
+    let content = 'Ore Lavorate Filtrate:\n\n';
+    oreFiltrate.forEach(ore => {
+        content += `Commessa: ${ore.commessa}\n`;
+        content += `Dipendente: ${ore.nomeDipendente} ${ore.cognomeDipendente}\n`;
+        content += `Data: ${ore.data}\n`;
+        content += `Ora Inizio: ${ore.oraInizio}\n`;
+        content += `Ora Fine: ${ore.oraFine}\n`;
+        content += `Descrizione: ${ore.descrizione}\n\n`;
+    });
+    doc.text(content, 10, 10);
+    doc.save('ore_lavorate_filtrate.pdf');
+}
