@@ -14,13 +14,13 @@ import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.0.0/firebase
 
 // Configurazione di Firebase
 const firebaseConfig = {
-    apiKey: "AIzaSyC9ZvmbxZBA5ktK60-wKL-5baHZ45R5JwI",
-    authDomain: "union14srl-fcb37.firebaseapp.com",
-    projectId: "union14srl-fcb37",
-    storageBucket: "union14srl-fcb37.firebasestorage.app",
-    messagingSenderId: "781549347487",
-    appId: "1:781549347487:web:7133e3b7e5d931ce9638aa",
-    measurementId: "G-MYW3153LFE"
+  apiKey: "AIzaSyAZS2BAvXgClkD6KF87M_OAIHL_vNwa2wQ",
+  authDomain: "orecommeseu14.firebaseapp.com",
+  projectId: "orecommeseu14",
+  storageBucket: "orecommeseu14.firebasestorage.app",
+  messagingSenderId: "693874640353",
+  appId: "1:693874640353:web:f8626c1a7d568242abfea0",
+  measurementId: "G-6XT4G34CQJ"
 };
 
 // Inizializza Firebase
