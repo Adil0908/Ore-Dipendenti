@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="stylesheet" href="styles.css">
+    
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+    <div id="loginPage">
+        <h2>Ore dipendenti</h2>
+        <input type="email" id="inputEmail" placeholder="Email" aria-label="Email">
+        <input type="password" id="inputPassword" placeholder="Password" aria-label="Password">
+        <button id="btnLogin">Accedi</button>
+    </div>
+    <div id="appContent" style="display: none;">
+        <!-- Sezione Logout -->
+        <button id="logoutButton">Logout</button>
+    
+        <!-- Sezione Ore Lavorate (visibile solo ai dipendenti) -->
+        <div class="dipendente-only">
+            <h2>Registrazione Ore Lavorate</h2>
+            <form id="oreForm">
+                <label for="oreCommessa">Commessa:</label>
+                <select id="oreCommessa" name="commessa" required>
+                    <!-- Le commesse verranno aggiunte qui dinamicamente -->
+                <label for="oreData">Data:</label>
+                <input type="date" id="oreData" name="data" required>
+                <label for="oreInizio">Ora Inizio:</label>
+                <input type="time" id="oreInizio" name="oraInizio" required>
+                <label for="oreFine">Ora Fine:</label>
+                <input type="time" id="oreFine" name="oraFine" required>
+                <label for="oreDescrizione">Descrizione Lavoro:</label>
+                <textarea id="oreDescrizione" name="descrizione" required></textarea>
+                <button type="submit">Salva</button>
+            </form>
+        </div>
+        <div class="admin-only">
+            <h2>Registrazione Ore Lavorate</h2>
+            <table id="orelavorateTable">
+                <thead>
+                    <tr>
+                        <th>Commessa</th>
+                        <th>Dipendente</th>
+                        <th>Data</th>
+                        <th>Ora Inizio</th>
+                        <th>Ora Fine</th>
+                        <th>Descrizione</th>
+                         <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Le commesse verranno aggiunte qui dinamicamente -->
+                </tbody>
+            </table>
+        </div>
+
+        <div id="filtriOreLavorate">
+            <h3>Filtra Ore Lavorate</h3>
+            <label for="filtroCommessa">Commessa:</label>
+            <input type="text" id="filtroCommessa" placeholder="Cerca per commessa">
+        
+            <label for="filtroDipendente">Dipendente:</label>
+            <input type="text" id="filtroDipendente" placeholder="Cerca per dipendente">
+        
+            <label for="filtroMese">Mese:</label>
+            <input type="month" id="filtroMese">
+        
+            <button onclick="applicaFiltri()">Applica Filtri</button>
+            <button onclick="resetFiltri()">Reset</button> <!-- Nuovo pulsante Reset -->
+            <button onclick="generaPDFFiltrato()">Scarica PDF Filtrato</button>
+        </div>
+
+
+
+
+
+
+        <!-- Sezione Gestione Commesse (visibile solo agli admin) -->
+        <div class="admin-only">
+            <h2>Gestione Commesse</h2>
+            <form id="commessaForm">
+                <label for="nomeCommessa">Nome Commessa:</label>
+                <input type="text" id="nomeCommessa" name="nomeCommessa" required>
+                <label for="cliente">Cliente:</label>
+                <input type="text" id="cliente" name="cliente" required>
+                <button type="submit">Aggiungi Commessa</button>
+            </form>
+            <table id="commesseTable">
+                <thead>
+                    <tr>
+                        <th>Nome Commessa</th>
+                        <th>Cliente</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Le commesse verranno aggiunte qui dinamicamente -->
+                </tbody>
+            </table>
+        </div>
+    
+        <!-- Sezione Gestione Dipendenti (visibile solo agli admin) -->
+        <div class="admin-only">
+            <h2>Gestione Dipendenti</h2>
+            <form id="dipendentiForm">
+                <label for="dipendenteNome">Nome:</label>
+                <input type="text" id="dipendenteNome" name="nome" required>
+                <label for="dipendenteCognome">Cognome:</label>
+                <input type="text" id="dipendenteCognome" name="cognome" required>
+                <label for="dipendenteEmail">Email:</label>
+                <input type="email" id="dipendenteEmail" name="email" required>
+                <label for="dipendentePassword">Password:</label>
+                <input type="password" id="dipendentePassword" name="password" required>
+                <label for="dipendenteRuolo">Ruolo:</label>
+    <select id="dipendenteRuolo" name="ruolo" required>
+        <option value="admin">Amministratore</option>
+        <option value="dipendente">Dipendente</option>
+    </select>
+                <button type="submit">Aggiungi Dipendente</button>
+            </form>
+            <table id="dipendentiTable">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Cognome</th>
+                        <th>Email</th>
+                        <th>Password</th>
+                        <th>Ruolo</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- I dipendenti verranno aggiunti qui dinamicamente -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
