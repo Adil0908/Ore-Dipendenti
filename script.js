@@ -1,21 +1,33 @@
-// Importa le funzioni necessarie da Firebase
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+import { 
+   
+    getFirestore, 
+    collection, 
+    addDoc, 
+    getDocs, 
+    doc, 
+    updateDoc, 
+    deleteDoc,
+    getDoc // Aggiungi questa funzione
+} from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-analytics.js"; // Aggiungi questa riga
 
 // Configurazione di Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyC9ZvmbxZBA5ktK60-wKL-5baHZ45R5JwI",
-  authDomain: "union14srl-fcb37.firebaseapp.com",
-  projectId: "union14srl-fcb37",
-  storageBucket: "union14srl-fcb37.firebasestorage.app",
-  messagingSenderId: "781549347487",
-  appId: "1:781549347487:web:7133e3b7e5d931ce9638aa",
-  measurementId: "G-MYW3153LFE"
+    apiKey: "AIzaSyC9ZvmbxZBA5ktK60-wKL-5baHZ45R5JwI",
+    authDomain: "union14srl-fcb37.firebaseapp.com",
+    projectId: "union14srl-fcb37",
+    storageBucket: "union14srl-fcb37.firebasestorage.app",
+    messagingSenderId: "781549347487",
+    appId: "1:781549347487:web:7133e3b7e5d931ce9638aa",
+    measurementId: "G-MYW3153LFE"
 };
 
 // Inizializza Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app); // Inizializza Firestore
+const db = getFirestore(app);
+// jsPDF
+const { jsPDF } = window.jspdf;
 
 // Variabili globali
 let currentUser = null;
@@ -261,7 +273,9 @@ async function aggiornaTabellaOreLavorate(datiFiltrati = null) {
     const tbody = document.querySelector('#orelavorateTable tbody');
     tbody.innerHTML = '';
 
-    const datiDaMostrare = datiFiltrati || (await getDocs(collection(db, "oreLavorate"))).docs.map(doc => doc.data());
+    // Se non ci sono filtri, carica tutti i dati
+    const datiDaMostrare = datiFiltrati || 
+        (await getDocs(collection(db, "oreLavorate"))).docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     datiDaMostrare.forEach(ore => {
         const row = document.createElement('tr');
@@ -420,16 +434,20 @@ async function applicaFiltri() {
 
     const querySnapshot = await getDocs(collection(db, "oreLavorate"));
     const oreFiltrate = querySnapshot.docs
-        .map(doc => doc.data())
+        .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(ore => {
-            const corrispondeCommessa = filtroCommessa ? ore.commessa.toLowerCase().includes(filtroCommessa) : true;
-            const corrispondeDipendente = filtroDipendente ? (`${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
-            const corrispondeMese = filtroMese ? ore.data.startsWith(filtroMese) : true;
+            const corrispondeCommessa = filtroCommessa ? 
+                ore.commessa.toLowerCase().includes(filtroCommessa) : true;
+            const corrispondeDipendente = filtroDipendente ? 
+                `${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
+            const corrispondeMese = filtroMese ? 
+                ore.data.startsWith(filtroMese) : true;
 
             return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
         });
 
     aggiornaTabellaOreLavorate(oreFiltrate);
+    generaPDFFiltrato(oreFiltrate); // Genera il PDF con i dati filtrati
 }
 function resetFiltri() {
     // Resetta i campi di input
@@ -440,32 +458,41 @@ function resetFiltri() {
     // Mostra tutti i dati
     aggiornaTabellaOreLavorate();
 }
-function generaPDFFiltrato() {
+async function generaPDFFiltrato() { // Aggiunto async
     const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
     const filtroDipendente = document.getElementById('filtroDipendente').value.trim().toLowerCase();
     const filtroMese = document.getElementById('filtroMese').value;
 
+    // Recupera i dati da Firestore
     const querySnapshot = await getDocs(collection(db, "oreLavorate"));
     const oreFiltrate = querySnapshot.docs
-        .map(doc => doc.data())
+        .map(doc => ({ id: doc.id, ...doc.data() })) // Mantieni l'ID del documento
         .filter(ore => {
-            const corrispondeCommessa = filtroCommessa ? ore.commessa.toLowerCase().includes(filtroCommessa) : true;
-            const corrispondeDipendente = filtroDipendente ? (`${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
-            const corrispondeMese = filtroMese ? ore.data.startsWith(filtroMese) : true;
+            const corrispondeCommessa = filtroCommessa ? 
+                ore.commessa.toLowerCase().includes(filtroCommessa) : true;
+            const corrispondeDipendente = filtroDipendente ? 
+                `${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
+            const corrispondeMese = filtroMese ? 
+                ore.data.startsWith(filtroMese) : true;
 
             return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
         });
 
+    // Crea il PDF con tabella formattata
     const doc = new jsPDF();
-    let content = 'Ore Lavorate Filtrate:\n\n';
-    oreFiltrate.forEach(ore => {
-        content += `Commessa: ${ore.commessa}\n`;
-        content += `Dipendente: ${ore.nomeDipendente} ${ore.cognomeDipendente}\n`;
-        content += `Data: ${ore.data}\n`;
-        content += `Ora Inizio: ${ore.oraInizio}\n`;
-        content += `Ora Fine: ${ore.oraFine}\n`;
-        content += `Descrizione: ${ore.descrizione}\n\n`;
+    doc.autoTable({
+        head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione']],
+        body: oreFiltrate.map(ore => [
+            ore.commessa,
+            `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
+            ore.data,
+            ore.oraInizio,
+            ore.oraFine,
+            ore.descrizione
+        ]),
+        theme: 'grid',
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255 }
     });
-    doc.text(content, 10, 10);
     doc.save('ore_lavorate_filtrate.pdf');
 }
