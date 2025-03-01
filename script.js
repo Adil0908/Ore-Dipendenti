@@ -14,14 +14,14 @@ import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.0.0/firebase
 
 // Configurazione di Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyAZS2BAvXgClkD6KF87M_OAIHL_vNwa2wQ",
-  authDomain: "orecommeseu14.firebaseapp.com",
-  projectId: "orecommeseu14",
-  storageBucket: "orecommeseu14.firebasestorage.app",
-  messagingSenderId: "693874640353",
-  appId: "1:693874640353:web:f8626c1a7d568242abfea0",
-  measurementId: "G-6XT4G34CQJ"
-};
+    apiKey: "AIzaSyAZS2BAvXgClkD6KF87M_OAIHL_vNwa2wQ",
+    authDomain: "orecommeseu14.firebaseapp.com",
+    projectId: "orecommeseu14",
+    storageBucket: "orecommeseu14.firebasestorage.app",
+    messagingSenderId: "693874640353",
+    appId: "1:693874640353:web:f8626c1a7d568242abfea0",
+    measurementId: "G-6XT4G34CQJ"
+  };
 
 // Inizializza Firebase
 const app = initializeApp(firebaseConfig);
@@ -77,6 +77,49 @@ async function gestisciLogin() {
 function logout() {
   currentUser = null;
   window.location.href = 'index.html';
+}
+
+// Funzione per generare il PDF
+async function generaPDFFiltrato(oreFiltrate = null) {
+  try {
+      // Se non ci sono dati filtrati, carica tutti i dati
+      if (!oreFiltrate) {
+          const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+          oreFiltrate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+
+      // Crea il PDF
+      const doc = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4'
+      });
+
+      doc.setFontSize(18);
+      doc.text("Report Ore Lavorate Filtrate", 14, 20);
+
+      doc.autoTable({
+          startY: 25,
+          head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione']],
+          body: oreFiltrate.map(ore => [
+              ore.commessa,
+              `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
+              ore.data,
+              ore.oraInizio,
+              ore.oraFine,
+              ore.descrizione
+          ]),
+          theme: 'grid',
+          styles: { fontSize: 10, cellPadding: 3 },
+          headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+          margin: { top: 20 }
+      });
+
+      doc.save('ore_lavorate_filtrate.pdf');
+  } catch (error) {
+      console.error("Errore durante la generazione del PDF:", error);
+      alert("Si è verificato un errore durante la generazione del PDF.");
+  }
 }
 
 // Funzione per mostrare l'applicazione
@@ -364,16 +407,66 @@ document.addEventListener('DOMContentLoaded', function () {
     logoutButton.addEventListener('click', logout);
   }
 // Filtri ore lavorate
-    document.getElementById('filtriOreLavorate').addEventListener('submit', function (e) {
+   document.getElementById('filtraOreLavorate').addEventListener('submit', function (e) {
         e.preventDefault();
         applicaFiltri();
     });
+    document.getElementById('btnScaricaPDF').addEventListener('click', function (e) {
+      e.preventDefault();
+  
+      // Recupera i dati filtrati dalla tabella corrente
+      const righe = document.querySelectorAll('#orelavorateTable tbody tr');
+      const oreFiltrate = Array.from(righe).map(riga => {
+          return {
+              commessa: riga.cells[0].textContent,
+              nomeDipendente: riga.cells[1].textContent.split(' ')[0],
+              cognomeDipendente: riga.cells[1].textContent.split(' ')[1],
+              data: riga.cells[2].textContent,
+              oraInizio: riga.cells[3].textContent,
+              oraFine: riga.cells[4].textContent,
+              descrizione: riga.cells[5].textContent
+          };
+      });
+  
+      // Genera il PDF con i dati filtrati
+      generaPDFFiltrato(oreFiltrate);
+  });
+    
+    const btnApplicaFiltri = document.getElementById('btnApplicaFiltri');
+    const btnResetFiltri = document.getElementById('btnResetFiltri');
+    const btnScaricaPDF = document.getElementById('btnScaricaPDF');
 
-    // Pulsante Reset
-    const resetButton = document.querySelector('#filtriOreLavorate button[onclick="resetFiltri()"]');
-    if (resetButton) {
-        resetButton.addEventListener('click', resetFiltri);
+    if (btnApplicaFiltri) {
+        btnApplicaFiltri.addEventListener('click', function (e) {
+            e.preventDefault();
+            applicaFiltri();
+        });
+    } else {
+        console.error("Elemento 'btnApplicaFiltri' non trovato!");
     }
+
+    if (btnResetFiltri) {
+        btnResetFiltri.addEventListener('click', function (e) {
+            e.preventDefault();
+            resetFiltri();
+        });
+    } else {
+        console.error("Elemento 'btnResetFiltri' non trovato!");
+    }
+
+    if (btnScaricaPDF) {
+        btnScaricaPDF.addEventListener('click', function (e) {
+            e.preventDefault();
+            generaPDFFiltrato();
+        });
+    } else {
+        console.error("Elemento 'btnScaricaPDF' non trovato!");
+    }
+
+    
+    
+    
+    
   // Gestione Commesse
   const commessaForm = document.getElementById('commessaForm');
   if (commessaForm) {
@@ -428,26 +521,26 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 async function applicaFiltri() {
-    const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
-    const filtroDipendente = document.getElementById('filtroDipendente').value.trim().toLowerCase();
-    const filtroMese = document.getElementById('filtroMese').value;
+  const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
+  const filtroDipendente = document.getElementById('filtroDipendente').value.trim().toLowerCase();
+  const filtroMese = document.getElementById('filtroMese').value;
 
-    const querySnapshot = await getDocs(collection(db, "oreLavorate"));
-    const oreFiltrate = querySnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(ore => {
-            const corrispondeCommessa = filtroCommessa ? 
-                ore.commessa.toLowerCase().includes(filtroCommessa) : true;
-            const corrispondeDipendente = filtroDipendente ? 
-                `${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
-            const corrispondeMese = filtroMese ? 
-                ore.data.startsWith(filtroMese) : true;
+  const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+  const oreFiltrate = querySnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(ore => {
+          const corrispondeCommessa = filtroCommessa ? 
+              ore.commessa.toLowerCase().includes(filtroCommessa) : true;
+          const corrispondeDipendente = filtroDipendente ? 
+              `${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
+          const corrispondeMese = filtroMese ? 
+              ore.data.startsWith(filtroMese) : true;
 
-            return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
-        });
+          return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
+      });
 
     aggiornaTabellaOreLavorate(oreFiltrate);
-    generaPDFFiltrato(oreFiltrate); // Genera il PDF con i dati filtrati
+    
 }
 function resetFiltri() {
     // Resetta i campi di input
@@ -457,42 +550,4 @@ function resetFiltri() {
 
     // Mostra tutti i dati
     aggiornaTabellaOreLavorate();
-}
-async function generaPDFFiltrato() { // Aggiunto async
-    const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
-    const filtroDipendente = document.getElementById('filtroDipendente').value.trim().toLowerCase();
-    const filtroMese = document.getElementById('filtroMese').value;
-
-    // Recupera i dati da Firestore
-    const querySnapshot = await getDocs(collection(db, "oreLavorate"));
-    const oreFiltrate = querySnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() })) // Mantieni l'ID del documento
-        .filter(ore => {
-            const corrispondeCommessa = filtroCommessa ? 
-                ore.commessa.toLowerCase().includes(filtroCommessa) : true;
-            const corrispondeDipendente = filtroDipendente ? 
-                `${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
-            const corrispondeMese = filtroMese ? 
-                ore.data.startsWith(filtroMese) : true;
-
-            return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
-        });
-
-    // Crea il PDF con tabella formattata
-    const doc = new jsPDF();
-    doc.autoTable({
-        head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione']],
-        body: oreFiltrate.map(ore => [
-            ore.commessa,
-            `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
-            ore.data,
-            ore.oraInizio,
-            ore.oraFine,
-            ore.descrizione
-        ]),
-        theme: 'grid',
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [41, 128, 185], textColor: 255 }
-    });
-    doc.save('ore_lavorate_filtrate.pdf');
 }
