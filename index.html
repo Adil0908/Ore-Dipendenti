@@ -5,10 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+        <!-- jsPDF -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  
 </head>
 <body>
     <script src="app.js"></script>
@@ -60,26 +63,16 @@
             </table>
         </div>
 
-        <div id="filtriOreLavorate">
-            <h3>Filtra Ore Lavorate</h3>
-            <label for="filtroCommessa">Commessa:</label>
-            <input type="text" id="filtroCommessa" placeholder="Cerca per commessa">
-        
-            <label for="filtroDipendente">Dipendente:</label>
-            <input type="text" id="filtroDipendente" placeholder="Cerca per dipendente">
-        
-            <label for="filtroMese">Mese:</label>
-            <input type="month" id="filtroMese">
-        
-            <button onclick="applicaFiltri()">Applica Filtri</button>
-            <button onclick="resetFiltri()">Reset</button> <!-- Nuovo pulsante Reset -->
-            <button onclick="generaPDFFiltrato()">Scarica PDF Filtrato</button>
-        </div>
-
-
-
-
-
+        <!-- Sezione Filtri Ore Lavorate -->
+        <h2>Filtri Ore Lavorate</h2>
+<form id="filtraOreLavorate">
+    <input type="text" id="filtroCommessa" placeholder="Filtra per commessa">
+    <input type="text" id="filtroDipendente" placeholder="Filtra per dipendente">
+    <input type="month" id="filtroMese">
+    <button id="btnApplicaFiltri">Applica Filtri</button>
+    <button id="btnResetFiltri">Reset</button>
+    <button id="btnScaricaPDF">Scarica PDF</button>
+</form>
 
         <!-- Sezione Gestione Commesse (visibile solo agli admin) -->
         <div class="admin-only">
