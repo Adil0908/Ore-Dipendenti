@@ -1,65 +1,116 @@
-/* styles.css */
+/* ===== Variabili CSS ===== */
+:root {
+    --primary-color: #28a745;
+    --primary-hover-color: #218838;
+    --background-color: #f4f4f4;
+    --container-bg-color: #fff;
+    --border-color: #ccc;
+    --table-header-bg-color: #f8f9fa;
+    --text-color: #333;
+    --shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    --spacing-small: 5px;
+    --spacing-medium: 10px;
+    --spacing-large: 20px;
+    --border-radius: 4px;
+}
+
+/* ===== Reset e Stili di Base ===== */
 body {
     font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
+    background-color: var(--background-color);
     margin: 0;
     padding: 0;
+    color: var(--text-color);
 }
 
-.login-container, .admin-container, .employee-container {
+/* ===== Contenitori ===== */
+.login-container,
+.admin-container,
+.employee-container {
     width: 300px;
     margin: 50px auto;
-    padding: 20px;
-    background-color: #fff;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    padding: var(--spacing-large);
+    background-color: var(--container-bg-color);
+    box-shadow: var(--shadow);
+    border-radius: var(--border-radius);
 }
 
+/* ===== Titoli ===== */
 h2 {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: var(--spacing-large);
 }
 
+/* ===== Form ===== */
 form {
     display: flex;
     flex-direction: column;
 }
 
 label {
-    margin-bottom: 5px;
+    margin-bottom: var(--spacing-small);
 }
 
-input, select, textarea {
-    margin-bottom: 10px;
+input,
+select,
+textarea {
+    margin-bottom: var(--spacing-medium);
     padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-size: 14px;
 }
 
+/* ===== Bottoni ===== */
 button {
-    padding: 10px;
-    background-color: #28a745;
+    padding: var(--spacing-medium);
+    background-color: var(--primary-color);
     color: #fff;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--border-radius);
     cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
 }
 
 button:hover {
-    background-color: #218838;
+    background-color: var(--primary-hover-color);
 }
 
+/* ===== Tabelle ===== */
 table {
     width: 100%;
-    margin-top: 20px;
+    margin-top: var(--spacing-large);
     border-collapse: collapse;
 }
 
-th, td {
-    padding: 10px;
-    border: 1px solid #ccc;
+th,
+td {
+    padding: var(--spacing-medium);
+    border: 1px solid var(--border-color);
     text-align: left;
 }
 
 th {
-    background-color: #f8f9fa;
+    background-color: var(--table-header-bg-color);
+    font-weight: bold;
+}
+
+/* ===== Media Query per Responsive Design ===== */
+@media (max-width: 600px) {
+    .login-container,
+    .admin-container,
+    .employee-container {
+        width: 90%;
+        margin: 20px auto;
+        padding: var(--spacing-medium);
+    }
+
+    h2 {
+        font-size: 1.5em;
+    }
+
+    button {
+        width: 100%;
+    }
 }
