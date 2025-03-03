@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title>Ore Dipendenti Union14srl</title>
     <link rel="stylesheet" href="styles.css">
     
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
@@ -42,6 +42,7 @@
                 <textarea id="oreDescrizione" name="descrizione" required></textarea>
                 <button type="submit">Salva</button>
             </form>
+            <div id="totaliContainer"></div>
         </div>
         <div class="admin-only">
             <h2>Registrazione Ore Lavorate</h2>
@@ -54,7 +55,8 @@
                         <th>Ora Inizio</th>
                         <th>Ora Fine</th>
                         <th>Descrizione</th>
-                         <th>Azioni</th>
+                         <th>Ore Lavorate</th>
+                        <th>Azioni</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -64,6 +66,7 @@
         </div>
 
         <!-- Sezione Filtri Ore Lavorate -->
+        <div class="admin-only">
         <h2>Filtri Ore Lavorate</h2>
 <form id="filtraOreLavorate">
     <input type="text" id="filtroCommessa" placeholder="Filtra per commessa">
@@ -73,7 +76,7 @@
     <button id="btnResetFiltri">Reset</button>
     <button id="btnScaricaPDF">Scarica PDF</button>
 </form>
-
+</div>  
         <!-- Sezione Gestione Commesse (visibile solo agli admin) -->
         <div class="admin-only">
             <h2>Gestione Commesse</h2>
