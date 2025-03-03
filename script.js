@@ -78,8 +78,27 @@ function logout() {
   currentUser = null;
   window.location.href = 'index.html';
 }
+document.getElementById('btnScaricaPDF').addEventListener('click', function (e) {
+  e.preventDefault();
 
-// Funzione per generare il PDF
+  // Recupera i dati filtrati dalla tabella corrente
+  const righe = document.querySelectorAll('#orelavorateTable tbody tr');
+  const oreFiltrate = Array.from(righe).map(riga => {
+      return {
+          commessa: riga.cells[0].textContent,
+          nomeDipendente: riga.cells[1].textContent.split(' ')[0],
+          cognomeDipendente: riga.cells[1].textContent.split(' ')[1],
+          data: riga.cells[2].textContent,
+          oraInizio: riga.cells[3].textContent,
+          oraFine: riga.cells[4].textContent,
+          descrizione: riga.cells[5].textContent
+      };
+  });
+
+  console.log("Dati filtrati passati a generaPDFFiltrato:", oreFiltrate); // Debug
+  generaPDFFiltrato(oreFiltrate);
+});
+
 async function generaPDFFiltrato(oreFiltrate = null) {
   try {
       // Se non ci sono dati filtrati, carica tutti i dati
@@ -87,6 +106,21 @@ async function generaPDFFiltrato(oreFiltrate = null) {
           const querySnapshot = await getDocs(collection(db, "oreLavorate"));
           oreFiltrate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       }
+
+      // Calcola le ore per dipendente e le ore totali
+      const orePerDipendente = {};
+      let oreTotali = 0;
+
+      oreFiltrate.forEach(ore => {
+          const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+          const dipendenteKey = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
+
+          if (!orePerDipendente[dipendenteKey]) {
+              orePerDipendente[dipendenteKey] = 0;
+          }
+          orePerDipendente[dipendenteKey] += oreLavorate;
+          oreTotali += oreLavorate;
+      });
 
       // Crea il PDF
       const doc = new jsPDF({
@@ -98,16 +132,18 @@ async function generaPDFFiltrato(oreFiltrate = null) {
       doc.setFontSize(18);
       doc.text("Report Ore Lavorate Filtrate", 14, 20);
 
+      // Aggiungi la tabella delle ore lavorate
       doc.autoTable({
           startY: 25,
-          head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione']],
+          head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione', 'Ore Lavorate']],
           body: oreFiltrate.map(ore => [
               ore.commessa,
               `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
               ore.data,
               ore.oraInizio,
               ore.oraFine,
-              ore.descrizione
+              ore.descrizione,
+              calcolaOreLavorate(ore.oraInizio, ore.oraFine).toFixed(2)
           ]),
           theme: 'grid',
           styles: { fontSize: 10, cellPadding: 3 },
@@ -115,15 +151,38 @@ async function generaPDFFiltrato(oreFiltrate = null) {
           margin: { top: 20 }
       });
 
+      // Aggiungi una sezione per le ore per dipendente
+      const startYDipendenti = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(14);
+      doc.text("Ore Lavorate per Dipendente", 14, startYDipendenti);
+
+      doc.autoTable({
+          startY: startYDipendenti + 5,
+          head: [['Dipendente', 'Ore Lavorate']],
+          body: Object.entries(orePerDipendente).map(([dipendente, ore]) => [
+              dipendente,
+              ore.toFixed(2)
+          ]),
+          theme: 'grid',
+          styles: { fontSize: 10, cellPadding: 3 },
+          headStyles: { fillColor: [41, 128, 185], textColor: 255 }
+      });
+
+      // Aggiungi una sezione per le ore totali
+      const startYTotali = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(14);
+      doc.text("Ore Totali Lavorate", 14, startYTotali);
+      doc.text(`Totale: ${oreTotali.toFixed(2)} ore`, 14, startYTotali + 10);
+
+      // Salva il PDF
       doc.save('ore_lavorate_filtrate.pdf');
   } catch (error) {
       console.error("Errore durante la generazione del PDF:", error);
       alert("Si è verificato un errore durante la generazione del PDF.");
   }
 }
-
 // Funzione per mostrare l'applicazione
-function mostraApplicazione() {
+async function mostraApplicazione() {
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appContent').style.display = 'block';
 
@@ -132,18 +191,19 @@ function mostraApplicazione() {
 
   // Mostra solo la sezione delle ore lavorate se l'utente è un dipendente
   if (currentUser && currentUser.ruolo === 'dipendente') {
-    document.querySelectorAll('.dipendente-only').forEach(el => el.style.display = 'block');
+      document.querySelectorAll('.dipendente-only').forEach(el => el.style.display = 'block');
   }
 
   // Mostra le sezioni admin se l'utente è un amministratore
   if (currentUser && currentUser.ruolo === 'admin') {
-    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+      document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
   }
 
-  aggiornaMenuCommesse();
-  aggiornaTabellaOreLavorate();
-  aggiornaTabellaCommesse();
-  aggiornaTabellaDipendenti();
+  // Aggiorna le tabelle
+  await aggiornaMenuCommesse();
+  await aggiornaTabellaOreLavorate(); // Chiamata senza parametri
+  await aggiornaTabellaCommesse();
+  await aggiornaTabellaDipendenti();
 
   // Aggiungi messaggio benvenuto
   const benvenuto = document.createElement('div');
@@ -175,23 +235,26 @@ async function aggiornaTabellaDipendenti() {
 
   const querySnapshot = await getDocs(collection(db, "dipendenti"));
   querySnapshot.forEach(doc => {
-    const dipendente = doc.data();
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${dipendente.nome}</td>
-      <td>${dipendente.cognome}</td>
-      <td>${dipendente.email}</td>
-      <td>${dipendente.password}</td>
-      <td>${dipendente.ruolo}</td>
-      <td>
-        <button onclick="modificaDipendente('${doc.id}')">Modifica</button>
-        <button onclick="eliminaDipendente('${doc.id}')">Elimina</button>
-      </td>
-    `;
-    tbody.appendChild(row);
+      const dipendente = doc.data();
+      const row = document.createElement('tr');
+      row.innerHTML = `
+          <td>${dipendente.nome}</td>
+          <td>${dipendente.cognome}</td>
+          <td>${dipendente.email}</td>
+          <td>${dipendente.password}</td>
+          <td>${dipendente.ruolo}</td>
+          <td>
+              <button class="btnModificaDipendente" data-id="${doc.id}">Modifica</button>
+              <button class="btnEliminaDipendente" data-id="${doc.id}">Elimina</button>
+          </td>
+      `;
+      tbody.appendChild(row);
+
+      // Collega gli event listener ai pulsanti
+      row.querySelector('.btnModificaDipendente').addEventListener('click', () => modificaDipendente(doc.id));
+      row.querySelector('.btnEliminaDipendente').addEventListener('click', () => eliminaDipendente(doc.id));
   });
 }
-
 // Funzione per aggiungere un dipendente
 async function aggiungiDipendente(nome, cognome, email, password, ruolo) {
   try {
@@ -210,28 +273,33 @@ async function aggiungiDipendente(nome, cognome, email, password, ruolo) {
 
 // Funzione per modificare un dipendente
 async function modificaDipendente(id) {
-  const nuovoNome = prompt("Inserisci il nuovo nome:");
-  const nuovoCognome = prompt("Inserisci il nuovo cognome:");
-  const nuovaEmail = prompt("Inserisci la nuova email:");
-  const nuovaPassword = prompt("Inserisci la nuova password:");
-  const nuovoRuolo = prompt("Inserisci il nuovo ruolo:");
+  try {
+      // Recupera i dati correnti del dipendente
+      const docRef = doc(db, "dipendenti", id);
+      const docSnap = await getDoc(docRef);
+      const dipendente = docSnap.data();
 
-  if (nuovoNome && nuovoCognome && nuovaEmail && nuovaPassword && nuovoRuolo) {
-    try {
-      await updateDoc(doc(db, "dipendenti", id), {
-        nome: nuovoNome,
-        cognome: nuovoCognome,
-        email: nuovaEmail,
-        password: nuovaPassword,
-        ruolo: nuovoRuolo
-      });
-      aggiornaTabellaDipendenti();
-    } catch (error) {
-      console.error("Errore durante la modifica del dipendente: ", error);
-    }
+      // Mostra i dati correnti nei prompt
+      const nuovoNome = prompt("Inserisci il nuovo nome:", dipendente.nome);
+      const nuovoCognome = prompt("Inserisci il nuovo cognome:", dipendente.cognome);
+      const nuovaEmail = prompt("Inserisci la nuova email:", dipendente.email);
+      const nuovaPassword = prompt("Inserisci la nuova password:", dipendente.password);
+      const nuovoRuolo = prompt("Inserisci il nuovo ruolo:", dipendente.ruolo);
+
+      if (nuovoNome && nuovoCognome && nuovaEmail && nuovaPassword && nuovoRuolo) {
+          await updateDoc(docRef, {
+              nome: nuovoNome,
+              cognome: nuovoCognome,
+              email: nuovaEmail,
+              password: nuovaPassword,
+              ruolo: nuovoRuolo
+          });
+          aggiornaTabellaDipendenti();
+      }
+  } catch (error) {
+      console.error("Errore durante la modifica del dipendente:", error);
   }
 }
-
 // Funzione per eliminare un dipendente
 async function eliminaDipendente(id) {
   if (confirm("Sei sicuro di voler eliminare questo dipendente?")) {
@@ -251,17 +319,21 @@ async function aggiornaTabellaCommesse() {
 
   const querySnapshot = await getDocs(collection(db, "commesse"));
   querySnapshot.forEach(doc => {
-    const commessa = doc.data();
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${commessa.nomeCommessa}</td>
-      <td>${commessa.cliente}</td>
-      <td>
-        <button onclick="modificaCommessa('${doc.id}')">Modifica</button>
-        <button onclick="eliminaCommessa('${doc.id}')">Elimina</button>
-      </td>
-    `;
-    tbody.appendChild(row);
+      const commessa = doc.data();
+      const row = document.createElement('tr');
+      row.innerHTML = `
+          <td>${commessa.nomeCommessa}</td>
+          <td>${commessa.cliente}</td>
+          <td>
+              <button class="btnModificaCommessa" data-id="${doc.id}">Modifica</button>
+              <button class="btnEliminaCommessa" data-id="${doc.id}">Elimina</button>
+          </td>
+      `;
+      tbody.appendChild(row);
+
+      // Collega gli event listener ai pulsanti
+      row.querySelector('.btnModificaCommessa').addEventListener('click', () => modificaCommessa(doc.id));
+      row.querySelector('.btnEliminaCommessa').addEventListener('click', () => eliminaCommessa(doc.id));
   });
 }
 
@@ -281,20 +353,25 @@ async function aggiungiCommessa(nomeCommessa, cliente) {
 
 // Funzione per modificare una commessa
 async function modificaCommessa(id) {
-  const nuovoNomeCommessa = prompt("Inserisci il nuovo nome della commessa:");
-  const nuovoCliente = prompt("Inserisci il nuovo cliente:");
+  try {
+      // Recupera i dati correnti della commessa
+      const docRef = doc(db, "commesse", id);
+      const docSnap = await getDoc(docRef);
+      const commessa = docSnap.data();
 
-  if (nuovoNomeCommessa && nuovoCliente) {
-    try {
-      await updateDoc(doc(db, "commesse", id), {
-        nomeCommessa: nuovoNomeCommessa,
-        cliente: nuovoCliente
-      });
-      aggiornaTabellaCommesse();
-      aggiornaMenuCommesse();
-    } catch (error) {
-      console.error("Errore durante la modifica della commessa: ", error);
-    }
+      // Mostra i dati correnti nei prompt
+      const nuovoNomeCommessa = prompt("Inserisci il nuovo nome della commessa:", commessa.nomeCommessa);
+      const nuovoCliente = prompt("Inserisci il nuovo cliente:", commessa.cliente);
+
+      if (nuovoNomeCommessa && nuovoCliente) {
+          await updateDoc(docRef, {
+              nomeCommessa: nuovoNomeCommessa,
+              cliente: nuovoCliente
+          });
+          aggiornaTabellaCommesse();
+      }
+  } catch (error) {
+      console.error("Errore durante la modifica della commessa:", error);
   }
 }
 
@@ -312,30 +389,87 @@ async function eliminaCommessa(id) {
 }
 
 // Funzione per aggiornare la tabella delle ore lavorate
-async function aggiornaTabellaOreLavorate(datiFiltrati = null) {
-    const tbody = document.querySelector('#orelavorateTable tbody');
-    tbody.innerHTML = '';
+async function aggiornaTabellaOreLavorate(oreFiltrate = null, totali = null) {
+  if (!oreFiltrate) {
+      // Se non ci sono dati filtrati, carica tutti i dati
+      const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+      oreFiltrate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  }
 
-    // Se non ci sono filtri, carica tutti i dati
-    const datiDaMostrare = datiFiltrati || 
-        (await getDocs(collection(db, "oreLavorate"))).docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const tbody = document.querySelector('#orelavorateTable tbody');
+  tbody.innerHTML = '';
 
-    datiDaMostrare.forEach(ore => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${ore.commessa}</td>
-            <td>${ore.nomeDipendente} ${ore.cognomeDipendente}</td>
-            <td>${ore.data}</td>
-            <td>${ore.oraInizio}</td>
-            <td>${ore.oraFine}</td>
-            <td>${ore.descrizione}</td>
-            <td>
-                <button onclick="modificaOreLavorate('${ore.id}')">Modifica</button>
-                <button onclick="eliminaOreLavorate('${ore.id}')">Elimina</button>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
+  // Verifica che oreFiltrate sia un array
+  if (!Array.isArray(oreFiltrate)) {
+      console.error("oreFiltrate non è un array:", oreFiltrate);
+      return;
+  }
+
+  // Aggiungi le righe delle ore lavorate
+  oreFiltrate.forEach(ore => {
+      const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+      const row = document.createElement('tr');
+      row.innerHTML = `
+          <td>${ore.commessa}</td>
+          <td>${ore.nomeDipendente} ${ore.cognomeDipendente}</td>
+          <td>${ore.data}</td>
+          <td>${ore.oraInizio}</td>
+          <td>${ore.oraFine}</td>
+          <td>${ore.descrizione}</td>
+          <td>${oreLavorate.toFixed(2)} ore</td>
+          <td>
+              <button class="btnModificaOreLavorate" data-id="${ore.id}">Modifica</button>
+              <button class="btnEliminaOreLavorate" data-id="${ore.id}">Elimina</button>
+          </td>
+      `;
+      tbody.appendChild(row);
+
+      // Collega gli event listener ai pulsanti
+      row.querySelector('.btnModificaOreLavorate').addEventListener('click', () => modificaOreLavorate(ore.id));
+      row.querySelector('.btnEliminaOreLavorate').addEventListener('click', () => eliminaOreLavorate(ore.id));
+  });
+
+
+  // Aggiungi una riga per i totali
+  const totalRow = document.createElement('tr');
+  totalRow.innerHTML = `
+      <td colspan="6"><strong>Totali</strong></td>
+      <td><strong>${calcolaTotaleGenerale(oreFiltrate).toFixed(2)} ore</strong></td>
+  `;
+  tbody.appendChild(totalRow);
+
+  // Aggiungi i totali per dipendente, commessa e mese
+  if (totali) {
+      const totaliDipendente = Object.entries(totali.perDipendente)
+          .map(([dipendente, ore]) => `<div>${dipendente}: ${ore.toFixed(2)} ore</div>`)
+          .join('');
+
+      const totaliCommessa = Object.entries(totali.perCommessa)
+          .map(([commessa, ore]) => `<div>${commessa}: ${ore.toFixed(2)} ore</div>`)
+          .join('');
+
+      const totaliMese = Object.entries(totali.perMese)
+          .map(([mese, ore]) => `<div>${mese}: ${ore.toFixed(2)} ore</div>`)
+          .join('');
+
+      const totaliDiv = document.createElement('div');
+      totaliDiv.innerHTML = `
+          <h3>Totali per Dipendente</h3>
+          ${totaliDipendente}
+          <h3>Totali per Commessa</h3>
+          ${totaliCommessa}
+          <h3>Totali per Mese</h3>
+          ${totaliMese}
+      `;
+      document.getElementById('totaliContainer').innerHTML = '';
+      document.getElementById('totaliContainer').appendChild(totaliDiv);
+  }
+}
+
+function calcolaTotaleGenerale(oreFiltrate) {
+  return oreFiltrate.reduce((totale, ore) => {
+      return totale + calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+  }, 0);
 }
 
 // Funzione per aggiungere ore lavorate
@@ -358,32 +492,56 @@ async function aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, 
 
 // Funzione per modificare ore lavorate
 async function modificaOreLavorate(id) {
-  const nuovaCommessa = prompt("Inserisci la nuova commessa:");
-  const nuovoNomeDipendente = prompt("Inserisci il nuovo nome del dipendente:");
-  const nuovoCognomeDipendente = prompt("Inserisci il nuovo cognome del dipendente:");
-  const nuovaData = prompt("Inserisci la nuova data:");
-  const nuovaOraInizio = prompt("Inserisci la nuova ora di inizio:");
-  const nuovaOraFine = prompt("Inserisci la nuova ora di fine:");
-  const nuovaDescrizione = prompt("Inserisci la nuova descrizione:");
+  console.log("ID del documento da modificare:", id); // Debug
 
-  if (nuovaCommessa && nuovoNomeDipendente && nuovoCognomeDipendente && nuovaData && nuovaOraInizio && nuovaOraFine && nuovaDescrizione) {
-    try {
-      await updateDoc(doc(db, "oreLavorate", id), {
-        commessa: nuovaCommessa,
-        nomeDipendente: nuovoNomeDipendente,
-        cognomeDipendente: nuovoCognomeDipendente,
-        data: nuovaData,
-        oraInizio: nuovaOraInizio,
-        oraFine: nuovaOraFine,
-        descrizione: nuovaDescrizione
-      });
+  if (!id || typeof id !== "string") {
+      console.error("ID non valido:", id);
+      return;
+  }
+
+  try {
+      const docRef = doc(db, "oreLavorate", id);
+      const docSnap = await getDoc(docRef);
+
+      if (!docSnap.exists()) {
+          console.error("Documento non trovato per ID:", id);
+          return;
+      }
+
+      const ore = docSnap.data();
+      console.log("Dati correnti delle ore lavorate:", ore); // Debug
+
+      // Mostra i dati correnti nei prompt
+      const nuovaCommessa = prompt("Inserisci la nuova commessa:", ore.commessa);
+      const nuovoNomeDipendente = prompt("Inserisci il nuovo nome del dipendente:", ore.nomeDipendente);
+      const nuovoCognomeDipendente = prompt("Inserisci il nuovo cognome del dipendente:", ore.cognomeDipendente);
+      const nuovaData = prompt("Inserisci la nuova data:", ore.data);
+      const nuovaOraInizio = prompt("Inserisci la nuova ora di inizio:", ore.oraInizio);
+      const nuovaOraFine = prompt("Inserisci la nuova ora di fine:", ore.oraFine);
+      const nuovaDescrizione = prompt("Inserisci la nuova descrizione:", ore.descrizione);
+
+      if (!nuovaCommessa || !nuovoNomeDipendente || !nuovoCognomeDipendente || !nuovaData || !nuovaOraInizio || !nuovaOraFine || !nuovaDescrizione) {
+          console.error("Uno o più campi non sono stati inseriti correttamente.");
+          return;
+      }
+
+      const aggiornamenti = {
+          commessa: nuovaCommessa,
+          nomeDipendente: nuovoNomeDipendente,
+          cognomeDipendente: nuovoCognomeDipendente,
+          data: nuovaData,
+          oraInizio: nuovaOraInizio,
+          oraFine: nuovaOraFine,
+          descrizione: nuovaDescrizione
+      };
+
+      await updateDoc(docRef, aggiornamenti);
+      console.log("Documento aggiornato con successo.");
       aggiornaTabellaOreLavorate();
-    } catch (error) {
-      console.error("Errore durante la modifica delle ore lavorate: ", error);
-    }
+  } catch (error) {
+      console.error("Errore durante la modifica delle ore lavorate:", error);
   }
 }
-
 // Funzione per eliminare ore lavorate
 async function eliminaOreLavorate(id) {
   if (confirm("Sei sicuro di voler eliminare queste ore lavorate?")) {
@@ -538,9 +696,47 @@ async function applicaFiltri() {
 
           return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
       });
+      
 
-    aggiornaTabellaOreLavorate(oreFiltrate);
-    
+  // Calcola i totali
+  const totali = {
+      perDipendente: {},
+      perCommessa: {},
+      perMese: {}
+  };
+
+  oreFiltrate.forEach(ore => {
+      const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+
+      // Totale per dipendente
+      const dipendenteKey = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
+      if (!totali.perDipendente[dipendenteKey]) {
+          totali.perDipendente[dipendenteKey] = 0;
+      }
+      totali.perDipendente[dipendenteKey] += oreLavorate;
+
+      // Totale per commessa
+      if (!totali.perCommessa[ore.commessa]) {
+          totali.perCommessa[ore.commessa] = 0;
+      }
+      totali.perCommessa[ore.commessa] += oreLavorate;
+
+      // Totale per mese
+      const meseKey = ore.data.substring(0, 7); // Formato YYYY-MM
+      if (!totali.perMese[meseKey]) {
+          totali.perMese[meseKey] = 0;
+      }
+      totali.perMese[meseKey] += oreLavorate;
+  });
+
+  // Aggiorna la tabella con i dati filtrati
+  aggiornaTabellaOreLavorate(oreFiltrate, totali);
+}
+function calcolaOreLavorate(oraInizio, oraFine) {
+  const inizio = new Date(`1970-01-01T${oraInizio}:00`);
+  const fine = new Date(`1970-01-01T${oraFine}:00`);
+  const differenza = fine - inizio; // Differenza in millisecondi
+  return differenza / (1000 * 60 * 60); // Converti in ore
 }
 function resetFiltri() {
     // Resetta i campi di input
