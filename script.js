@@ -30,6 +30,7 @@ const db = getFirestore(app);
 const { jsPDF } = window.jspdf;
 
 // Variabili globali
+let datiFiltrati = null; // Variabile globale per memorizzare i dati filtrati
 let currentUser = null;
 const ADMIN_CREDENTIALS = {
   email: 'eliraoui.a@union14.it',
@@ -99,13 +100,12 @@ document.getElementById('btnScaricaPDF').addEventListener('click', function (e) 
   generaPDFFiltrato(oreFiltrate);
 });
 
-async function generaPDFFiltrato(oreFiltrate = null) {
+async function generaPDFFiltrato() {
   try {
-      // Se non ci sono dati filtrati, carica tutti i dati
-      if (!oreFiltrate) {
-          const querySnapshot = await getDocs(collection(db, "oreLavorate"));
-          oreFiltrate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      }
+      // Usa i dati filtrati memorizzati nella variabile globale
+      const oreFiltrate = datiFiltrati || await getDocs(collection(db, "oreLavorate")).then(querySnapshot => 
+          querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      );
 
       // Calcola le ore per dipendente e le ore totali
       const orePerDipendente = {};
@@ -684,7 +684,7 @@ async function applicaFiltri() {
   const filtroMese = document.getElementById('filtroMese').value;
 
   const querySnapshot = await getDocs(collection(db, "oreLavorate"));
-  const oreFiltrate = querySnapshot.docs
+  datiFiltrati = querySnapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() }))
       .filter(ore => {
           const corrispondeCommessa = filtroCommessa ? 
@@ -696,7 +696,6 @@ async function applicaFiltri() {
 
           return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
       });
-      
 
   // Calcola i totali
   const totali = {
@@ -705,7 +704,7 @@ async function applicaFiltri() {
       perMese: {}
   };
 
-  oreFiltrate.forEach(ore => {
+  datiFiltrati.forEach(ore => {
       const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
 
       // Totale per dipendente
@@ -730,7 +729,7 @@ async function applicaFiltri() {
   });
 
   // Aggiorna la tabella con i dati filtrati
-  aggiornaTabellaOreLavorate(oreFiltrate, totali);
+  aggiornaTabellaOreLavorate(datiFiltrati, totali);
 }
 function calcolaOreLavorate(oraInizio, oraFine) {
   const inizio = new Date(`1970-01-01T${oraInizio}:00`);
@@ -739,11 +738,14 @@ function calcolaOreLavorate(oraInizio, oraFine) {
   return differenza / (1000 * 60 * 60); // Converti in ore
 }
 function resetFiltri() {
-    // Resetta i campi di input
-    document.getElementById('filtroCommessa').value = "";
-    document.getElementById('filtroDipendente').value = "";
-    document.getElementById('filtroMese').value = "";
+  // Resetta i campi di input
+  document.getElementById('filtroCommessa').value = "";
+  document.getElementById('filtroDipendente').value = "";
+  document.getElementById('filtroMese').value = "";
 
-    // Mostra tutti i dati
-    aggiornaTabellaOreLavorate();
+  // Resetta i dati filtrati
+  datiFiltrati = null;
+
+  // Mostra tutti i dati
+  aggiornaTabellaOreLavorate();
 }
