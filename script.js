@@ -265,6 +265,7 @@ async function aggiungiDipendente(nome, cognome, email, password, ruolo) {
       password: password,
       ruolo: ruolo
     });
+      alert("Dati salvati con successo!");
     aggiornaTabellaDipendenti();
   } catch (error) {
     console.error("Errore durante l'aggiunta del dipendente: ", error);
@@ -294,6 +295,7 @@ async function modificaDipendente(id) {
               password: nuovaPassword,
               ruolo: nuovoRuolo
           });
+          alert("Dati salvati con successo!");
           aggiornaTabellaDipendenti();
       }
   } catch (error) {
@@ -344,6 +346,7 @@ async function aggiungiCommessa(nomeCommessa, cliente) {
       nomeCommessa: nomeCommessa,
       cliente: cliente
     });
+      alert("Dati salvati con successo!");
     aggiornaTabellaCommesse();
     aggiornaMenuCommesse();
   } catch (error) {
@@ -368,6 +371,7 @@ async function modificaCommessa(id) {
               nomeCommessa: nuovoNomeCommessa,
               cliente: nuovoCliente
           });
+          alert("Dati salvati con successo!");
           aggiornaTabellaCommesse();
       }
   } catch (error) {
@@ -484,6 +488,7 @@ async function aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, 
       oraFine: oraFine,
       descrizione: descrizione
     });
+      alert("Dati salvati con successo!");
     aggiornaTabellaOreLavorate();
   } catch (error) {
     console.error("Errore durante l'aggiunta delle ore lavorate: ", error);
