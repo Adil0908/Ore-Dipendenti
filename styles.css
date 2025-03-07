@@ -109,7 +109,30 @@ th {
     h2 {
         font-size: 1.5em;
     }
+/* ===== Media Query per Responsive Design ===== */
+@media (max-width: 600px) {
+    .login-container,
+    .admin-container,
+    .employee-container {
+        width: 90%;
+        margin: 20px auto;
+        padding: var(--spacing-medium);
+    }
 
+    h2 {
+        font-size: 1.5em;
+    }
+
+    button {
+        width: 100%;
+    }
+
+    table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+}
     button {
         width: 100%;
     }
