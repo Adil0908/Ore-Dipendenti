@@ -59,14 +59,6 @@ textarea {
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     font-size: 14px;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 5px rgba(40, 167, 69, 0.5);
 }
 
 /* ===== Bottoni ===== */
@@ -74,7 +66,7 @@ button {
     padding: var(--spacing-medium);
     background-color: var(--primary-color);
     color: #fff;
-    border: none;
+    border: solid;
     border-radius: var(--border-radius);
     cursor: pointer;
     font-size: 14px;
@@ -104,12 +96,31 @@ th {
     font-weight: bold;
 }
 
-/* ===== Non Conformità ===== */
-.non-conformita {
-    background-color: #ffebee;
-    color: #c62828;
-}
+/* ===== Media Query per Responsive Design ===== */
+@media (max-width: 600px) {
+    .login-container,
+    .admin-container,
+    .employee-container {
+        width: 90%;
+        margin: 20px auto;
+        padding: var(--spacing-medium);
+    }
 
+    h2 {
+        font-size: 1.5em;
+    }
+
+    button {
+        width: 100%;
+    }
+}
+#oreCommessa {
+    width: 100%;
+    padding: 8px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
 /* ===== Media Query per Responsive Design ===== */
 @media (max-width: 600px) {
     .login-container,
@@ -133,13 +144,4 @@ th {
         overflow-x: auto;
         white-space: nowrap;
     }
-}
-
-/* ===== Stile Specifico per #oreCommessa ===== */
-#oreCommessa {
-    width: 100%;
-    padding: 8px;
-    font-size: 16px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
 }
