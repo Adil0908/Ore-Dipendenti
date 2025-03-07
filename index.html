@@ -41,6 +41,10 @@
                 <input type="time" id="oreFine" name="oraFine" required>
                 <label for="oreDescrizione">Descrizione Lavoro:</label>
                 <textarea id="oreDescrizione" name="descrizione" required></textarea>
+                <div>
+                    <label for="nonConformita">Non Conformità:</label>
+                    <input type="checkbox" id="nonConformita" name="nonConformita">
+                  </div>
                 <button type="submit">Salva</button>
             </form>
             <div id="totaliContainer"></div>
@@ -56,6 +60,7 @@
                         <th>Ora Inizio</th>
                         <th>Ora Fine</th>
                         <th>Descrizione</th>
+                        <th>Non Conformità</th>
                          <th>Ore Lavorate</th>
                         <th>Azioni</th>
                     </tr>
@@ -74,6 +79,7 @@
         <!-- Sezione Filtri Ore Lavorate -->
         <div class="admin-only">
         <h2>Filtri Ore Lavorate</h2>
+        <button id="btnFiltraNonConformita">Mostra Solo Non Conformità</button>
 <form id="filtraOreLavorate">
     <input type="text" id="filtroCommessa" placeholder="Filtra per commessa">
     <input type="text" id="filtroDipendente" placeholder="Filtra per dipendente">
