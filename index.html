@@ -29,9 +29,10 @@
         <div class="dipendente-only">
             <h2>Registrazione Ore Lavorate</h2>
             <form id="oreForm">
-                <label for="oreCommessa">Commessa:</label>
-                <select id="oreCommessa" name="commessa" required>
-                    <!-- Le commesse verranno aggiunte qui dinamicamente -->
+                <input type="text" id="oreCommessa" list="commesseList" placeholder="Cerca una commessa..." required>
+                <datalist id="commesseList">
+                    <!-- Le opzioni verranno popolate dinamicamente -->
+                </datalist>
                 <label for="oreData">Data:</label>
                 <input type="date" id="oreData" name="data" required>
                 <label for="oreInizio">Ora Inizio:</label>
@@ -43,7 +44,7 @@
                 <button type="submit">Salva</button>
             </form>
             <div id="totaliContainer"></div>
-        </div>
+        </div>>
         <div class="admin-only">
             <h2>Registrazione Ore Lavorate</h2>
             <table id="orelavorateTable">
@@ -63,8 +64,13 @@
                     <!-- Le commesse verranno aggiunte qui dinamicamente -->
                 </tbody>
             </table>
+            <div id="paginazione">
+                <button id="btnPrecedente">Precedente</button>
+                <span id="numeriPagina"></span>
+                <button id="btnSuccessiva">Successiva</button>
+              </div>
         </div>
-
+       
         <!-- Sezione Filtri Ore Lavorate -->
         <div class="admin-only">
         <h2>Filtri Ore Lavorate</h2>
@@ -76,7 +82,30 @@
     <button id="btnResetFiltri">Reset</button>
     <button id="btnScaricaPDF">Scarica PDF</button>
 </form>
-</div>  
+<div class="admin-only">
+    <h2> Ore Mensili</h2>
+    <label for="selettoreMese">Seleziona un mese:</label>
+<select id="selettoreMese">
+  <option value="0">Gennaio</option>
+  <option value="1">Febbraio</option>
+  <option value="2">Marzo</option>
+  <option value="3">Aprile</option>
+  <option value="4">Maggio</option>
+  <option value="5">Giugno</option>
+  <option value="6">Luglio</option>
+  <option value="7">Agosto</option>
+  <option value="8">Settembre</option>
+  <option value="9">Ottobre</option>
+  <option value="10">Novembre</option>
+  <option value="11">Dicembre</option>
+</select>
+
+<button id="btnMostraTabella">Mostra Tabella</button>
+
+<div id="tabelleMensili"></div>
+</div> 
+
+    </div>  
         <!-- Sezione Gestione Commesse (visibile solo agli admin) -->
         <div class="admin-only">
             <h2>Gestione Commesse</h2>
@@ -99,6 +128,11 @@
                     <!-- Le commesse verranno aggiunte qui dinamicamente -->
                 </tbody>
             </table>
+            <div id="paginazioneCommesse">
+                <button id="btnPrecedenteCommesse">Precedente</button>
+                <span id="numeriPaginaCommesse"></span>
+                <button id="btnSuccessivaCommesse">Successiva</button>
+              </div>
         </div>
     
         <!-- Sezione Gestione Dipendenti (visibile solo agli admin) -->
@@ -120,6 +154,7 @@
     </select>
                 <button type="submit">Aggiungi Dipendente</button>
             </form>
+          
             <table id="dipendentiTable">
                 <thead>
                     <tr>
@@ -135,8 +170,16 @@
                     <!-- I dipendenti verranno aggiunti qui dinamicamente -->
                 </tbody>
             </table>
+            <!-- Paginazione per la tabella Dipendenti -->
+<div id="paginazioneDipendenti">
+    <button id="btnPrecedenteDipendenti">Precedente</button>
+    <span id="numeriPaginaDipendenti"></span>
+    <button id="btnSuccessivaDipendenti">Successiva</button>
+  </div>
+        </div>
         </div>
     </div>
+   
     <script type="module" src="script.js"></script>
 </body>
 </html>
