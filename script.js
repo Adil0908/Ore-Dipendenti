@@ -30,6 +30,20 @@ const db = getFirestore(app);
 const { jsPDF } = window.jspdf;
 
 // Variabili globali
+const mesi = [
+  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+];
+let datiOreLavorate = []; // Memorizza i dati delle ore lavorate
+let paginaCorrenteDipendenti = 1;
+const righePerPaginaDipendenti = 5; // Numero di righe per pagina
+let datiTotaliDipendenti = []; // Memorizza tutti i dati della tabella dipendenti
+let paginaCorrenteCommesse = 1;
+const righePerPaginaCommesse = 5; // Numero di righe per pagina
+let datiTotaliCommesse = []; // Memorizza tutti i dati della tabella commesse
+let paginaCorrente = 1;
+const righePerPagina = 5; // Numero di righe per pagina
+let datiTotali = []; // Memorizza tutti i dati della tabella
 let datiFiltrati = null; // Variabile globale per memorizzare i dati filtrati
 let currentUser = null;
 const ADMIN_CREDENTIALS = {
@@ -198,7 +212,8 @@ async function mostraApplicazione() {
   if (currentUser && currentUser.ruolo === 'admin') {
       document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
   }
-
+// Nascondi le tabelle mensili al login
+document.getElementById('tabelleMensili').style.display = 'none';
   // Aggiorna le tabelle
   await aggiornaMenuCommesse();
   await aggiornaTabellaOreLavorate(); // Chiamata senza parametri
@@ -215,16 +230,16 @@ async function mostraApplicazione() {
 
 // Funzione per aggiornare il menu delle commesse
 async function aggiornaMenuCommesse() {
-  const selectCommessa = document.getElementById('oreCommessa');
-  selectCommessa.innerHTML = ''; // Svuota il menu
+  const datalist = document.getElementById('commesseList');
+  datalist.innerHTML = ''; // Svuota il datalist
 
   const querySnapshot = await getDocs(collection(db, "commesse"));
   querySnapshot.forEach(doc => {
     const commessa = doc.data();
     const option = document.createElement('option');
-    option.value = commessa.nomeCommessa;
-    option.textContent = commessa.nomeCommessa;
-    selectCommessa.appendChild(option);
+    option.value = commessa.nomeCommessa; // Valore visualizzato nell'input
+    option.textContent = commessa.nomeCommessa; // Testo dell'opzione
+    datalist.appendChild(option);
   });
 }
 
@@ -233,28 +248,75 @@ async function aggiornaTabellaDipendenti() {
   const tbody = document.querySelector('#dipendentiTable tbody');
   tbody.innerHTML = '';
 
-  const querySnapshot = await getDocs(collection(db, "dipendenti"));
-  querySnapshot.forEach(doc => {
-      const dipendente = doc.data();
-      const row = document.createElement('tr');
-      row.innerHTML = `
-          <td>${dipendente.nome}</td>
-          <td>${dipendente.cognome}</td>
-          <td>${dipendente.email}</td>
-          <td>${dipendente.password}</td>
-          <td>${dipendente.ruolo}</td>
-          <td>
-              <button class="btnModificaDipendente" data-id="${doc.id}">Modifica</button>
-              <button class="btnEliminaDipendente" data-id="${doc.id}">Elimina</button>
-          </td>
-      `;
-      tbody.appendChild(row);
+  // Carica tutti i dati se non sono già stati caricati
+  if (datiTotaliDipendenti.length === 0) {
+    const querySnapshot = await getDocs(collection(db, "dipendenti"));
+    datiTotaliDipendenti = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  }
 
-      // Collega gli event listener ai pulsanti
-      row.querySelector('.btnModificaDipendente').addEventListener('click', () => modificaDipendente(doc.id));
-      row.querySelector('.btnEliminaDipendente').addEventListener('click', () => eliminaDipendente(doc.id));
+  // Calcola l'indice di inizio e fine per la pagina corrente
+  const inizio = (paginaCorrenteDipendenti - 1) * righePerPaginaDipendenti;
+  const fine = inizio + righePerPaginaDipendenti;
+  const datiPagina = datiTotaliDipendenti.slice(inizio, fine); // Filtra i dati per la pagina corrente
+
+  // Aggiungi le righe dei dipendenti
+  datiPagina.forEach(dipendente => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${dipendente.nome}</td>
+      <td>${dipendente.cognome}</td>
+      <td>${dipendente.email}</td>
+      <td>${dipendente.password}</td>
+      <td>${dipendente.ruolo}</td>
+      <td>
+        <button class="btnModificaDipendente" data-id="${dipendente.id}">Modifica</button>
+        <button class="btnEliminaDipendente" data-id="${dipendente.id}">Elimina</button>
+      </td>
+    `;
+    tbody.appendChild(row);
+
+    // Collega gli event listener ai pulsanti
+    row.querySelector('.btnModificaDipendente').addEventListener('click', () => modificaDipendente(dipendente.id));
+    row.querySelector('.btnEliminaDipendente').addEventListener('click', () => eliminaDipendente(dipendente.id));
   });
+
+  // Aggiorna la paginazione
+  aggiornaPaginazioneDipendenti(datiTotaliDipendenti.length);
 }
+function aggiornaPaginazioneDipendenti(numeroTotaleRighe) {
+  const numeroPagine = Math.ceil(numeroTotaleRighe / righePerPaginaDipendenti);
+  const numeriPagina = document.getElementById('numeriPaginaDipendenti');
+  numeriPagina.innerHTML = '';
+
+  // Aggiungi i numeri di pagina
+  for (let i = 1; i <= numeroPagine; i++) {
+    const btnPagina = document.createElement('button');
+    btnPagina.textContent = i;
+    btnPagina.addEventListener('click', () => {
+      paginaCorrenteDipendenti = i;
+      aggiornaTabellaDipendenti();
+    });
+    numeriPagina.appendChild(btnPagina);
+  }
+
+  // Disabilita i pulsanti "Precedente" e "Successiva" quando necessario
+  document.getElementById('btnPrecedenteDipendenti').disabled = paginaCorrenteDipendenti === 1;
+  document.getElementById('btnSuccessivaDipendenti').disabled = paginaCorrenteDipendenti === numeroPagine;
+}
+document.getElementById('btnPrecedenteDipendenti').addEventListener('click', () => {
+  if (paginaCorrenteDipendenti > 1) {
+    paginaCorrenteDipendenti--;
+    aggiornaTabellaDipendenti();
+  }
+});
+
+document.getElementById('btnSuccessivaDipendenti').addEventListener('click', () => {
+  const numeroPagine = Math.ceil(datiTotaliDipendenti.length / righePerPaginaDipendenti);
+  if (paginaCorrenteDipendenti < numeroPagine) {
+    paginaCorrenteDipendenti++;
+    aggiornaTabellaDipendenti();
+  }
+});
 // Funzione per aggiungere un dipendente
 async function aggiungiDipendente(nome, cognome, email, password, ruolo) {
   try {
@@ -314,30 +376,78 @@ async function eliminaDipendente(id) {
   }
 }
 
+
 // Funzione per aggiornare la tabella delle commesse
 async function aggiornaTabellaCommesse() {
   const tbody = document.querySelector('#commesseTable tbody');
   tbody.innerHTML = '';
 
-  const querySnapshot = await getDocs(collection(db, "commesse"));
-  querySnapshot.forEach(doc => {
-      const commessa = doc.data();
-      const row = document.createElement('tr');
-      row.innerHTML = `
-          <td>${commessa.nomeCommessa}</td>
-          <td>${commessa.cliente}</td>
-          <td>
-              <button class="btnModificaCommessa" data-id="${doc.id}">Modifica</button>
-              <button class="btnEliminaCommessa" data-id="${doc.id}">Elimina</button>
-          </td>
-      `;
-      tbody.appendChild(row);
+  // Carica tutti i dati se non sono già stati caricati
+  if (datiTotaliCommesse.length === 0) {
+    const querySnapshot = await getDocs(collection(db, "commesse"));
+    datiTotaliCommesse = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  }
 
-      // Collega gli event listener ai pulsanti
-      row.querySelector('.btnModificaCommessa').addEventListener('click', () => modificaCommessa(doc.id));
-      row.querySelector('.btnEliminaCommessa').addEventListener('click', () => eliminaCommessa(doc.id));
+  // Calcola l'indice di inizio e fine per la pagina corrente
+  const inizio = (paginaCorrenteCommesse - 1) * righePerPaginaCommesse;
+  const fine = inizio + righePerPaginaCommesse;
+  const datiPagina = datiTotaliCommesse.slice(inizio, fine); // Filtra i dati per la pagina corrente
+
+  // Aggiungi le righe delle commesse
+  datiPagina.forEach(commessa => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${commessa.nomeCommessa}</td>
+      <td>${commessa.cliente}</td>
+      <td>
+        <button class="btnModificaCommessa" data-id="${commessa.id}">Modifica</button>
+        <button class="btnEliminaCommessa" data-id="${commessa.id}">Elimina</button>
+      </td>
+    `;
+    tbody.appendChild(row);
+
+    // Collega gli event listener ai pulsanti
+    row.querySelector('.btnModificaCommessa').addEventListener('click', () => modificaCommessa(commessa.id));
+    row.querySelector('.btnEliminaCommessa').addEventListener('click', () => eliminaCommessa(commessa.id));
   });
+
+  // Aggiorna la paginazione
+  aggiornaPaginazioneCommesse(datiTotaliCommesse.length);
 }
+function aggiornaPaginazioneCommesse(numeroTotaleRighe) {
+  const numeroPagine = Math.ceil(numeroTotaleRighe / righePerPaginaCommesse);
+  const numeriPagina = document.getElementById('numeriPaginaCommesse');
+  numeriPagina.innerHTML = '';
+
+  // Aggiungi i numeri di pagina
+  for (let i = 1; i <= numeroPagine; i++) {
+    const btnPagina = document.createElement('button');
+    btnPagina.textContent = i;
+    btnPagina.addEventListener('click', () => {
+      paginaCorrenteCommesse = i;
+      aggiornaTabellaCommesse();
+    });
+    numeriPagina.appendChild(btnPagina);
+  }
+
+  // Disabilita i pulsanti "Precedente" e "Successiva" quando necessario
+  document.getElementById('btnPrecedenteCommesse').disabled = paginaCorrenteCommesse === 1;
+  document.getElementById('btnSuccessivaCommesse').disabled = paginaCorrenteCommesse === numeroPagine;
+}
+document.getElementById('btnPrecedenteCommesse').addEventListener('click', () => {
+  if (paginaCorrenteCommesse > 1) {
+    paginaCorrenteCommesse--;
+    aggiornaTabellaCommesse();
+  }
+});
+
+document.getElementById('btnSuccessivaCommesse').addEventListener('click', () => {
+  const numeroPagine = Math.ceil(datiTotaliCommesse.length / righePerPaginaCommesse);
+  if (paginaCorrenteCommesse < numeroPagine) {
+    paginaCorrenteCommesse++;
+    aggiornaTabellaCommesse();
+  }
+});
 
 // Funzione per aggiungere una commessa
 async function aggiungiCommessa(nomeCommessa, cliente) {
@@ -395,79 +505,62 @@ async function eliminaCommessa(id) {
 // Funzione per aggiornare la tabella delle ore lavorate
 async function aggiornaTabellaOreLavorate(oreFiltrate = null, totali = null) {
   if (!oreFiltrate) {
-      // Se non ci sono dati filtrati, carica tutti i dati
-      const querySnapshot = await getDocs(collection(db, "oreLavorate"));
-      oreFiltrate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Se non ci sono dati filtrati, carica tutti i dati
+    const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+    oreFiltrate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }
+
+  // Memorizza i dati totali per la paginazione
+  datiTotali = oreFiltrate;
 
   const tbody = document.querySelector('#orelavorateTable tbody');
   tbody.innerHTML = '';
 
   // Verifica che oreFiltrate sia un array
   if (!Array.isArray(oreFiltrate)) {
-      console.error("oreFiltrate non è un array:", oreFiltrate);
-      return;
+    console.error("oreFiltrate non è un array:", oreFiltrate);
+    return;
   }
 
+  // Calcola l'indice di inizio e fine per la pagina corrente
+  const inizio = (paginaCorrente - 1) * righePerPagina;
+  const fine = inizio + righePerPagina;
+  const datiPagina = oreFiltrate.slice(inizio, fine); // Usa oreFiltrate invece di dati
+
   // Aggiungi le righe delle ore lavorate
-  oreFiltrate.forEach(ore => {
-      const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-      const row = document.createElement('tr');
-      row.innerHTML = `
-          <td>${ore.commessa}</td>
-          <td>${ore.nomeDipendente} ${ore.cognomeDipendente}</td>
-          <td>${ore.data}</td>
-          <td>${ore.oraInizio}</td>
-          <td>${ore.oraFine}</td>
-          <td>${ore.descrizione}</td>
-          <td>${oreLavorate.toFixed(2)} ore</td>
-          <td>
-              <button class="btnModificaOreLavorate" data-id="${ore.id}">Modifica</button>
-              <button class="btnEliminaOreLavorate" data-id="${ore.id}">Elimina</button>
-          </td>
-      `;
-      tbody.appendChild(row);
+  datiPagina.forEach(ore => {
+    const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${ore.commessa}</td>
+      <td>${ore.nomeDipendente} ${ore.cognomeDipendente}</td>
+      <td>${ore.data}</td>
+      <td>${ore.oraInizio}</td>
+      <td>${ore.oraFine}</td>
+      <td>${ore.descrizione}</td>
+      <td>${oreLavorate.toFixed(2)} ore</td>
+      <td>
+        <button class="btnModificaOreLavorate" data-id="${ore.id}">Modifica</button>
+        <button class="btnEliminaOreLavorate" data-id="${ore.id}">Elimina</button>
+      </td>
+    `;
+    tbody.appendChild(row);
 
-      // Collega gli event listener ai pulsanti
-      row.querySelector('.btnModificaOreLavorate').addEventListener('click', () => modificaOreLavorate(ore.id));
-      row.querySelector('.btnEliminaOreLavorate').addEventListener('click', () => eliminaOreLavorate(ore.id));
+    // Collega gli event listener ai pulsanti
+    row.querySelector('.btnModificaOreLavorate').addEventListener('click', () => modificaOreLavorate(ore.id));
+    row.querySelector('.btnEliminaOreLavorate').addEventListener('click', () => eliminaOreLavorate(ore.id));
   });
-
 
   // Aggiungi una riga per i totali
   const totalRow = document.createElement('tr');
   totalRow.innerHTML = `
-      <td colspan="6"><strong>Totali</strong></td>
-      <td><strong>${calcolaTotaleGenerale(oreFiltrate).toFixed(2)} ore</strong></td>
+    <td colspan="6"><strong>Totali</strong></td>
+    <td><strong>${calcolaTotaleGenerale(oreFiltrate).toFixed(2)} ore</strong></td>
   `;
   tbody.appendChild(totalRow);
 
-  // Aggiungi i totali per dipendente, commessa e mese
-  if (totali) {
-      const totaliDipendente = Object.entries(totali.perDipendente)
-          .map(([dipendente, ore]) => `<div>${dipendente}: ${ore.toFixed(2)} ore</div>`)
-          .join('');
-
-      const totaliCommessa = Object.entries(totali.perCommessa)
-          .map(([commessa, ore]) => `<div>${commessa}: ${ore.toFixed(2)} ore</div>`)
-          .join('');
-
-      const totaliMese = Object.entries(totali.perMese)
-          .map(([mese, ore]) => `<div>${mese}: ${ore.toFixed(2)} ore</div>`)
-          .join('');
-
-      const totaliDiv = document.createElement('div');
-      totaliDiv.innerHTML = `
-          <h3>Totali per Dipendente</h3>
-          ${totaliDipendente}
-          <h3>Totali per Commessa</h3>
-          ${totaliCommessa}
-          <h3>Totali per Mese</h3>
-          ${totaliMese}
-      `;
-      document.getElementById('totaliContainer').innerHTML = '';
-      document.getElementById('totaliContainer').appendChild(totaliDiv);
-  }
+  // Aggiorna la paginazione
+  aggiornaPaginazione(oreFiltrate.length);
 }
 
 function calcolaTotaleGenerale(oreFiltrate) {
@@ -475,6 +568,45 @@ function calcolaTotaleGenerale(oreFiltrate) {
       return totale + calcolaOreLavorate(ore.oraInizio, ore.oraFine);
   }, 0);
 }
+//Funzione per aggiornare i pulsanti di paginazione
+function aggiornaPaginazione(numeroTotaleRighe) {
+  const numeroPagine = Math.ceil(numeroTotaleRighe / righePerPagina);
+  const numeriPagina = document.getElementById('numeriPagina');
+  numeriPagina.innerHTML = '';
+
+  // Aggiungi i numeri di pagina
+  for (let i = 1; i <= numeroPagine; i++) {
+    const btnPagina = document.createElement('button');
+    btnPagina.textContent = i;
+    btnPagina.addEventListener('click', () => {
+      paginaCorrente = i;
+      aggiornaTabellaOreLavorate(datiTotali);
+    });
+    numeriPagina.appendChild(btnPagina);
+  }
+
+  // Disabilita i pulsanti "Precedente" e "Successiva" quando necessario
+  document.getElementById('btnPrecedente').disabled = paginaCorrente === 1;
+  document.getElementById('btnSuccessiva').disabled = paginaCorrente === numeroPagine;
+}
+
+// Gestione dei pulsanti "Precedente" e "Successiva"
+document.getElementById('btnPrecedente').addEventListener('click', () => {
+  if (paginaCorrente > 1) {
+    paginaCorrente--;
+    aggiornaTabellaOreLavorate(datiTotali);
+  }
+});
+
+document.getElementById('btnSuccessiva').addEventListener('click', () => {
+  const numeroPagine = Math.ceil(datiTotali.length / righePerPagina);
+  if (paginaCorrente < numeroPagine) {
+    paginaCorrente++;
+    aggiornaTabellaOreLavorate(datiTotali);
+  }
+});
+
+
 
 // Funzione per aggiungere ore lavorate
 async function aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, data, oraInizio, oraFine, descrizione) {
@@ -493,6 +625,15 @@ async function aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, 
   } catch (error) {
     console.error("Errore durante l'aggiunta delle ore lavorate: ", error);
   }
+}
+function arrotondaAlQuartoDora(ora) {
+  const [ore, minuti] = ora.split(":").map(Number); // Dividi l'ora in ore e minuti
+  const minutiArrotondati = Math.round(minuti / 15) * 15; // Arrotonda i minuti al quarto d'ora più vicino
+  const oreFinali = ore + Math.floor(minutiArrotondati / 60); // Aggiungi le ore extra se i minuti superano 60
+  const minutiFinali = minutiArrotondati % 60; // Calcola i minuti rimanenti
+
+  // Formatta l'ora arrotondata come stringa "HH:mm"
+  return `${String(oreFinali).padStart(2, "0")}:${String(minutiFinali).padStart(2, "0")}`;
 }
 
 // Funzione per modificare ore lavorate
@@ -529,7 +670,7 @@ async function modificaOreLavorate(id) {
           console.error("Uno o più campi non sono stati inseriti correttamente.");
           return;
       }
-
+      alert("Dati salvati con successo!");
       const aggiornamenti = {
           commessa: nuovaCommessa,
           nomeDipendente: nuovoNomeDipendente,
@@ -569,7 +710,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (logoutButton) {
     logoutButton.addEventListener('click', logout);
   }
-// Filtri ore lavorate
+ // Filtri ore lavorate
    document.getElementById('filtraOreLavorate').addEventListener('submit', function (e) {
         e.preventDefault();
         applicaFiltri();
@@ -663,25 +804,30 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Gestione Ore Lavorate
-  const oreForm = document.getElementById('oreForm');
-  if (oreForm) {
-    oreForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-      const commessa = document.getElementById('oreCommessa').value;
-      const nomeDipendente = currentUser.name.split(" ")[0];
-      const cognomeDipendente = currentUser.name.split(" ")[1];
-      const data = document.getElementById('oreData').value;
-      const oraInizio = document.getElementById('oreInizio').value;
-      const oraFine = document.getElementById('oreFine').value;
-      const descrizione = document.getElementById('oreDescrizione').value;
-      aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, data, oraInizio, oraFine, descrizione);
-      document.getElementById('oreCommessa').value = "";
-      document.getElementById('oreData').value = "";
-      document.getElementById('oreInizio').value = "";
-      document.getElementById('oreFine').value = "";
-      document.getElementById('oreDescrizione').value = "";
-    });
-  }
+  document.getElementById('oreForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    
+  
+    // Recupera i valori dal form
+    const commessa = document.getElementById('oreCommessa').value;
+    const nomeDipendente = currentUser.name.split(" ")[0];
+    const cognomeDipendente = currentUser.name.split(" ")[1];
+    const data = document.getElementById('oreData').value;
+    const oraInizio = arrotondaAlQuartoDora(document.getElementById('oreInizio').value); // Arrotonda l'ora di inizio
+    const oraFine = arrotondaAlQuartoDora(document.getElementById('oreFine').value); // Arrotonda l'ora di fine
+    const descrizione = document.getElementById('oreDescrizione').value;
+    
+
+    // Aggiungi le ore lavorate
+    aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, data, oraInizio, oraFine, descrizione);
+
+    // Resetta il form
+    document.getElementById('oreCommessa').value = "";
+    document.getElementById('oreData').value = "";
+    document.getElementById('oreInizio').value = "";
+    document.getElementById('oreFine').value = "";
+    document.getElementById('oreDescrizione').value = "";
+  });
 });
 async function applicaFiltri() {
   const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
@@ -690,17 +836,17 @@ async function applicaFiltri() {
 
   const querySnapshot = await getDocs(collection(db, "oreLavorate"));
   datiFiltrati = querySnapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(ore => {
-          const corrispondeCommessa = filtroCommessa ? 
-              ore.commessa.toLowerCase().includes(filtroCommessa) : true;
-          const corrispondeDipendente = filtroDipendente ? 
-              `${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
-          const corrispondeMese = filtroMese ? 
-              ore.data.startsWith(filtroMese) : true;
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter(ore => {
+      const corrispondeCommessa = filtroCommessa ? 
+        ore.commessa.toLowerCase().includes(filtroCommessa) : true;
+      const corrispondeDipendente = filtroDipendente ? 
+        `${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
+      const corrispondeMese = filtroMese ? 
+        ore.data.startsWith(filtroMese) : true;
 
-          return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
-      });
+      return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
+    });
 
   // Calcola i totali
   const totali = {
@@ -735,6 +881,8 @@ async function applicaFiltri() {
 
   // Aggiorna la tabella con i dati filtrati
   aggiornaTabellaOreLavorate(datiFiltrati, totali);
+  paginaCorrente = 1; // Resetta alla prima pagina
+
 }
 function calcolaOreLavorate(oraInizio, oraFine) {
   const inizio = new Date(`1970-01-01T${oraInizio}:00`);
@@ -751,6 +899,173 @@ function resetFiltri() {
   // Resetta i dati filtrati
   datiFiltrati = null;
 
-  // Mostra tutti i dati
+  // Resetta alla prima pagina
+  paginaCorrente = 1;
   aggiornaTabellaOreLavorate();
 }
+async function generaTabellaMensile(meseNumero, nomeMese) {
+  const tabelleMensili = document.getElementById('tabelleMensili');
+  tabelleMensili.innerHTML = ''; // Pulisci il contenitore
+
+  // Crea un elemento div per la tabella del mese
+  const divMese = document.createElement('div');
+  divMese.className = 'tabellaMese';
+  divMese.innerHTML = `<h3>${nomeMese}</h3>`;
+
+  // Crea la tabella
+  const table = document.createElement('table');
+  table.className = 'table table-bordered';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Dipendente</th>
+        ${Array.from({ length: 31 }, (_, i) => `<th>${i + 1}</th>`).join('')}
+        <th>Totale Mensile</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+
+  // Aggiungi la tabella al div del mese
+  divMese.appendChild(table);
+
+  // Aggiungi un pulsante per scaricare il CSV
+  const btnScaricaCSV = document.createElement('button');
+  btnScaricaCSV.textContent = `Scarica ${nomeMese} in CSV`;
+  btnScaricaCSV.addEventListener('click', () => scaricaCSV(nomeMese, meseNumero));
+  divMese.appendChild(btnScaricaCSV);
+
+  // Aggiungi il div del mese al contenitore
+  tabelleMensili.appendChild(divMese);
+
+  // Popola la tabella con i dati del mese selezionato
+  await popolaTabellaMensile(meseNumero, table.querySelector('tbody'));
+}
+async function popolaTabellaMensile(meseNumero, tbody) {
+  const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+  const datiOreLavorate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+  const datiPerDipendente = {};
+  datiOreLavorate.forEach(ore => {
+    const data = new Date(ore.data);
+    if (data.getMonth() + 1 === meseNumero) {
+      const dipendenteKey = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
+      if (!datiPerDipendente[dipendenteKey]) {
+        datiPerDipendente[dipendenteKey] = {
+          oreGiornaliere: Array(31).fill(0),
+          totaleMensile: 0
+        };
+      }
+      const giorno = data.getDate() - 1;
+      const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+      datiPerDipendente[dipendenteKey].oreGiornaliere[giorno] += oreLavorate;
+      datiPerDipendente[dipendenteKey].totaleMensile += oreLavorate;
+    }
+  });
+
+  // Aggiungi le righe alla tabella
+  Object.entries(datiPerDipendente).forEach(([dipendente, dati]) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${dipendente}</td>
+      ${dati.oreGiornaliere.map(ore => `<td>${ore.toFixed(2)}</td>`).join('')}
+      <td><strong>${dati.totaleMensile.toFixed(2)}</strong></td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+async function scaricaCSV(mese, meseNumero) {
+  console.log("Recupero dati per il mese:", mese, meseNumero);
+
+  const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+  const datiOreLavorate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  console.log("Dati ore lavorate:", datiOreLavorate);
+
+  const datiMese = datiOreLavorate.filter(ore => {
+    const data = new Date(ore.data); // Converti la stringa in un oggetto Date
+    return data.getMonth() + 1 === meseNumero; // Filtra per mese
+  });
+  console.log("Dati filtrati per il mese:", datiMese);
+
+  const datiPerDipendente = {};
+  datiMese.forEach(ore => {
+    const dipendenteKey = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
+    if (!datiPerDipendente[dipendenteKey]) {
+      datiPerDipendente[dipendenteKey] = {
+        oreGiornaliere: Array(31).fill(0),
+        totaleMensile: 0
+      };
+    }
+    const giorno = new Date(ore.data).getDate() - 1; // Ottieni il giorno (0-30)
+    const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+    datiPerDipendente[dipendenteKey].oreGiornaliere[giorno] += oreLavorate;
+    datiPerDipendente[dipendenteKey].totaleMensile += oreLavorate;
+  });
+
+  console.log("Dati per dipendente:", datiPerDipendente);
+
+  // Intestazione CSV
+  const header = [
+    "Dipendente".padEnd(20, " "), // Allinea il nome del dipendente
+    ...Array.from({ length: 31 }, (_, i) => `Giorno ${i + 1}`.padStart(8, " ")), // Allinea i giorni
+    "Totale Mensile".padStart(12, " ") // Allinea il totale mensile
+  ].join(";");
+
+  // Righe CSV
+  const rows = Object.entries(datiPerDipendente).map(([dipendente, dati]) => {
+    const oreFormattate = dati.oreGiornaliere.map(ore => ore.toFixed(2).padStart(8, " ")); // Allinea i numeri
+    return [
+      dipendente.padEnd(20, " "), // Allinea il nome del dipendente
+      ...oreFormattate, // Ore giornaliere
+      dati.totaleMensile.toFixed(2).padStart(12, " ") // Totale mensile
+    ].join(";");
+  });
+
+  // Calcola il totale mensile di tutte le ore lavorate
+  const totaleMensileGenerale = Object.values(datiPerDipendente).reduce((totale, dati) => totale + dati.totaleMensile, 0);
+
+  // Aggiungi una riga per il totale mensile generale
+  const totaleGeneraleRow = [
+    "Totale Generale".padEnd(20, " "), // Allinea l'etichetta
+    ...Array(31).fill("".padStart(8, " ")), // Spazi vuoti per i giorni
+    totaleMensileGenerale.toFixed(2).padStart(12, " ") // Totale generale
+  ].join(";");
+
+  // Crea il contenuto CSV
+  const csvContent = [
+    `Report Ore Lavorate - ${mese} 2025`, // Descrizione del file
+    "=".repeat(header.length), // Linea separatrice
+    header, // Intestazione
+    "-".repeat(header.length), // Linea separatrice
+    ...rows, // Righe dei dati
+    "-".repeat(header.length), // Linea separatrice
+    totaleGeneraleRow // Totale generale
+  ].join("\n");
+
+  console.log("Contenuto CSV:", csvContent);
+
+  // Scarica il file CSV
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ore_lavorate_${mese}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+document.getElementById('btnMostraTabella').addEventListener('click', async () => {
+  const selettoreMese = document.getElementById('selettoreMese');
+  const meseSelezionato = parseInt(selettoreMese.value); // Ottieni il valore selezionato (0-11)
+  const nomeMese = mesi[meseSelezionato]; // Ottieni il nome del mese
+
+  // Mostra il contenitore delle tabelle
+  const tabelleMensili = document.getElementById('tabelleMensili');
+  tabelleMensili.style.display = 'block';
+
+  // Genera e popola la tabella del mese selezionato
+  await generaTabellaMensile(meseSelezionato + 1, nomeMese); // +1 perché i mesi vanno da 1 a 12
+});
+document.addEventListener('DOMContentLoaded', async () => {
+  generaTabelleMensili();
+  await popolaTabelleMensili();
+});
