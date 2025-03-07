@@ -149,7 +149,7 @@ async function generaPDFFiltrato() {
       // Aggiungi la tabella delle ore lavorate
       doc.autoTable({
           startY: 25,
-          head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione', 'Ore Lavorate']],
+          head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione', 'Ore Lavorate', 'Non Conformità']],  
           body: oreFiltrate.map(ore => [
               ore.commessa,
               `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
@@ -157,7 +157,8 @@ async function generaPDFFiltrato() {
               ore.oraInizio,
               ore.oraFine,
               ore.descrizione,
-              calcolaOreLavorate(ore.oraInizio, ore.oraFine).toFixed(2)
+              calcolaOreLavorate(ore.oraInizio, ore.oraFine).toFixed(2),
+              ore.nonConformita ? 'Sì' : 'No'
           ]),
           theme: 'grid',
           styles: { fontSize: 10, cellPadding: 3 },
@@ -538,6 +539,7 @@ async function aggiornaTabellaOreLavorate(oreFiltrate = null, totali = null) {
       <td>${ore.oraInizio}</td>
       <td>${ore.oraFine}</td>
       <td>${ore.descrizione}</td>
+      <td>${ore.nonConformita ? 'Sì' : 'No'}</td>
       <td>${oreLavorate.toFixed(2)} ore</td>
       <td>
         <button class="btnModificaOreLavorate" data-id="${ore.id}">Modifica</button>
@@ -609,7 +611,7 @@ document.getElementById('btnSuccessiva').addEventListener('click', () => {
 
 
 // Funzione per aggiungere ore lavorate
-async function aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, data, oraInizio, oraFine, descrizione) {
+async function aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, data, oraInizio, oraFine, descrizione, nonConformita) {
   try {
     await addDoc(collection(db, "oreLavorate"), {
       commessa: commessa,
@@ -618,9 +620,10 @@ async function aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, 
       data: data,
       oraInizio: oraInizio,
       oraFine: oraFine,
-      descrizione: descrizione
+      descrizione: descrizione,
+      nonConformita: nonConformita // Nuovo campo
     });
-      alert("Dati salvati con successo!");
+    alert("Dati salvati con successo!");
     aggiornaTabellaOreLavorate();
   } catch (error) {
     console.error("Errore durante l'aggiunta delle ore lavorate: ", error);
@@ -665,8 +668,9 @@ async function modificaOreLavorate(id) {
       const nuovaOraInizio = prompt("Inserisci la nuova ora di inizio:", ore.oraInizio);
       const nuovaOraFine = prompt("Inserisci la nuova ora di fine:", ore.oraFine);
       const nuovaDescrizione = prompt("Inserisci la nuova descrizione:", ore.descrizione);
+      const nuovaNonConformita = prompt("La non conformità è stata risolta? (Sì/No):", ore.nonConformita);
 
-      if (!nuovaCommessa || !nuovoNomeDipendente || !nuovoCognomeDipendente || !nuovaData || !nuovaOraInizio || !nuovaOraFine || !nuovaDescrizione) {
+      if (!nuovaCommessa || !nuovoNomeDipendente || !nuovoCognomeDipendente || !nuovaData || !nuovaOraInizio || !nuovaOraFine || !nuovaDescrizione || !nuovaNonConformita) {
           console.error("Uno o più campi non sono stati inseriti correttamente.");
           return;
       }
@@ -678,7 +682,8 @@ async function modificaOreLavorate(id) {
           data: nuovaData,
           oraInizio: nuovaOraInizio,
           oraFine: nuovaOraFine,
-          descrizione: nuovaDescrizione
+          descrizione: nuovaDescrizione,
+          nonConformita: nonConformita // Nuovo campo
       };
 
       await updateDoc(docRef, aggiornamenti);
@@ -816,10 +821,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const oraInizio = arrotondaAlQuartoDora(document.getElementById('oreInizio').value); // Arrotonda l'ora di inizio
     const oraFine = arrotondaAlQuartoDora(document.getElementById('oreFine').value); // Arrotonda l'ora di fine
     const descrizione = document.getElementById('oreDescrizione').value;
-    
+    const nonConformita = document.getElementById('nonConformita').checked;
 
     // Aggiungi le ore lavorate
-    aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, data, oraInizio, oraFine, descrizione);
+    aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, data, oraInizio, oraFine, descrizione, nonConformita);
 
     // Resetta il form
     document.getElementById('oreCommessa').value = "";
@@ -1069,3 +1074,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   generaTabelleMensili();
   await popolaTabelleMensili();
 });
+async function filtraNonConformita() {
+  const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+  const nonConformita = querySnapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter(ore => ore.nonConformita);
+
+  aggiornaTabellaOreLavorate(nonConformita);
+}
+document.getElementById('btnFiltraNonConformita').addEventListener('click', filtraNonConformita);
