@@ -511,6 +511,13 @@ async function aggiornaTabellaOreLavorate(oreFiltrate = null, totali = null) {
     oreFiltrate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }
 
+  // Ordina i dati per data in ordine decrescente
+  oreFiltrate.sort((a, b) => {
+    const dataA = new Date(a.data);
+    const dataB = new Date(b.data);
+    return dataB - dataA; // Ordine decrescente
+  });
+
   // Memorizza i dati totali per la paginazione
   datiTotali = oreFiltrate;
 
@@ -564,7 +571,6 @@ async function aggiornaTabellaOreLavorate(oreFiltrate = null, totali = null) {
   // Aggiorna la paginazione
   aggiornaPaginazione(oreFiltrate.length);
 }
-
 function calcolaTotaleGenerale(oreFiltrate) {
   return oreFiltrate.reduce((totale, ore) => {
       return totale + calcolaOreLavorate(ore.oraInizio, ore.oraFine);
@@ -854,6 +860,13 @@ async function applicaFiltri() {
       return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
     });
 
+  // Ordina i dati per data in ordine decrescente
+  datiFiltrati.sort((a, b) => {
+    const dataA = new Date(a.data);
+    const dataB = new Date(b.data);
+    return dataB - dataA; // Ordine decrescente
+  });
+
   // Calcola i totali
   const totali = {
       perDipendente: {},
@@ -888,7 +901,6 @@ async function applicaFiltri() {
   // Aggiorna la tabella con i dati filtrati
   aggiornaTabellaOreLavorate(datiFiltrati, totali);
   paginaCorrente = 1; // Resetta alla prima pagina
-
 }
 function calcolaOreLavorate(oraInizio, oraFine) {
   const inizio = new Date(`1970-01-01T${oraInizio}:00`);
@@ -896,18 +908,26 @@ function calcolaOreLavorate(oraInizio, oraFine) {
   const differenza = fine - inizio; // Differenza in millisecondi
   return differenza / (1000 * 60 * 60); // Converti in ore
 }
-function resetFiltri() {
+async function resetFiltri() {
   // Resetta i campi di input
   document.getElementById('filtroCommessa').value = "";
   document.getElementById('filtroDipendente').value = "";
   document.getElementById('filtroMese').value = "";
 
   // Resetta i dati filtrati
-  datiFiltrati = null;
+  const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+  datiFiltrati = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+  // Ordina i dati per data in ordine decrescente
+  datiFiltrati.sort((a, b) => {
+    const dataA = new Date(a.data);
+    const dataB = new Date(b.data);
+    return dataB - dataA; // Ordine decrescente
+  });
 
   // Resetta alla prima pagina
   paginaCorrente = 1;
-  aggiornaTabellaOreLavorate();
+  aggiornaTabellaOreLavorate(datiFiltrati);
 }
 async function generaTabellaMensile(meseNumero, nomeMese) {
   const tabelleMensili = document.getElementById('tabelleMensili');
