@@ -623,6 +623,7 @@ async function aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, 
       descrizione: descrizione,
       nonConformita: nonConformita // Nuovo campo
     });
+    
     alert("Dati salvati con successo!");
     aggiornaTabellaOreLavorate();
   } catch (error) {
@@ -668,13 +669,13 @@ async function modificaOreLavorate(id) {
       const nuovaOraInizio = prompt("Inserisci la nuova ora di inizio:", ore.oraInizio);
       const nuovaOraFine = prompt("Inserisci la nuova ora di fine:", ore.oraFine);
       const nuovaDescrizione = prompt("Inserisci la nuova descrizione:", ore.descrizione);
-      const nuovaNonConformita = prompt("La non conformità è stata risolta? (Sì/No):", ore.nonConformita);
+      const nuovaNonConformita = prompt("La non conformità è stata risolta? (Sì/No):", ore.nonConformita ? "Sì" : "No");
+      const nonConformitaBooleana = (nuovaNonConformita?.toLowerCase() === 'sì');
 
       if (!nuovaCommessa || !nuovoNomeDipendente || !nuovoCognomeDipendente || !nuovaData || !nuovaOraInizio || !nuovaOraFine || !nuovaDescrizione || !nuovaNonConformita) {
           console.error("Uno o più campi non sono stati inseriti correttamente.");
           return;
       }
-      alert("Dati salvati con successo!");
       const aggiornamenti = {
           commessa: nuovaCommessa,
           nomeDipendente: nuovoNomeDipendente,
@@ -683,7 +684,7 @@ async function modificaOreLavorate(id) {
           oraInizio: nuovaOraInizio,
           oraFine: nuovaOraFine,
           descrizione: nuovaDescrizione,
-          nonConformita: nonConformita // Nuovo campo
+          nonConformita: nonConformitaBooleana // CORRETTO
       };
 
       await updateDoc(docRef, aggiornamenti);
