@@ -79,15 +79,21 @@
         <!-- Sezione Filtri Ore Lavorate -->
         <div class="admin-only">
         <h2>Filtri Ore Lavorate</h2>
-        <button id="btnFiltraNonConformita">Mostra Solo Non Conformità</button>
-<form id="filtraOreLavorate">
-    <input type="text" id="filtroCommessa" placeholder="Filtra per commessa">
-    <input type="text" id="filtroDipendente" placeholder="Filtra per dipendente">
-    <input type="month" id="filtroMese">
-    <button id="btnApplicaFiltri">Applica Filtri</button>
-    <button id="btnResetFiltri">Reset</button>
-    <button id="btnScaricaPDF">Scarica PDF</button>
-</form>
+        <form id="filtraOreLavorate">
+            <!-- Filtri esistenti -->
+            <input type="text" id="filtroCommessa" placeholder="Filtra per commessa">
+            <input type="text" id="filtroDipendente" placeholder="Filtra per dipendente">
+            <input type="month" id="filtroMese" placeholder="Filtra per mese">
+          
+            <!-- Nuovo filtro per non conformità -->
+            <label>
+              <input type="checkbox" id="filtroNonConformita"> Mostra solo non conformità
+            </label>
+          
+            <button type="submit" id="btnApplicaFiltri">Applica Filtri</button>
+            <button type="button" id="btnResetFiltri">Reset Filtri</button>
+            <button type="button" id="btnScaricaPDF">Scarica PDF</button>
+          </form>
 <div class="admin-only">
     <h2> Ore Mensili</h2>
     <label for="selettoreMese">Seleziona un mese:</label>
