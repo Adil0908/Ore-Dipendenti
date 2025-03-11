@@ -116,86 +116,92 @@ document.getElementById('btnScaricaPDF').addEventListener('click', function (e) 
 
 async function generaPDFFiltrato() {
   try {
-      // Usa i dati filtrati memorizzati nella variabile globale
-      const oreFiltrate = datiFiltrati || await getDocs(collection(db, "oreLavorate")).then(querySnapshot => 
-          querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-      );
+    // Usa i dati filtrati memorizzati nella variabile globale
+    const oreFiltrate = datiFiltrati || await getDocs(collection(db, "oreLavorate")).then(querySnapshot => 
+        querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    );
 
-      // Calcola le ore per dipendente e le ore totali
-      const orePerDipendente = {};
-      let oreTotali = 0;
+    // Filtra ulteriormente per non conformità se il filtro è attivo
+    const filtroNonConformita = document.getElementById('filtroNonConformita').checked;
+    const oreNonConformita = filtroNonConformita ? 
+        oreFiltrate.filter(ore => ore.nonConformita) : oreFiltrate;
 
-      oreFiltrate.forEach(ore => {
-          const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-          const dipendenteKey = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
+    // Calcola le ore per dipendente e le ore totali
+    const orePerDipendente = {};
+    let oreTotali = 0;
 
-          if (!orePerDipendente[dipendenteKey]) {
-              orePerDipendente[dipendenteKey] = 0;
-          }
-          orePerDipendente[dipendenteKey] += oreLavorate;
-          oreTotali += oreLavorate;
-      });
+    oreNonConformita.forEach(ore => {
+        const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+        const dipendenteKey = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
 
-      // Crea il PDF
-      const doc = new jsPDF({
-          orientation: 'landscape',
-          unit: 'mm',
-          format: 'a4'
-      });
+        if (!orePerDipendente[dipendenteKey]) {
+            orePerDipendente[dipendenteKey] = 0;
+        }
+        orePerDipendente[dipendenteKey] += oreLavorate;
+        oreTotali += oreLavorate;
+    });
 
-      doc.setFontSize(18);
-      doc.text("Report Ore Lavorate Filtrate", 14, 20);
+    // Crea il PDF
+    const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+    });
 
-      // Aggiungi la tabella delle ore lavorate
-      doc.autoTable({
-          startY: 25,
-          head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione', 'Ore Lavorate', 'Non Conformità']],  
-          body: oreFiltrate.map(ore => [
-              ore.commessa,
-              `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
-              ore.data,
-              ore.oraInizio,
-              ore.oraFine,
-              ore.descrizione,
-              calcolaOreLavorate(ore.oraInizio, ore.oraFine).toFixed(2),
-              ore.nonConformita ? 'Sì' : 'No'
-          ]),
-          theme: 'grid',
-          styles: { fontSize: 10, cellPadding: 3 },
-          headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-          margin: { top: 20 }
-      });
+    doc.setFontSize(18);
+    doc.text("Report Ore Lavorate Filtrate (Non Conformità)", 14, 20);
 
-      // Aggiungi una sezione per le ore per dipendente
-      const startYDipendenti = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(14);
-      doc.text("Ore Lavorate per Dipendente", 14, startYDipendenti);
+    // Aggiungi la tabella delle ore lavorate
+    doc.autoTable({
+        startY: 25,
+        head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione', 'Ore Lavorate', 'Non Conformità']],  
+        body: oreNonConformita.map(ore => [
+            ore.commessa,
+            `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
+            ore.data,
+            ore.oraInizio,
+            ore.oraFine,
+            ore.descrizione,
+            calcolaOreLavorate(ore.oraInizio, ore.oraFine).toFixed(2),
+            ore.nonConformita ? 'Sì' : 'No'
+        ]),
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 3 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+        margin: { top: 20 }
+    });
 
-      doc.autoTable({
-          startY: startYDipendenti + 5,
-          head: [['Dipendente', 'Ore Lavorate']],
-          body: Object.entries(orePerDipendente).map(([dipendente, ore]) => [
-              dipendente,
-              ore.toFixed(2)
-          ]),
-          theme: 'grid',
-          styles: { fontSize: 10, cellPadding: 3 },
-          headStyles: { fillColor: [41, 128, 185], textColor: 255 }
-      });
+    // Aggiungi una sezione per le ore per dipendente
+    const startYDipendenti = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(14);
+    doc.text("Ore Lavorate per Dipendente", 14, startYDipendenti);
 
-      // Aggiungi una sezione per le ore totali
-      const startYTotali = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(14);
-      doc.text("Ore Totali Lavorate", 14, startYTotali);
-      doc.text(`Totale: ${oreTotali.toFixed(2)} ore`, 14, startYTotali + 10);
+    doc.autoTable({
+        startY: startYDipendenti + 5,
+        head: [['Dipendente', 'Ore Lavorate']],
+        body: Object.entries(orePerDipendente).map(([dipendente, ore]) => [
+            dipendente,
+            ore.toFixed(2)
+        ]),
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 3 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255 }
+    });
 
-      // Salva il PDF
-      doc.save('ore_lavorate_filtrate.pdf');
+    // Aggiungi una sezione per le ore totali
+    const startYTotali = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(14);
+    doc.text("Ore Totali Lavorate", 14, startYTotali);
+    doc.text(`Totale: ${oreTotali.toFixed(2)} ore`, 14, startYTotali + 10);
+
+    // Salva il PDF
+    doc.save('ore_lavorate_non_conformita_filtrate.pdf');
   } catch (error) {
       console.error("Errore durante la generazione del PDF:", error);
       alert("Si è verificato un errore durante la generazione del PDF.");
   }
 }
+
 // Funzione per mostrare l'applicazione
 async function mostraApplicazione() {
   document.getElementById('loginPage').style.display = 'none';
@@ -845,6 +851,7 @@ async function applicaFiltri() {
   const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
   const filtroDipendente = document.getElementById('filtroDipendente').value.trim().toLowerCase();
   const filtroMese = document.getElementById('filtroMese').value;
+  const filtroNonConformita = document.getElementById('filtroNonConformita').checked; // Nuovo filtro
 
   const querySnapshot = await getDocs(collection(db, "oreLavorate"));
   datiFiltrati = querySnapshot.docs
@@ -856,8 +863,10 @@ async function applicaFiltri() {
         `${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
       const corrispondeMese = filtroMese ? 
         ore.data.startsWith(filtroMese) : true;
+      const corrispondeNonConformita = filtroNonConformita ? 
+        ore.nonConformita === true : true; // Filtra solo se nonConformita è true
 
-      return corrispondeCommessa && corrispondeDipendente && corrispondeMese;
+      return corrispondeCommessa && corrispondeDipendente && corrispondeMese && corrispondeNonConformita;
     });
 
   // Ordina i dati per data in ordine decrescente
