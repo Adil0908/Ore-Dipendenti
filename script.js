@@ -118,34 +118,34 @@ async function generaPDFFiltrato() {
   try {
     // Usa i dati filtrati memorizzati nella variabile globale
     const oreFiltrate = datiFiltrati || await getDocs(collection(db, "oreLavorate")).then(querySnapshot => 
-        querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     );
 
     // Filtra ulteriormente per non conformità se il filtro è attivo
     const filtroNonConformita = document.getElementById('filtroNonConformita').checked;
     const oreNonConformita = filtroNonConformita ? 
-        oreFiltrate.filter(ore => ore.nonConformita) : oreFiltrate;
+      oreFiltrate.filter(ore => ore.nonConformita) : oreFiltrate;
 
     // Calcola le ore per dipendente e le ore totali
     const orePerDipendente = {};
     let oreTotali = 0;
 
     oreNonConformita.forEach(ore => {
-        const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-        const dipendenteKey = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
+      const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+      const dipendenteKey = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
 
-        if (!orePerDipendente[dipendenteKey]) {
-            orePerDipendente[dipendenteKey] = 0;
-        }
-        orePerDipendente[dipendenteKey] += oreLavorate;
-        oreTotali += oreLavorate;
+      if (!orePerDipendente[dipendenteKey]) {
+        orePerDipendente[dipendenteKey] = 0;
+      }
+      orePerDipendente[dipendenteKey] += oreLavorate;
+      oreTotali += oreLavorate;
     });
 
     // Crea il PDF
     const doc = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
     });
 
     doc.setFontSize(18);
@@ -153,22 +153,22 @@ async function generaPDFFiltrato() {
 
     // Aggiungi la tabella delle ore lavorate
     doc.autoTable({
-        startY: 25,
-        head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione', 'Ore Lavorate', 'Non Conformità']],  
-        body: oreNonConformita.map(ore => [
-            ore.commessa,
-            `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
-            ore.data,
-            ore.oraInizio,
-            ore.oraFine,
-            ore.descrizione,
-            calcolaOreLavorate(ore.oraInizio, ore.oraFine).toFixed(2),
-            ore.nonConformita ? 'Sì' : 'No'
-        ]),
-        theme: 'grid',
-        styles: { fontSize: 10, cellPadding: 3 },
-        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-        margin: { top: 20 }
+      startY: 25,
+      head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione', 'Ore Lavorate', 'Non Conformità']],  
+      body: oreNonConformita.map(ore => [
+        ore.commessa,
+        `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
+        ore.data,
+        ore.oraInizio,
+        ore.oraFine,
+        ore.descrizione,
+        formattaOreDecimali(calcolaOreLavorate(ore.oraInizio, ore.oraFine)), // Formatta in HH:MM
+        ore.nonConformita ? 'Sì' : 'No'
+      ]),
+      theme: 'grid',
+      styles: { fontSize: 10, cellPadding: 3 },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+      margin: { top: 20 }
     });
 
     // Aggiungi una sezione per le ore per dipendente
@@ -177,28 +177,28 @@ async function generaPDFFiltrato() {
     doc.text("Ore Lavorate per Dipendente", 14, startYDipendenti);
 
     doc.autoTable({
-        startY: startYDipendenti + 5,
-        head: [['Dipendente', 'Ore Lavorate']],
-        body: Object.entries(orePerDipendente).map(([dipendente, ore]) => [
-            dipendente,
-            ore.toFixed(2)
-        ]),
-        theme: 'grid',
-        styles: { fontSize: 10, cellPadding: 3 },
-        headStyles: { fillColor: [41, 128, 185], textColor: 255 }
+      startY: startYDipendenti + 5,
+      head: [['Dipendente', 'Ore Lavorate']],
+      body: Object.entries(orePerDipendente).map(([dipendente, ore]) => [
+        dipendente,
+        formattaOreDecimali(ore) // Formatta in HH:MM
+      ]),
+      theme: 'grid',
+      styles: { fontSize: 10, cellPadding: 3 },
+      headStyles: { fillColor: [41, 128, 185], textColor: 255 }
     });
 
     // Aggiungi una sezione per le ore totali
     const startYTotali = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(14);
     doc.text("Ore Totali Lavorate", 14, startYTotali);
-    doc.text(`Totale: ${oreTotali.toFixed(2)} ore`, 14, startYTotali + 10);
+    doc.text(`Totale: ${formattaOreDecimali(oreTotali)}`, 14, startYTotali + 10); // Formatta in HH:MM
 
     // Salva il PDF
     doc.save('ore_lavorate_non_conformita_filtrate.pdf');
   } catch (error) {
-      console.error("Errore durante la generazione del PDF:", error);
-      alert("Si è verificato un errore durante la generazione del PDF.");
+    console.error("Errore durante la generazione del PDF:", error);
+    alert("Si è verificato un errore durante la generazione del PDF.");
   }
 }
 
@@ -510,18 +510,18 @@ async function eliminaCommessa(id) {
 }
 
 // Funzione per aggiornare la tabella delle ore lavorate
-async function aggiornaTabellaOreLavorate(oreFiltrate = null, totali = null) {
+async function aggiornaTabellaOreLavorate(oreFiltrate = null) {
   if (!oreFiltrate) {
-    // Se non ci sono dati filtrati, carica tutti i dati
-    const querySnapshot = await getDocs(collection(db, "oreLavorate"));
-    oreFiltrate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Se non ci sono dati filtrati, carica tutti i dati
+      const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+      oreFiltrate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }
 
   // Ordina i dati per data in ordine decrescente
   oreFiltrate.sort((a, b) => {
-    const dataA = new Date(a.data);
-    const dataB = new Date(b.data);
-    return dataB - dataA; // Ordine decrescente
+      const dataA = new Date(a.data);
+      const dataB = new Date(b.data);
+      return dataB - dataA; // Ordine decrescente
   });
 
   // Memorizza i dati totali per la paginazione
@@ -532,8 +532,8 @@ async function aggiornaTabellaOreLavorate(oreFiltrate = null, totali = null) {
 
   // Verifica che oreFiltrate sia un array
   if (!Array.isArray(oreFiltrate)) {
-    console.error("oreFiltrate non è un array:", oreFiltrate);
-    return;
+      console.error("oreFiltrate non è un array:", oreFiltrate);
+      return;
   }
 
   // Calcola l'indice di inizio e fine per la pagina corrente
@@ -543,45 +543,82 @@ async function aggiornaTabellaOreLavorate(oreFiltrate = null, totali = null) {
 
   // Aggiungi le righe delle ore lavorate
   datiPagina.forEach(ore => {
-    const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${ore.commessa}</td>
-      <td>${ore.nomeDipendente} ${ore.cognomeDipendente}</td>
-      <td>${ore.data}</td>
-      <td>${ore.oraInizio}</td>
-      <td>${ore.oraFine}</td>
-      <td>${ore.descrizione}</td>
-      <td>${ore.nonConformita ? 'Sì' : 'No'}</td>
-      <td>${oreLavorate.toFixed(2)} ore</td>
-      <td>
-        <button class="btnModificaOreLavorate" data-id="${ore.id}">Modifica</button>
-        <button class="btnEliminaOreLavorate" data-id="${ore.id}">Elimina</button>
-      </td>
-    `;
-    tbody.appendChild(row);
+      const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+      const row = document.createElement('tr');
+      row.innerHTML = `
+          <td>${ore.commessa}</td>
+          <td>${ore.nomeDipendente} ${ore.cognomeDipendente}</td>
+          <td>${ore.data}</td>
+          <td>${ore.oraInizio}</td>
+          <td>${ore.oraFine}</td>
+          <td>${ore.descrizione}</td>
+          <td>${ore.nonConformita ? 'Sì' : 'No'}</td>
+          <td>${formattaOreDecimali(oreLavorate)}</td> <!-- Formatta le ore -->
+  <td>
+              <button class="btnModificaOreLavorate" data-id="${ore.id}">Modifica</button>
+              <button class="btnEliminaOreLavorate" data-id="${ore.id}">Elimina</button>
+          </td>
+      `;
+      tbody.appendChild(row);
 
-    // Collega gli event listener ai pulsanti
-    row.querySelector('.btnModificaOreLavorate').addEventListener('click', () => modificaOreLavorate(ore.id));
-    row.querySelector('.btnEliminaOreLavorate').addEventListener('click', () => eliminaOreLavorate(ore.id));
+      // Collega gli event listener ai pulsanti
+      row.querySelector('.btnModificaOreLavorate').addEventListener('click', () => modificaOreLavorate(ore.id));
+      row.querySelector('.btnEliminaOreLavorate').addEventListener('click', () => eliminaOreLavorate(ore.id));
   });
 
   // Aggiungi una riga per i totali
   const totalRow = document.createElement('tr');
   totalRow.innerHTML = `
-    <td colspan="6"><strong>Totali</strong></td>
-    <td><strong>${calcolaTotaleGenerale(oreFiltrate).toFixed(2)} ore</strong></td>
+      <td colspan="7"><strong>Totale Generale</strong></td>
+      <td><strong>${calcolaTotaleGenerale(oreFiltrate)} ore</strong></td>
   `;
   tbody.appendChild(totalRow);
 
   // Aggiorna la paginazione
   aggiornaPaginazione(oreFiltrate.length);
 }
-function calcolaTotaleGenerale(oreFiltrate) {
-  return oreFiltrate.reduce((totale, ore) => {
-      return totale + calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-  }, 0);
+
+
+function calcolaOreLavorate(oraInizio, oraFine) {
+  // Verifica che gli orari siano nel formato corretto
+  if (!oraInizio || !oraFine || !oraInizio.includes(":") || !oraFine.includes(":")) {
+    console.error("Formato orario non valido. Usare 'HH:mm'");
+    return 0;
+  }
+
+  // Divide ore e minuti
+  const [inizioOre, inizioMinuti] = oraInizio.split(":").map(Number);
+  const [fineOre, fineMinuti] = oraFine.split(":").map(Number);
+
+  // Converte in minuti totali
+  const totaleMinutiInizio = inizioOre * 60 + inizioMinuti;
+  const totaleMinutiFine = fineOre * 60 + fineMinuti;
+
+  // Calcola la differenza in minuti
+  let differenzaMinuti = totaleMinutiFine - totaleMinutiInizio;
+
+  // Se la differenza è negativa, significa che il lavoro è finito il giorno successivo
+  if (differenzaMinuti < 0) {
+    differenzaMinuti += 24 * 60; // Aggiungi 24 ore in minuti
+  }
+
+  // Converti i minuti in ore decimali (es. 1.5 per 1h30m)
+  const oreDecimali = differenzaMinuti / 60;
+
+  return oreDecimali;
 }
+function formattaOreDecimali(oreDecimali) {
+  const ore = Math.floor(oreDecimali); // Parte intera (ore)
+  const minuti = Math.round((oreDecimali - ore) * 60); // Parte decimale convertita in minuti
+  return `${ore}:${String(minuti).padStart(2, '0')}`; // Formatta come HH:MM
+}
+
+// Esempio di utilizzo
+const oreLavorate = calcolaOreLavorate("08:00", "09:30");
+console.log(formattaOreDecimali(oreLavorate)); // "1:30"
+
+
+
 //Funzione per aggiornare i pulsanti di paginazione
 function aggiornaPaginazione(numeroTotaleRighe) {
   const numeroPagine = Math.ceil(numeroTotaleRighe / righePerPagina);
@@ -625,21 +662,29 @@ document.getElementById('btnSuccessiva').addEventListener('click', () => {
 // Funzione per aggiungere ore lavorate
 async function aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, data, oraInizio, oraFine, descrizione, nonConformita) {
   try {
-    await addDoc(collection(db, "oreLavorate"), {
-      commessa: commessa,
-      nomeDipendente: nomeDipendente,
-      cognomeDipendente: cognomeDipendente,
-      data: data,
-      oraInizio: oraInizio,
-      oraFine: oraFine,
-      descrizione: descrizione,
-      nonConformita: nonConformita // Nuovo campo
-    });
-    
-    alert("Dati salvati con successo!");
-    aggiornaTabellaOreLavorate();
+      // Verifica che gli orari siano validi
+      if (!oraInizio || !oraFine || !oraInizio.includes(":") || !oraFine.includes(":")) {
+          alert("Formato orario non valido. Usare 'HH:mm'");
+          return;
+      }
+
+      // Aggiungi le ore lavorate al database
+      await addDoc(collection(db, "oreLavorate"), {
+          commessa: commessa,
+          nomeDipendente: nomeDipendente,
+          cognomeDipendente: cognomeDipendente,
+          data: data,
+          oraInizio: oraInizio,
+          oraFine: oraFine,
+          descrizione: descrizione,
+          nonConformita: nonConformita
+      });
+
+      alert("Dati salvati con successo!");
+      aggiornaTabellaOreLavorate();
   } catch (error) {
-    console.error("Errore durante l'aggiunta delle ore lavorate: ", error);
+      console.error("Errore durante l'aggiunta delle ore lavorate: ", error);
+      alert("Si è verificato un errore durante il salvataggio.");
   }
 }
 function arrotondaAlQuartoDora(ora) {
@@ -657,53 +702,63 @@ async function modificaOreLavorate(id) {
   console.log("ID del documento da modificare:", id); // Debug
 
   if (!id || typeof id !== "string") {
-      console.error("ID non valido:", id);
-      return;
+    console.error("ID non valido:", id);
+    return;
   }
 
   try {
-      const docRef = doc(db, "oreLavorate", id);
-      const docSnap = await getDoc(docRef);
+    const docRef = doc(db, "oreLavorate", id);
+    const docSnap = await getDoc(docRef);
 
-      if (!docSnap.exists()) {
-          console.error("Documento non trovato per ID:", id);
-          return;
-      }
+    if (!docSnap.exists()) {
+      console.error("Documento non trovato per ID:", id);
+      return;
+    }
 
-      const ore = docSnap.data();
-      console.log("Dati correnti delle ore lavorate:", ore); // Debug
+    const ore = docSnap.data();
+    console.log("Dati correnti delle ore lavorate:", ore); // Debug
 
-      // Mostra i dati correnti nei prompt
-      const nuovaCommessa = prompt("Inserisci la nuova commessa:", ore.commessa);
-      const nuovoNomeDipendente = prompt("Inserisci il nuovo nome del dipendente:", ore.nomeDipendente);
-      const nuovoCognomeDipendente = prompt("Inserisci il nuovo cognome del dipendente:", ore.cognomeDipendente);
-      const nuovaData = prompt("Inserisci la nuova data:", ore.data);
-      const nuovaOraInizio = prompt("Inserisci la nuova ora di inizio:", ore.oraInizio);
-      const nuovaOraFine = prompt("Inserisci la nuova ora di fine:", ore.oraFine);
-      const nuovaDescrizione = prompt("Inserisci la nuova descrizione:", ore.descrizione);
-      const nuovaNonConformita = prompt("La non conformità è stata risolta? (Sì/No):", ore.nonConformita ? "Sì" : "No");
-      const nonConformitaBooleana = (nuovaNonConformita?.toLowerCase() === 'sì');
+    // Mostra i dati correnti nei prompt
+    const nuovaCommessa = prompt("Inserisci la nuova commessa:", ore.commessa);
+    const nuovoNomeDipendente = prompt("Inserisci il nuovo nome del dipendente:", ore.nomeDipendente);
+    const nuovoCognomeDipendente = prompt("Inserisci il nuovo cognome del dipendente:", ore.cognomeDipendente);
+    const nuovaData = prompt("Inserisci la nuova data (YYYY-MM-DD):", ore.data);
+    const nuovaOraInizio = prompt("Inserisci la nuova ora di inizio (HH:mm):", ore.oraInizio);
+    const nuovaOraFine = prompt("Inserisci la nuova ora di fine (HH:mm):", ore.oraFine);
+    const nuovaDescrizione = prompt("Inserisci la nuova descrizione:", ore.descrizione);
+    const nuovaNonConformita = confirm("La non conformità è stata risolta?"); // Usa confirm per un input booleano
 
-      if (!nuovaCommessa || !nuovoNomeDipendente || !nuovoCognomeDipendente || !nuovaData || !nuovaOraInizio || !nuovaOraFine || !nuovaDescrizione || !nuovaNonConformita) {
-          console.error("Uno o più campi non sono stati inseriti correttamente.");
-          return;
-      }
-      const aggiornamenti = {
-          commessa: nuovaCommessa,
-          nomeDipendente: nuovoNomeDipendente,
-          cognomeDipendente: nuovoCognomeDipendente,
-          data: nuovaData,
-          oraInizio: nuovaOraInizio,
-          oraFine: nuovaOraFine,
-          descrizione: nuovaDescrizione,
-          nonConformita: nonConformitaBooleana // CORRETTO
-      };
+    if (
+      nuovaCommessa &&
+      nuovoNomeDipendente &&
+      nuovoCognomeDipendente &&
+      nuovaData &&
+      nuovaOraInizio &&
+      nuovaOraFine &&
+      nuovaDescrizione
+    ) {
+      // Aggiorna il documento Firestore
+      await updateDoc(docRef, {
+        commessa: nuovaCommessa,
+        nomeDipendente: nuovoNomeDipendente,
+        cognomeDipendente: nuovoCognomeDipendente,
+        data: nuovaData,
+        oraInizio: nuovaOraInizio,
+        oraFine: nuovaOraFine,
+        descrizione: nuovaDescrizione,
+        nonConformita: nuovaNonConformita,
+      });
 
-      await updateDoc(docRef, aggiornamenti);
-      console.log("Documento aggiornato con successo.");
-      aggiornaTabellaOreLavorate();
+      alert("Dati salvati con successo!");
+
+      // Aggiorna la tabella delle ore lavorate
+      await aggiornaTabellaOreLavorate();
+    } else {
+      alert("Tutti i campi sono obbligatori. Modifica annullata.");
+    }
   } catch (error) {
-      console.error("Errore durante la modifica delle ore lavorate:", error);
+    console.error("Errore durante la modifica delle ore lavorate:", error);
+    alert("Si è verificato un errore durante la modifica.");
   }
 }
 // Funzione per eliminare ore lavorate
@@ -911,11 +966,37 @@ async function applicaFiltri() {
   aggiornaTabellaOreLavorate(datiFiltrati, totali);
   paginaCorrente = 1; // Resetta alla prima pagina
 }
-function calcolaOreLavorate(oraInizio, oraFine) {
-  const inizio = new Date(`1970-01-01T${oraInizio}:00`);
-  const fine = new Date(`1970-01-01T${oraFine}:00`);
-  const differenza = fine - inizio; // Differenza in millisecondi
-  return differenza / (1000 * 60 * 60); // Converti in ore
+
+function calcolaTotaleGenerale(oreFiltrate) {
+  // Verifica che i dati siano validi
+  if (!Array.isArray(oreFiltrate)) {
+      console.error("Dati non validi per il calcolo del totale");
+      return 0;
+  }
+
+  // Calcola il totale delle ore lavorate
+  const totaleOre = oreFiltrate.reduce((totale, ore) => {
+      const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+      return totale + oreLavorate;
+  }, 0);
+
+  // Restituisce il totale con 2 decimali
+  return totaleOre.toFixed(2);
+}
+function sommaOre(ore1, ore2) {
+  // Converte le stringhe "HH:mm" in minuti totali
+  const [h1, m1] = ore1.split(':').map(Number);
+  const [h2, m2] = ore2.split(':').map(Number);
+
+  // Somma i minuti totali
+  const minutiTotali = (h1 + h2) * 60 + (m1 + m2);
+
+  // Converte i minuti totali in ore e minuti
+  const ore = Math.floor(minutiTotali / 60);
+  const minuti = minutiTotali % 60;
+
+  // Formatta il risultato come "HH:mm"
+  return `${String(ore).padStart(2, '0')}:${String(minuti).padStart(2, '0')}`;
 }
 async function resetFiltri() {
   // Resetta i campi di input
@@ -991,7 +1072,7 @@ async function popolaTabellaMensile(meseNumero, tbody) {
           totaleMensile: 0
         };
       }
-      const giorno = data.getDate() - 1;
+      const giorno = data.getDate() - 1; // Ottieni il giorno (0-30)
       const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
       datiPerDipendente[dipendenteKey].oreGiornaliere[giorno] += oreLavorate;
       datiPerDipendente[dipendenteKey].totaleMensile += oreLavorate;
@@ -1003,8 +1084,8 @@ async function popolaTabellaMensile(meseNumero, tbody) {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${dipendente}</td>
-      ${dati.oreGiornaliere.map(ore => `<td>${ore.toFixed(2)}</td>`).join('')}
-      <td><strong>${dati.totaleMensile.toFixed(2)}</strong></td>
+      ${dati.oreGiornaliere.map(ore => `<td>${formattaOreDecimali(ore)}</td>`).join('')} <!-- Formatta le ore in HH:MM -->
+      <td><strong>${formattaOreDecimali(dati.totaleMensile)}</strong></td> <!-- Formatta il totale mensile in HH:MM -->
     `;
     tbody.appendChild(row);
   });
@@ -1048,11 +1129,14 @@ async function scaricaCSV(mese, meseNumero) {
 
   // Righe CSV
   const rows = Object.entries(datiPerDipendente).map(([dipendente, dati]) => {
-    const oreFormattate = dati.oreGiornaliere.map(ore => ore.toFixed(2).padStart(8, " ")); // Allinea i numeri
+    const oreFormattate = dati.oreGiornaliere.map(ore => {
+      // Formatta le ore in HH:MM
+      return formattaOreDecimali(ore).padStart(8, " ");
+    });
     return [
       dipendente.padEnd(20, " "), // Allinea il nome del dipendente
-      ...oreFormattate, // Ore giornaliere
-      dati.totaleMensile.toFixed(2).padStart(12, " ") // Totale mensile
+      ...oreFormattate, // Ore giornaliere formattate
+      formattaOreDecimali(dati.totaleMensile).padStart(12, " ") // Totale mensile formattato
     ].join(";");
   });
 
@@ -1063,7 +1147,7 @@ async function scaricaCSV(mese, meseNumero) {
   const totaleGeneraleRow = [
     "Totale Generale".padEnd(20, " "), // Allinea l'etichetta
     ...Array(31).fill("".padStart(8, " ")), // Spazi vuoti per i giorni
-    totaleMensileGenerale.toFixed(2).padStart(12, " ") // Totale generale
+    formattaOreDecimali(totaleMensileGenerale).padStart(12, " ") // Totale generale formattato
   ].join(";");
 
   // Crea il contenuto CSV
