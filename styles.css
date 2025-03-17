@@ -12,6 +12,10 @@
     --spacing-medium: 10px;
     --spacing-large: 20px;
     --border-radius: 4px;
+    --button-padding: 10px;
+    --input-padding: 8px;
+    --font-size-base: 14px;
+    --font-size-large: 16px;
 }
 
 /* ===== Reset e Stili di Base ===== */
@@ -62,6 +66,7 @@ textarea {
 }
 
 /* ===== Bottoni ===== */
+
 button {
     padding: var(--spacing-medium);
     background-color: var(--primary-color);
@@ -96,32 +101,6 @@ th {
     font-weight: bold;
 }
 
-/* ===== Media Query per Responsive Design ===== */
-@media (max-width: 600px) {
-    .login-container,
-    .admin-container,
-    .employee-container {
-        width: 90%;
-        margin: 20px auto;
-        padding: var(--spacing-medium);
-    }
-
-    h2 {
-        font-size: 1.5em;
-    }
-
-    button {
-        width: 100%;
-    }
-}
-#oreCommessa {
-    width: 100%;
-    padding: 8px;
-    font-size: 16px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-  }
-/* ===== Media Query per Responsive Design ===== */
 @media (max-width: 600px) {
     .login-container,
     .admin-container,
@@ -144,4 +123,49 @@ th {
         overflow-x: auto;
         white-space: nowrap;
     }
+
+    table th,
+    table td {
+        padding: var(--spacing-small);
+    }
+}
+#oreCommessa {
+    width: 100%;
+    padding: 8px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 5px rgba(40, 167, 69, 0.5);
+}
+
+input:invalid,
+select:invalid,
+textarea:invalid {
+    border-color: #dc3545;
+}
+table tbody tr:nth-child(odd) {
+    background-color: #f9f9f9;
+}
+
+table tbody tr:hover {
+    background-color: #f1f1f1;
+}
+
+table td.actions {
+    text-align: right;
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.message {
+    animation: fadeIn 0.5s ease;
 }
