@@ -1,13 +1,13 @@
 /* ===== Variabili CSS ===== */
 :root {
     --primary-color: #28a745;
-    --primary-hover-color: #218838;
-    --background-color: #f4f4f4;
-    --container-bg-color: #fff;
-    --border-color: #ccc;
-    --table-header-bg-color: #f8f9fa;
-    --text-color: #333;
-    --shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    --primary-hover-color: #f80202;
+    --background-color: #ffffff;
+    --container-bg-color: #0590fa;
+    --border-color: #000000;
+    --table-header-bg-color: #ffffff;
+    --text-color: #000000;
+    --shadow: 0 0 10px rgb(17, 176, 240);
     --spacing-small: 5px;
     --spacing-medium: 10px;
     --spacing-large: 20px;
@@ -42,7 +42,7 @@ body {
 /* ===== Titoli ===== */
 h2 {
     text-align: center;
-    margin-bottom: var(--spacing-large);
+    margin: var(--spacing-large);
 }
 
 /* ===== Form ===== */
@@ -70,7 +70,7 @@ textarea {
 button {
     padding: var(--spacing-medium);
     background-color: var(--primary-color);
-    color: #fff;
+    color: #ffffff;
     border: solid;
     border-radius: var(--border-radius);
     cursor: pointer;
