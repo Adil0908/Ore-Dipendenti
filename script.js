@@ -249,6 +249,21 @@ async function aggiornaMenuCommesse() {
     datalist.appendChild(option);
   });
 }
+async function getUltimaLavorazioneGiornata(data) {
+  const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+  const lavorazioni = querySnapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter(ore => ore.data === data && ore.nomeDipendente === currentUser.name.split(" ")[0]);
+  
+  if (lavorazioni.length === 0) return null;
+  
+  // Ordina per ora di fine (decrescente)
+  lavorazioni.sort((a, b) => {
+    return b.oraFine.localeCompare(a.oraFine);
+  });
+  
+  return lavorazioni[0];
+}
 
 // Funzione per aggiornare la tabella dei dipendenti
 async function aggiornaTabellaDipendenti() {
@@ -894,29 +909,60 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Gestione Ore Lavorate
-  document.getElementById('oreForm').addEventListener('submit', function (e) {
+  document.getElementById('oreForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
-  
-    // Recupera i valori dal form
     const commessa = document.getElementById('oreCommessa').value;
     const nomeDipendente = currentUser.name.split(" ")[0];
     const cognomeDipendente = currentUser.name.split(" ")[1];
     const data = document.getElementById('oreData').value;
-    const oraInizio = arrotondaAlQuartoDora(document.getElementById('oreInizio').value); // Arrotonda l'ora di inizio
-    const oraFine = arrotondaAlQuartoDora(document.getElementById('oreFine').value); // Arrotonda l'ora di fine
+    let oraInizio = document.getElementById('oreInizio').value;
+    let oraFine = document.getElementById('oreFine').value;
     const descrizione = document.getElementById('oreDescrizione').value;
     const nonConformita = document.getElementById('nonConformita').checked;
-
+  
+    // Arrotonda gli orari
+    oraInizio = arrotondaAlQuartoDora(oraInizio);
+    oraFine = arrotondaAlQuartoDora(oraFine);
+  
+    // Verifica che l'ora di inizio non sia vuota
+    if (!oraInizio) {
+      alert("Inserisci l'ora di inizio");
+      return;
+    }
+  
+    // Verifica che l'ora di fine sia successiva all'ora di inizio
+    if (oraFine && oraFine <= oraInizio) {
+      alert("L'ora di fine deve essere successiva all'ora di inizio");
+      return;
+    }
+  
     // Aggiungi le ore lavorate
-    aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, data, oraInizio, oraFine, descrizione, nonConformita);
-
-    // Resetta il form
+    await aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, 
+                             data, oraInizio, oraFine, descrizione, nonConformita);
+  
+    // Resetta il form mantenendo la data e impostando la nuova ora di inizio
     document.getElementById('oreCommessa').value = "";
-    document.getElementById('oreData').value = "";
-    document.getElementById('oreInizio').value = "";
+    document.getElementById('oreInizio').value = oraFine || "";
     document.getElementById('oreFine').value = "";
     document.getElementById('oreDescrizione').value = "";
+    document.getElementById('nonConformita').checked = false;
+    
+    // Focus sul campo oraFine se c'è un'ora di inizio
+    if (document.getElementById('oreInizio').value) {
+      document.getElementById('oreFine').focus();
+    }
+  });
+  document.getElementById('oreData').addEventListener('change', async function() {
+    const dataSelezionata = this.value;
+    if (!dataSelezionata) return;
+    
+    const ultimaLavorazione = await getUltimaLavorazioneGiornata(dataSelezionata);
+    
+    if (ultimaLavorazione) {
+      document.getElementById('oreInizio').value = ultimaLavorazione.oraFine;
+      document.getElementById('oreFine').focus();
+    }
   });
 });
 async function applicaFiltri() {
