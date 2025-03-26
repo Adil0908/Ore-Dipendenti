@@ -567,17 +567,34 @@ async function aggiornaTabellaOreLavorate(oreFiltrate = null) {
   });
 
   // Aggiungi una riga per i totali
-  const totalRow = document.createElement('tr');
-  totalRow.innerHTML = `
-      <td colspan="7"><strong>Totale Generale</strong></td>
-      <td><strong>${calcolaTotaleGenerale(oreFiltrate)} ore</strong></td>
-  `;
-  tbody.appendChild(totalRow);
+  // Sostituisci questa parte nell'aggiornamento della tabella
+const totalRow = document.createElement('tr');
+const totaleOreDecimali = calcolaTotaleGenerale(oreFiltrate);
+const totaleFormattato = convertiInOreFormattate(totaleOreDecimali); // "2:30"
+
+totalRow.innerHTML = `
+  <td colspan="7"><strong>Totale Generale</strong></td>
+  <td><strong>${totaleFormattato} ore</strong></td> <!-- Mostra "2:30" -->
+ 
+`;
+tbody.appendChild(totalRow);
 
   // Aggiorna la paginazione
   aggiornaPaginazione(oreFiltrate.length);
 }
 
+function convertiInOreDecimali(oraFormattata) {
+  if (!oraFormattata || !oraFormattata.includes(":")) return 0;
+  
+  const [ore, minuti] = oraFormattata.split(":").map(Number);
+  return ore + (minuti / 60); // Esempio: "1:30" → 1.5
+}
+
+function convertiInOreFormattate(oreDecimali) {
+  const ore = Math.floor(oreDecimali);
+  const minuti = Math.round((oreDecimali - ore) * 60);
+  return `${ore}:${String(minuti).padStart(2, '0')}`; // Esempio: 2.5 → "2:30"
+}
 
 function calcolaOreLavorate(oraInizio, oraFine) {
   // Verifica che gli orari siano nel formato corretto
@@ -968,20 +985,17 @@ async function applicaFiltri() {
 }
 
 function calcolaTotaleGenerale(oreFiltrate) {
-  // Verifica che i dati siano validi
   if (!Array.isArray(oreFiltrate)) {
-      console.error("Dati non validi per il calcolo del totale");
-      return 0;
+    console.error("Dati non validi per il calcolo del totale");
+    return 0;
   }
 
-  // Calcola il totale delle ore lavorate
   const totaleOre = oreFiltrate.reduce((totale, ore) => {
-      const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-      return totale + oreLavorate;
+    const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+    return totale + oreLavorate;
   }, 0);
 
-  // Restituisce il totale con 2 decimali
-  return totaleOre.toFixed(2);
+  return totaleOre; // Restituisce in decimale (es. 2.5)
 }
 function sommaOre(ore1, ore2) {
   // Converte le stringhe "HH:mm" in minuti totali
