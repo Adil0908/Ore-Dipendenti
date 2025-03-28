@@ -1155,13 +1155,11 @@ async function scaricaCSV(mese, meseNumero) {
 
   const querySnapshot = await getDocs(collection(db, "oreLavorate"));
   const datiOreLavorate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  console.log("Dati ore lavorate:", datiOreLavorate);
-
+  
   const datiMese = datiOreLavorate.filter(ore => {
-    const data = new Date(ore.data); // Converti la stringa in un oggetto Date
-    return data.getMonth() + 1 === meseNumero; // Filtra per mese
+    const data = new Date(ore.data);
+    return data.getMonth() + 1 === meseNumero;
   });
-  console.log("Dati filtrati per il mese:", datiMese);
 
   const datiPerDipendente = {};
   datiMese.forEach(ore => {
@@ -1172,63 +1170,77 @@ async function scaricaCSV(mese, meseNumero) {
         totaleMensile: 0
       };
     }
-    const giorno = new Date(ore.data).getDate() - 1; // Ottieni il giorno (0-30)
+    const dataOre = new Date(ore.data);
+    const giorno = dataOre.getDate() - 1;
     const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
     datiPerDipendente[dipendenteKey].oreGiornaliere[giorno] += oreLavorate;
     datiPerDipendente[dipendenteKey].totaleMensile += oreLavorate;
   });
 
-  console.log("Dati per dipendente:", datiPerDipendente);
+  // Funzione per determinare se un giorno è sabato o domenica
+  function isWeekend(year, month, day) {
+    const date = new Date(year, month - 1, day);
+    const dayOfWeek = date.getDay();
+    return dayOfWeek === 0 || dayOfWeek === 6; // 0 = Domenica, 6 = Sabato
+  }
 
-  // Intestazione CSV
+  // Ottieni l'anno corrente (potresti volerlo passare come parametro)
+  const currentYear = new Date().getFullYear();
+
+  // Intestazione CSV con giorni evidenziati
   const header = [
-    "Dipendente".padEnd(20, " "), // Allinea il nome del dipendente
-    ...Array.from({ length: 31 }, (_, i) => `Giorno ${i + 1}`.padStart(8, " ")), // Allinea i giorni
-    "Totale Mensile".padStart(12, " ") // Allinea il totale mensile
+    "Dipendente".padEnd(20, " "),
+    ...Array.from({ length: 31 }, (_, i) => {
+      const day = i + 1;
+      const isNonLavorativo = isWeekend(currentYear, meseNumero, day);
+      return `${day}${isNonLavorativo ? '*' : ''}`.padStart(8, " ");
+    }),
+    "Totale Mensile".padStart(12, " ")
   ].join(";");
 
-  // Righe CSV
+  // Righe CSV con giorni non lavorativi evidenziati
   const rows = Object.entries(datiPerDipendente).map(([dipendente, dati]) => {
-    const oreFormattate = dati.oreGiornaliere.map(ore => {
-      // Formatta le ore in HH:MM
-      return formattaOreDecimali(ore).padStart(8, " ");
+    const oreFormattate = dati.oreGiornaliere.map((ore, index) => {
+      const day = index + 1;
+      const isNonLavorativo = isWeekend(currentYear, meseNumero, day);
+      const oreStr = ore > 0 ? formattaOreDecimali(ore) : isNonLavorativo ? 'FESTIVO' : '';
+      return oreStr.padStart(8, " ");
     });
+    
     return [
-      dipendente.padEnd(20, " "), // Allinea il nome del dipendente
-      ...oreFormattate, // Ore giornaliere formattate
-      formattaOreDecimali(dati.totaleMensile).padStart(12, " ") // Totale mensile formattato
+      dipendente.padEnd(20, " "),
+      ...oreFormattate,
+      formattaOreDecimali(dati.totaleMensile).padStart(12, " ")
     ].join(";");
   });
 
-  // Calcola il totale mensile di tutte le ore lavorate
+  // Calcolo totale mensile
   const totaleMensileGenerale = Object.values(datiPerDipendente).reduce((totale, dati) => totale + dati.totaleMensile, 0);
 
-  // Aggiungi una riga per il totale mensile generale
-  const totaleGeneraleRow = [
-    "Totale Generale".padEnd(20, " "), // Allinea l'etichetta
-    ...Array(31).fill("".padStart(8, " ")), // Spazi vuoti per i giorni
-    formattaOreDecimali(totaleMensileGenerale).padStart(12, " ") // Totale generale formattato
-  ].join(";");
-
-  // Crea il contenuto CSV
+  // Creazione contenuto CSV
   const csvContent = [
-    `Report Ore Lavorate - ${mese} 2025`, // Descrizione del file
-    "=".repeat(header.length), // Linea separatrice
-    header, // Intestazione
-    "-".repeat(header.length), // Linea separatrice
-    ...rows, // Righe dei dati
-    "-".repeat(header.length), // Linea separatrice
-    totaleGeneraleRow // Totale generale
+    `Report Ore Lavorate - ${mese} ${currentYear}`,
+    "=".repeat(header.length),
+    header,
+    "-".repeat(header.length),
+    ...rows,
+    "-".repeat(header.length),
+    [
+      "Totale Generale".padEnd(20, " "),
+      ...Array(31).fill("".padStart(8, " ")),
+      formattaOreDecimali(totaleMensileGenerale).padStart(12, " ")
+    ].join(";"),
+    "",
+    "* I giorni contrassegnati con asterisco sono sabato/domenica",
+    "FESTIVO = Giorno non lavorativo (sabato/domenica)"
   ].join("\n");
 
-  console.log("Contenuto CSV:", csvContent);
-
-  // Scarica il file CSV
-  const blob = new Blob([csvContent], { type: "text/csv" });
+  // Download del file
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `ore_lavorate_${mese}.csv`;
+  a.download = `ore_lavorate_${mese}_${currentYear}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
