@@ -149,7 +149,7 @@ async function generaPDFFiltrato() {
     });
 
     doc.setFontSize(18);
-    doc.text("Report Ore Lavorate Filtrate (Non Conformità)", 14, 20);
+    doc.text("Report Ore Lavorate Filtrate ", 14, 20);
 
     // Aggiungi la tabella delle ore lavorate
     doc.autoTable({
@@ -201,7 +201,69 @@ async function generaPDFFiltrato() {
     alert("Si è verificato un errore durante la generazione del PDF.");
   }
 }
+// Popola dinamicamente i giorni quando cambia il mese
+document.getElementById('filtroMese').addEventListener('change', function() {
+  const mese = this.value;
+  const giornoSelect = document.getElementById('filtroGiorno');
+  
+  // Svuota le opzioni esistenti
+  giornoSelect.innerHTML = '<option value="">Tutti i giorni</option>';
+  
+  if (mese) {
+    // Determina quanti giorni ha il mese selezionato
+    const anno = new Date().getFullYear();
+    const giorniNelMese = new Date(anno, mese, 0).getDate();
+    
+    // Aggiungi i giorni
+    for (let i = 1; i <= giorniNelMese; i++) {
+      const option = document.createElement('option');
+      option.value = i < 10 ? `0${i}` : `${i}`;
+      option.textContent = i;
+      giornoSelect.appendChild(option);
+    }
+  }
+});
+// Popola gli anni disponibili (es. ultimi 5 anni e prossimi 2)
+function popolaAnni() {
+  const annoSelect = document.getElementById('filtroAnno');
+  const annoCorrente = new Date().getFullYear();
+  
+  for (let i = annoCorrente - 5; i <= annoCorrente + 2; i++) {
+    const option = document.createElement('option');
+    option.value = i;
+    option.textContent = i;
+    if (i === annoCorrente) {
+      option.selected = true;
+    }
+    annoSelect.appendChild(option);
+  }
+}
 
+// Chiamata all'inizializzazione
+document.addEventListener('DOMContentLoaded', popolaAnni);
+document.getElementById('filtroAnno').addEventListener('change', aggiornaGiorni);
+document.getElementById('filtroMese').addEventListener('change', aggiornaGiorni);
+
+function aggiornaGiorni() {
+  const mese = document.getElementById('filtroMese').value;
+  const anno = document.getElementById('filtroAnno').value;
+  const giornoSelect = document.getElementById('filtroGiorno');
+  
+  giornoSelect.innerHTML = '<option value="">Tutti i giorni</option>';
+  
+  if (mese && anno) {
+    // Calcola i giorni effettivi del mese/anno (considera anche anni bisestili)
+    const giorniNelMese = new Date(anno, mese, 0).getDate();
+    
+    for (let i = 1; i <= giorniNelMese; i++) {
+      const giorno = i < 10 ? `0${i}` : `${i}`;
+      const option = document.createElement('option');
+      option.value = giorno;
+      option.textContent = i;
+      giornoSelect.appendChild(option);
+    }
+  }
+}
 // Funzione per mostrare l'applicazione
 async function mostraApplicazione() {
   document.getElementById('loginPage').style.display = 'none';
@@ -221,6 +283,44 @@ async function mostraApplicazione() {
   }
 // Nascondi le tabelle mensili al login
 document.getElementById('tabelleMensili').style.display = 'none';
+// Aggiorna le tabelle con filtro mese corrente per admin
+if (currentUser && currentUser.ruolo === 'admin') {
+  const oggi = new Date();
+  const meseCorrente = oggi.getMonth() + 1;
+  const annoCorrente = oggi.getFullYear();
+  const meseStringa = `${annoCorrente}-${String(meseCorrente).padStart(2, '0')}`;
+  
+  const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+  const datiMeseCorrente = querySnapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter(ore => ore.data.startsWith(meseStringa));
+  
+  await aggiornaTabellaOreLavorate(datiMeseCorrente);
+} else {
+  await aggiornaTabellaOreLavorate();
+}
+if (currentUser && currentUser.ruolo === 'admin') {
+  const oggi = new Date();
+  const annoCorrente = oggi.getFullYear().toString();
+  const meseCorrente = String(oggi.getMonth() + 1).padStart(2, '0');
+  const giornoCorrente = String(oggi.getDate()).padStart(2, '0');
+  
+  // Imposta i filtri
+  document.getElementById('filtroAnno').value = annoCorrente;
+  document.getElementById('filtroMese').value = meseCorrente;
+  
+  // Trigger per popolare i giorni
+  aggiornaGiorni();
+  
+  // Imposta il giorno dopo un breve delay
+  setTimeout(() => {
+    document.getElementById('filtroGiorno').value = giornoCorrente;
+    applicaFiltri();
+  }, 100);
+} else {
+  await aggiornaTabellaOreLavorate();
+}
+
   // Aggiorna le tabelle
   await aggiornaMenuCommesse();
   await aggiornaTabellaOreLavorate(); // Chiamata senza parametri
@@ -526,12 +626,25 @@ async function eliminaCommessa(id) {
 
 // Funzione per aggiornare la tabella delle ore lavorate
 async function aggiornaTabellaOreLavorate(oreFiltrate = null) {
-  if (!oreFiltrate) {
-      // Se non ci sono dati filtrati, carica tutti i dati
-      const querySnapshot = await getDocs(collection(db, "oreLavorate"));
-      oreFiltrate = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  }
+  // Ottieni la data corrente
+  const oggi = new Date();
+  const meseCorrente = oggi.getMonth() + 1; // 1-12
+  const annoCorrente = oggi.getFullYear();
+  const meseStringa = `${annoCorrente}-${String(meseCorrente).padStart(2, '0')}`;
 
+  if (!oreFiltrate) {
+    // Se non ci sono dati filtrati, carica tutti i dati
+    const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+    oreFiltrate = querySnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      // Filtra solo il mese corrente se admin
+      .filter(ore => {
+        if (currentUser && currentUser.ruolo === 'admin') {
+          return ore.data.startsWith(meseStringa);
+        }
+        return true;
+      });
+    }
   // Ordina i dati per data in ordine decrescente
   oreFiltrate.sort((a, b) => {
       const dataA = new Date(a.data);
@@ -690,6 +803,11 @@ document.getElementById('btnSuccessiva').addEventListener('click', () => {
 });
 
 
+document.getElementById('btnMostraTutti').addEventListener('click', async () => {
+  const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+  datiTotali = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  aggiornaTabellaOreLavorate(datiTotali);
+});
 
 // Funzione per aggiungere ore lavorate
 async function aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, data, oraInizio, oraFine, descrizione, nonConformita) {
@@ -968,8 +1086,10 @@ document.addEventListener('DOMContentLoaded', function () {
 async function applicaFiltri() {
   const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
   const filtroDipendente = document.getElementById('filtroDipendente').value.trim().toLowerCase();
+  const filtroAnno = document.getElementById('filtroAnno').value;
   const filtroMese = document.getElementById('filtroMese').value;
-  const filtroNonConformita = document.getElementById('filtroNonConformita').checked; // Nuovo filtro
+  const filtroGiorno = document.getElementById('filtroGiorno').value;
+  const filtroNonConformita = document.getElementById('filtroNonConformita').checked;
 
   const querySnapshot = await getDocs(collection(db, "oreLavorate"));
   datiFiltrati = querySnapshot.docs
@@ -977,16 +1097,40 @@ async function applicaFiltri() {
     .filter(ore => {
       const corrispondeCommessa = filtroCommessa ? 
         ore.commessa.toLowerCase().includes(filtroCommessa) : true;
+      
       const corrispondeDipendente = filtroDipendente ? 
         `${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
-      const corrispondeMese = filtroMese ? 
-        ore.data.startsWith(filtroMese) : true;
+      
       const corrispondeNonConformita = filtroNonConformita ? 
-        ore.nonConformita === true : true; // Filtra solo se nonConformita è true
-
-      return corrispondeCommessa && corrispondeDipendente && corrispondeMese && corrispondeNonConformita;
+        ore.nonConformita === true : true;
+      
+      // Filtro per data (anno, mese e giorno)
+      let corrispondeData = true;
+      if (filtroAnno || filtroMese || filtroGiorno) {
+        const [anno, mese, giorno] = ore.data.split('-');
+        
+        if (filtroAnno && anno !== filtroAnno) {
+          corrispondeData = false;
+        }
+        
+        if (filtroMese && mese !== filtroMese) {
+          corrispondeData = false;
+        }
+        
+        if (filtroGiorno && giorno !== filtroGiorno) {
+          corrispondeData = false;
+        }
+      }
+      
+      return corrispondeCommessa && corrispondeDipendente && corrispondeNonConformita && corrispondeData;
     });
-
+// Se admin e nessun filtro mese specificato, mostra solo mese corrente
+if (currentUser && currentUser.ruolo === 'admin' && !filtroMese) {
+  const oggi = new Date();
+  const meseCorrente = oggi.getMonth() + 1;
+  const annoCorrente = oggi.getFullYear();
+  filtroMese = `${annoCorrente}-${String(meseCorrente).padStart(2, '0')}`;
+}
   // Ordina i dati per data in ordine decrescente
   datiFiltrati.sort((a, b) => {
     const dataA = new Date(a.data);
@@ -1059,15 +1203,32 @@ function sommaOre(ore1, ore2) {
   return `${String(ore).padStart(2, '0')}:${String(minuti).padStart(2, '0')}`;
 }
 async function resetFiltri() {
-  // Resetta i campi di input
   document.getElementById('filtroCommessa').value = "";
   document.getElementById('filtroDipendente').value = "";
+  document.getElementById('filtroAnno').value = new Date().getFullYear().toString();
   document.getElementById('filtroMese').value = "";
+  document.getElementById('filtroGiorno').value = "";
+  document.getElementById('filtroNonConformita').checked = false;
 
+  // Reset delle opzioni del giorno
+  const giornoSelect = document.getElementById('filtroGiorno');
+  giornoSelect.innerHTML = '<option value="">Tutti i giorni</option>';
+// Se admin, mostra solo mese corrente
+if (currentUser && currentUser.ruolo === 'admin') {
+  const oggi = new Date();
+  const meseCorrente = oggi.getMonth() + 1;
+  const annoCorrente = oggi.getFullYear();
+  const meseStringa = `${annoCorrente}-${String(meseCorrente).padStart(2, '0')}`;
+  
+  const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+  datiFiltrati = querySnapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter(ore => ore.data.startsWith(meseStringa));
+} else {
   // Resetta i dati filtrati
   const querySnapshot = await getDocs(collection(db, "oreLavorate"));
   datiFiltrati = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
+}
   // Ordina i dati per data in ordine decrescente
   datiFiltrati.sort((a, b) => {
     const dataA = new Date(a.data);
