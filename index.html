@@ -73,6 +73,7 @@
                 <button id="btnPrecedente">Precedente</button>
                 <span id="numeriPagina"></span>
                 <button id="btnSuccessiva">Successiva</button>
+                <button id="btnMostraTutti" class="btn btn-secondary">Mostra Tutti i Dati</button>
               </div>
         </div>
        
@@ -83,7 +84,41 @@
             <!-- Filtri esistenti -->
             <input type="text" id="filtroCommessa" placeholder="Filtra per commessa">
             <input type="text" id="filtroDipendente" placeholder="Filtra per dipendente">
-            <input type="month" id="filtroMese" placeholder="Filtra per mese">
+            <div class="row">
+                <div class="col-md-4">
+                  <label for="filtroAnno">Anno</label>
+                  <select id="filtroAnno" class="form-control">
+                    <option value="">Tutti gli anni</option>
+                    <!-- Le opzioni verranno popolate dinamicamente via JavaScript -->
+                  </select>
+                </div>
+            
+                <div class="col-md-4">
+                  <label for="filtroMese">Mese</label>
+                  <select id="filtroMese" class="form-control">
+                    <option value="">Tutti i mesi</option>
+                    <option value="01">Gennaio</option>
+                    <option value="02">Febbraio</option>
+                    <option value="03">Marzo</option> 
+                    <option value="04">Aprile</option> 
+                    <option value="05">Maggio</option>
+                    <option value="06">Giugno</option>
+                    <option value="07">Luglio</option>
+                    <option value="08">Agosto</option>
+                    <option value="09">Settembre</option>
+                    <option value="10">Ottobre</option>
+                    <option value="11">Novembre</option>
+                    <option value="12">Dicembre</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label for="filtroGiorno">Giorno</label>
+                  <select id="filtroGiorno" class="form-control">
+                    <option value="">Tutti i giorni</option>
+                    <!-- Opzioni verranno popolate dinamicamente da 1 a 31 -->
+                  </select>
+                </div>
+              </div>
           
             <!-- Nuovo filtro per non conformità -->
             <label>
