@@ -169,3 +169,22 @@ table td.actions {
 .message {
     animation: fadeIn 0.5s ease;
 }
+/* Stile per i filtri affiancati */
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+  }
+  
+  .col-md-6 {
+    flex: 0 0 50%;
+    max-width: 50%;
+    padding: 0 10px;
+  }
+  
+  @media (max-width: 768px) {
+    .col-md-6 {
+      flex: 0 0 100%;
+      max-width: 100%;
+    }
+  }
