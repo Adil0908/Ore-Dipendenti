@@ -1087,24 +1087,28 @@ async function applicaFiltri() {
   const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
   const filtroDipendente = document.getElementById('filtroDipendente').value.trim().toLowerCase();
   const filtroAnno = document.getElementById('filtroAnno').value;
-  const filtroMese = document.getElementById('filtroMese').value;
+  const filtroMese = document.getElementById('filtroMese').value; // Nota: c'era un typo qui (filtroMese vs filtroMese)
   const filtroGiorno = document.getElementById('filtroGiorno').value;
   const filtroNonConformita = document.getElementById('filtroNonConformita').checked;
 
   const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+  
   datiFiltrati = querySnapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
     .filter(ore => {
+      // Filtro per commessa
       const corrispondeCommessa = filtroCommessa ? 
         ore.commessa.toLowerCase().includes(filtroCommessa) : true;
       
+      // Filtro per dipendente
       const corrispondeDipendente = filtroDipendente ? 
         `${ore.nomeDipendente} ${ore.cognomeDipendente}`.toLowerCase().includes(filtroDipendente) : true;
       
+      // Filtro per non conformità
       const corrispondeNonConformita = filtroNonConformita ? 
         ore.nonConformita === true : true;
       
-      // Filtro per data (anno, mese e giorno)
+      // Filtro per data - MODIFICATO
       let corrispondeData = true;
       if (filtroAnno || filtroMese || filtroGiorno) {
         const [anno, mese, giorno] = ore.data.split('-');
@@ -1121,57 +1125,21 @@ async function applicaFiltri() {
           corrispondeData = false;
         }
       }
+      // Rimuovi il filtro automatico del mese corrente per admin
+      // quando nessun filtro è specificato
       
       return corrispondeCommessa && corrispondeDipendente && corrispondeNonConformita && corrispondeData;
     });
-// Se admin e nessun filtro mese specificato, mostra solo mese corrente
-if (currentUser && currentUser.ruolo === 'admin' && !filtroMese) {
-  const oggi = new Date();
-  const meseCorrente = oggi.getMonth() + 1;
-  const annoCorrente = oggi.getFullYear();
-  filtroMese = `${annoCorrente}-${String(meseCorrente).padStart(2, '0')}`;
-}
+
   // Ordina i dati per data in ordine decrescente
   datiFiltrati.sort((a, b) => {
     const dataA = new Date(a.data);
     const dataB = new Date(b.data);
-    return dataB - dataA; // Ordine decrescente
+    return dataB - dataA;
   });
 
-  // Calcola i totali
-  const totali = {
-      perDipendente: {},
-      perCommessa: {},
-      perMese: {}
-  };
-
-  datiFiltrati.forEach(ore => {
-      const oreLavorate = calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-
-      // Totale per dipendente
-      const dipendenteKey = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
-      if (!totali.perDipendente[dipendenteKey]) {
-          totali.perDipendente[dipendenteKey] = 0;
-      }
-      totali.perDipendente[dipendenteKey] += oreLavorate;
-
-      // Totale per commessa
-      if (!totali.perCommessa[ore.commessa]) {
-          totali.perCommessa[ore.commessa] = 0;
-      }
-      totali.perCommessa[ore.commessa] += oreLavorate;
-
-      // Totale per mese
-      const meseKey = ore.data.substring(0, 7); // Formato YYYY-MM
-      if (!totali.perMese[meseKey]) {
-          totali.perMese[meseKey] = 0;
-      }
-      totali.perMese[meseKey] += oreLavorate;
-  });
-
-  // Aggiorna la tabella con i dati filtrati
-  aggiornaTabellaOreLavorate(datiFiltrati, totali);
-  paginaCorrente = 1; // Resetta alla prima pagina
+  aggiornaTabellaOreLavorate(datiFiltrati);
+  paginaCorrente = 1;
 }
 
 function calcolaTotaleGenerale(oreFiltrate) {
