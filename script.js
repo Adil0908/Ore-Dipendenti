@@ -507,10 +507,24 @@ async function eliminaDipendente(id) {
 
 
 // Funzione per aggiornare la tabella delle commesse
-async function aggiornaTabellaCommesse() {
+async function aggiornaTabellaCommesse(filtro = '') {
   const tbody = document.querySelector('#commesseTable tbody');
   tbody.innerHTML = '';
 
+  // Se non ci sono dati caricati o c'è un filtro, ricarica i dati
+  if (datiTotaliCommesse.length === 0 || filtro) {
+    const querySnapshot = await getDocs(collection(db, "commesse"));
+    datiTotaliCommesse = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    // Applica il filtro se presente
+    if (filtro) {
+      const filtroLowerCase = filtro.toLowerCase();
+      datiTotaliCommesse = datiTotaliCommesse.filter(commessa => 
+        commessa.nomeCommessa.toLowerCase().includes(filtroLowerCase) ||
+        commessa.cliente.toLowerCase().includes(filtroLowerCase)
+      );
+    }
+  }
   // Carica tutti i dati se non sono già stati caricati
   if (datiTotaliCommesse.length === 0) {
     const querySnapshot = await getDocs(collection(db, "commesse"));
@@ -575,6 +589,28 @@ document.getElementById('btnSuccessivaCommesse').addEventListener('click', () =>
   if (paginaCorrenteCommesse < numeroPagine) {
     paginaCorrenteCommesse++;
     aggiornaTabellaCommesse();
+  }
+});
+// Ricerca commesse
+document.getElementById('btnCercaCommessa').addEventListener('click', () => {
+  const filtro = document.getElementById('cercaCommessa').value.trim();
+  paginaCorrenteCommesse = 1; // Resetta alla prima pagina
+  aggiornaTabellaCommesse(filtro);
+});
+
+// Reset ricerca
+document.getElementById('btnResetCercaCommessa').addEventListener('click', () => {
+  document.getElementById('cercaCommessa').value = '';
+  paginaCorrenteCommesse = 1;
+  aggiornaTabellaCommesse(); // Senza filtro
+});
+
+// Ricerca al pressione di Enter
+document.getElementById('cercaCommessa').addEventListener('keyup', (e) => {
+  if (e.key === 'Enter') {
+    const filtro = document.getElementById('cercaCommessa').value.trim();
+    paginaCorrenteCommesse = 1;
+    aggiornaTabellaCommesse(filtro);
   }
 });
 
