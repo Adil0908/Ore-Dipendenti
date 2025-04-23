@@ -29,10 +29,10 @@
         <div class="dipendente-only">
             <h2>Registrazione Ore Lavorate</h2>
             <form id="oreForm">
-                <input type="text" id="oreCommessa" list="commesseList" placeholder="Cerca una commessa..." required>
-                <datalist id="commesseList">
+                <select id="oreCommessa" required>
+                    <option value="">Seleziona una commessa</option>
                     <!-- Le opzioni verranno popolate dinamicamente -->
-                </datalist>
+                  </select>
                 <label for="oreData">Data:</label>
                 <input type="date" id="oreData" name="data" required>
                 <label for="oreInizio">Ora Inizio:</label>
