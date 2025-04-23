@@ -337,17 +337,24 @@ if (currentUser && currentUser.ruolo === 'admin') {
 
 // Funzione per aggiornare il menu delle commesse
 async function aggiornaMenuCommesse() {
-  const datalist = document.getElementById('commesseList');
-  datalist.innerHTML = ''; // Svuota il datalist
+  const select = document.getElementById('oreCommessa');
+  
+  // Mantieni solo l'opzione di default
+  select.innerHTML = '<option value="">Seleziona una commessa</option>';
 
-  const querySnapshot = await getDocs(collection(db, "commesse"));
-  querySnapshot.forEach(doc => {
-    const commessa = doc.data();
-    const option = document.createElement('option');
-    option.value = commessa.nomeCommessa; // Valore visualizzato nell'input
-    option.textContent = commessa.nomeCommessa; // Testo dell'opzione
-    datalist.appendChild(option);
-  });
+  try {
+    const querySnapshot = await getDocs(collection(db, "commesse"));
+    querySnapshot.forEach(doc => {
+      const commessa = doc.data();
+      const option = document.createElement('option');
+      option.value = commessa.nomeCommessa;
+      option.textContent = commessa.nomeCommessa;
+      select.appendChild(option);
+    });
+  } catch (error) {
+    console.error("Errore nel caricamento delle commesse:", error);
+    alert("Errore nel caricamento delle commesse disponibili");
+  }
 }
 async function getUltimaLavorazioneGiornata(data) {
   const querySnapshot = await getDocs(collection(db, "oreLavorate"));
@@ -868,8 +875,9 @@ async function modificaOreLavorate(id) {
     const ore = docSnap.data();
     console.log("Dati correnti delle ore lavorate:", ore); // Debug
 
+
     // Mostra i dati correnti nei prompt
-    const nuovaCommessa = prompt("Inserisci la nuova commessa:", ore.commessa);
+    const nuovaCommessa = prompt("Inserisci la nuova commessa:", ore.commessa); 
     const nuovoNomeDipendente = prompt("Inserisci il nuovo nome del dipendente:", ore.nomeDipendente);
     const nuovoCognomeDipendente = prompt("Inserisci il nuovo cognome del dipendente:", ore.cognomeDipendente);
     const nuovaData = prompt("Inserisci la nuova data (YYYY-MM-DD):", ore.data);
@@ -900,6 +908,7 @@ async function modificaOreLavorate(id) {
       });
 
       alert("Dati salvati con successo!");
+  
 
       // Aggiorna la tabella delle ore lavorate
       await aggiornaTabellaOreLavorate();
@@ -1030,7 +1039,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('oreForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
-    const commessa = document.getElementById('oreCommessa').value;
+    
     const nomeDipendente = currentUser.name.split(" ")[0];
     const cognomeDipendente = currentUser.name.split(" ")[1];
     const data = document.getElementById('oreData').value;
@@ -1038,6 +1047,15 @@ document.addEventListener('DOMContentLoaded', function () {
     let oraFine = document.getElementById('oreFine').value;
     const descrizione = document.getElementById('oreDescrizione').value;
     const nonConformita = document.getElementById('nonConformita').checked;
+    const commessaSelect = document.getElementById('oreCommessa');
+    const commessa = commessaSelect.value;
+  
+  // Verifica che sia stata selezionata una commessa
+  if (!commessa) {
+    alert("Seleziona una commessa dalla lista");
+    commessaSelect.focus();
+    return;
+  }
   
     // Arrotonda gli orari
     oraInizio = arrotondaAlQuartoDora(oraInizio);
@@ -1082,6 +1100,7 @@ document.addEventListener('DOMContentLoaded', function () {
       document.getElementById('oreFine').focus();
     }
   });
+  aggiornaMenuCommesse();
 });
 async function applicaFiltri() {
   const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
