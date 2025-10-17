@@ -34,6 +34,9 @@ const mesi = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
 ];
+// Aggiungi dopo le variabili globali esistenti
+const ORARIO_PAUSA_INIZIO = "12:00";
+const ORARIO_PAUSA_FINE = "13:00";
 let datiOreLavorate = []; // Memorizza i dati delle ore lavorate
 let paginaCorrenteDipendenti = 1;
 const righePerPaginaDipendenti = 5; // Numero di righe per pagina
@@ -853,32 +856,111 @@ document.getElementById('btnMostraTutti').addEventListener('click', async () => 
 });
 
 // Funzione per aggiungere ore lavorate
+// SOSTITUISCI la funzione aggiungiOreLavorate esistente
 async function aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, data, oraInizio, oraFine, descrizione, nonConformita) {
   try {
-      // Verifica che gli orari siano validi
-      if (!oraInizio || !oraFine || !oraInizio.includes(":") || !oraFine.includes(":")) {
-          alert("Formato orario non valido. Usare 'HH:mm'");
-          return;
-      }
+    // Verifica che gli orari siano validi
+    if (!oraInizio || !oraFine || !oraInizio.includes(":") || !oraFine.includes(":")) {
+      alert("Formato orario non valido. Usare 'HH:mm'");
+      return;
+    }
 
-      // Aggiungi le ore lavorate al database
-      await addDoc(collection(db, "oreLavorate"), {
-          commessa: commessa,
-          nomeDipendente: nomeDipendente,
-          cognomeDipendente: cognomeDipendente,
-          data: data,
-          oraInizio: oraInizio,
-          oraFine: oraFine,
-          descrizione: descrizione,
-          nonConformita: nonConformita
-      });
+    // Verifica che l'ora di fine sia successiva all'ora di inizio
+    if (oraFine <= oraInizio) {
+      alert("L'ora di fine deve essere successiva all'ora di inizio");
+      return;
+    }
 
-      alert("Dati salvati con successo!");
-      aggiornaTabellaOreLavorate();
+    // Controlla sovrapposizioni e pausa pranzo
+    const controllo = await controllaOrariGiornata(data, oraInizio, oraFine);
+    
+    if (!controllo.valido) {
+      alert(controllo.errore);
+      return;
+    }
+
+    // Aggiungi le ore lavorate al database
+    await addDoc(collection(db, "oreLavorate"), {
+      commessa: commessa,
+      nomeDipendente: nomeDipendente,
+      cognomeDipendente: cognomeDipendente,
+      data: data,
+      oraInizio: oraInizio,
+      oraFine: oraFine,
+      descrizione: descrizione,
+      nonConformita: nonConformita
+    });
+
+    alert("Dati salvati con successo!");
+    aggiornaTabellaOreLavorate();
   } catch (error) {
-      console.error("Errore durante l'aggiunta delle ore lavorate: ", error);
-      alert("Si è verificato un errore durante il salvataggio.");
+    console.error("Errore durante l'aggiunta delle ore lavorate: ", error);
+    alert("Si è verificato un errore durante il salvataggio.");
   }
+}
+// Aggiungi questa funzione dopo le funzioni esistenti
+// Aggiungi questa funzione dopo le funzioni esistenti
+async function controllaOrariGiornata(data, nuovaOraInizio, nuovaOraFine, idEscluso = null) {
+  try {
+    // Controllo orario di pausa
+    if (nuovaOraInizio < ORARIO_PAUSA_FINE && nuovaOraFine > ORARIO_PAUSA_INIZIO) {
+      return {
+        valido: false,
+        errore: `Impossibile registrare ore durante la pausa pranzo (${ORARIO_PAUSA_INIZIO} - ${ORARIO_PAUSA_FINE})`
+      };
+    }
+
+    // Recupera tutte le ore lavorate del dipendente per quella data
+    const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+    const oreEsistenti = querySnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(ore => 
+        ore.data === data && 
+        ore.nomeDipendente === currentUser.name.split(" ")[0] &&
+        ore.id !== idEscluso // Esclude il record corrente in caso di modifica
+      );
+
+    // Controlla sovrapposizioni con le ore esistenti
+    for (const oreEsistente of oreEsistenti) {
+      const sovrappone = siSovrappongono(
+        nuovaOraInizio, nuovaOraFine,
+        oreEsistente.oraInizio, oreEsistente.oraFine
+      );
+      
+      if (sovrappone) {
+        return {
+          valido: false,
+          errore: `Sovrapposizione con fascia oraria esistente: ${oreEsistente.oraInizio} - ${oreEsistente.oraFine}`
+        };
+      }
+    }
+
+    return { valido: true };
+  } catch (error) {
+    console.error("Errore nel controllo orari:", error);
+    return {
+      valido: false,
+      errore: "Errore di sistema durante il controllo degli orari"
+    };
+  }
+}
+
+
+
+// Funzione helper per controllare sovrapposizioni
+function siSovrappongono(inizio1, fine1, inizio2, fine2) {
+  // Converte in minuti per facilitare il confronto
+  const toMinutes = (time) => {
+    const [ore, minuti] = time.split(':').map(Number);
+    return ore * 60 + minuti;
+  };
+
+  const start1 = toMinutes(inizio1);
+  const end1 = toMinutes(fine1);
+  const start2 = toMinutes(inizio2);
+  const end2 = toMinutes(fine2);
+
+  return start1 < end2 && end1 > start2;
 }
 function arrotondaAlQuartoDora(ora) {
   const [ore, minuti] = ora.split(":").map(Number); // Dividi l'ora in ore e minuti
@@ -890,9 +972,9 @@ function arrotondaAlQuartoDora(ora) {
   return `${String(oreFinali).padStart(2, "0")}:${String(minutiFinali).padStart(2, "0")}`;
 }
 
-// Funzione per modificare ore lavorate
+// AGGIORNA la funzione modificaOreLavorate per includere i controlli
 async function modificaOreLavorate(id) {
-  console.log("ID del documento da modificare:", id); // Debug
+  console.log("ID del documento da modificare:", id);
 
   if (!id || typeof id !== "string") {
     console.error("ID non valido:", id);
@@ -909,8 +991,6 @@ async function modificaOreLavorate(id) {
     }
 
     const ore = docSnap.data();
-    console.log("Dati correnti delle ore lavorate:", ore); // Debug
-
 
     // Mostra i dati correnti nei prompt
     const nuovaCommessa = prompt("Inserisci la nuova commessa:", ore.commessa); 
@@ -920,7 +1000,7 @@ async function modificaOreLavorate(id) {
     const nuovaOraInizio = prompt("Inserisci la nuova ora di inizio (HH:mm):", ore.oraInizio);
     const nuovaOraFine = prompt("Inserisci la nuova ora di fine (HH:mm):", ore.oraFine);
     const nuovaDescrizione = prompt("Inserisci la nuova descrizione:", ore.descrizione);
-    const nuovaNonConformita = confirm("La non conformità è stata risolta?"); // Usa confirm per un input booleano
+    const nuovaNonConformita = confirm("La non conformità è stata risolta?");
 
     if (
       nuovaCommessa &&
@@ -931,6 +1011,19 @@ async function modificaOreLavorate(id) {
       nuovaOraFine &&
       nuovaDescrizione
     ) {
+      // Controlla sovrapposizioni e pausa pranzo (escludendo il record corrente)
+      const controllo = await controllaOrariGiornata(
+        nuovaData, 
+        nuovaOraInizio, 
+        nuovaOraFine, 
+        id
+      );
+      
+      if (!controllo.valido) {
+        alert(controllo.errore);
+        return;
+      }
+
       // Aggiorna il documento Firestore
       await updateDoc(docRef, {
         commessa: nuovaCommessa,
@@ -944,9 +1037,6 @@ async function modificaOreLavorate(id) {
       });
 
       alert("Dati salvati con successo!");
-  
-
-      // Aggiorna la tabella delle ore lavorate
       await aggiornaTabellaOreLavorate();
     } else {
       alert("Tutti i campi sono obbligatori. Modifica annullata.");
@@ -955,6 +1045,253 @@ async function modificaOreLavorate(id) {
     console.error("Errore durante la modifica delle ore lavorate:", error);
     alert("Si è verificato un errore durante la modifica.");
   }
+}
+// Aggiungi questa funzione per mostrare le fasce orarie già occupate
+async function mostraFasceOccupate(data) {
+  try {
+    const querySnapshot = await getDocs(collection(db, "oreLavorate"));
+    const oreGiornata = querySnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(ore => 
+        ore.data === data && 
+        ore.nomeDipendente === currentUser.name.split(" ")[0]
+      );
+
+    if (oreGiornata.length > 0) {
+      const fasce = oreGiornata.map(ore => 
+        `${ore.oraInizio} - ${ore.oraFine}`
+      ).join(', ');
+      
+      console.log(`Fasce orarie occupate per ${data}: ${fasce}`);
+      // Puoi anche mostrare questo in un tooltip o messaggio informativo
+    }
+    
+    return oreGiornata;
+  } catch (error) {
+    console.error("Errore nel recupero fasce occupate:", error);
+    return [];
+  }
+}
+
+// Opzionale: Chiama questa funzione quando cambia la data
+document.getElementById('oreData').addEventListener('change', async function() {
+  const dataSelezionata = this.value;
+  if (!dataSelezionata) return;
+  
+  await mostraFasceOccupate(dataSelezionata);
+});
+// Aggiungi queste funzioni dopo le funzioni esistenti
+
+// Funzione per aggiornare la visualizzazione delle fasce orarie
+async function aggiornaVisualizzazioneFasce(data) {
+    const container = document.getElementById('visualizzazioneFasce');
+    const fasceElement = document.getElementById('fasceOccupate');
+    
+    if (!data) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    const oreGiornata = await mostraFasceOccupate(data);
+    container.style.display = 'block';
+    fasceElement.innerHTML = '';
+    
+    if (oreGiornata.length === 0) {
+        fasceElement.innerHTML = '<div class="fascia-oraria fascia-libera">✅ Giornata libera</div>';
+        return;
+    }
+    
+    // Mostra le fasce occupate
+    oreGiornata.forEach(ore => {
+        const fasciaDiv = document.createElement('div');
+        fasciaDiv.className = 'fascia-oraria fascia-occupata';
+        fasciaDiv.innerHTML = `⏰ ${ore.oraInizio} - ${ore.oraFine}`;
+        fasciaDiv.title = `Commessa: ${ore.commessa} - ${ore.descrizione}`;
+        fasceElement.appendChild(fasciaDiv);
+    });
+}
+
+
+// Aggiungi questa funzione per una timeline visiva avanzata
+function creaTimelineGiornata(oreOccupate) {
+    const timeline = document.createElement('div');
+    timeline.className = 'timeline-giornata';
+    timeline.style.cssText = `
+        display: flex;
+        height: 40px;
+        background: #e9ecef;
+        border-radius: 8px;
+        margin: 10px 0;
+        position: relative;
+        overflow: hidden;
+    `;
+    
+    // Aggiungi la pausa pranzo fissa
+    const pausaPranzo = document.createElement('div');
+    pausaPranzo.className = 'pausa-timeline';
+    pausaPranzo.style.cssText = `
+        position: absolute;
+        left: 50%; // 12:00 è a metà giornata lavorativa
+        width: 8.33%; // 1 ora su 12 ore totali
+        height: 100%;
+        background: repeating-linear-gradient(
+            45deg,
+            #ffc107,
+            #ffc107 10px,
+            #ffd966 10px,
+            #ffd966 20px
+        );
+        opacity: 0.7;
+    `;
+    pausaPranzo.title = 'Pausa Pranzo 12:00-13:00';
+    timeline.appendChild(pausaPranzo);
+    
+    // Aggiungi le fasce occupate
+    oreOccupate.forEach(ore => {
+        const fasciaOccupata = document.createElement('div');
+        fasciaOccupata.className = 'fascia-occupata-timeline';
+        fasciaOccupata.style.cssText = `
+            position: absolute;
+            left: ${calcolaPosizioneTimeline(ore.oraInizio)}%;
+            width: ${calcolaLarghezzaTimeline(ore.oraInizio, ore.oraFine)}%;
+            height: 100%;
+            background: #dc3545;
+            opacity: 0.8;
+            border-radius: 4px;
+        `;
+        fasciaOccupata.title = `${ore.oraInizio}-${ore.oraFine}: ${ore.commessa}`;
+        timeline.appendChild(fasciaOccupata);
+    });
+    
+    return timeline;
+}
+
+function calcolaPosizioneTimeline(ora) {
+    const [ore, minuti] = ora.split(':').map(Number);
+    const minutiTotali = ore * 60 + minuti;
+    // Considera giornata dalle 6:00 alle 18:00 (720 minuti)
+    return ((minutiTotali - 360) / 720) * 100;
+}
+
+function calcolaLarghezzaTimeline(oraInizio, oraFine) {
+    const posInizio = calcolaPosizioneTimeline(oraInizio);
+    const posFine = calcolaPosizioneTimeline(oraFine);
+    return posFine - posInizio;
+}
+
+
+
+
+
+// Funzione per notifiche visive migliorate
+function mostraNotificaVisiva(messaggio, tipo = 'error') {
+    // Crea una notifica temporanea
+    const notifica = document.createElement('div');
+    notifica.className = `alert alert-${tipo === 'error' ? 'danger' : 'success'} alert-dismissible fade show`;
+    notifica.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+    `;
+    notifica.innerHTML = `
+        <strong>${tipo === 'error' ? '❌ Errore:' : '✅ Successo:'}</strong> ${messaggio}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notifica);
+    
+    // Rimuovi automaticamente dopo 5 secondi
+    setTimeout(() => {
+        if (notifica.parentElement) {
+            notifica.remove();
+        }
+    }, 5000);
+}
+
+// Opzionale: Chiama questa funzione quando cambia la data
+document.getElementById('oreData').addEventListener('change', async function() {
+  const dataSelezionata = this.value;
+  if (!dataSelezionata) return;
+  
+  await mostraFasceOccupate(dataSelezionata);
+});
+// Aggiungi queste funzioni dopo le funzioni esistenti
+
+
+
+// Funzione per controllare in tempo reale gli orari inseriti
+function setupControlliTempoReale() {
+    const oraInizioInput = document.getElementById('oreInizio');
+    const oraFineInput = document.getElementById('oreFine');
+    const dataInput = document.getElementById('oreData');
+    
+    // Controlla quando cambia la data
+    dataInput.addEventListener('change', async function() {
+        const dataSelezionata = this.value;
+        await aggiornaVisualizzazioneFasce(dataSelezionata);
+        
+        // Reset degli orari quando cambia la data
+        oraInizioInput.value = '';
+        oraFineInput.value = '';
+    });
+    
+    // Controlla in tempo reale la pausa pranzo
+    [oraInizioInput, oraFineInput].forEach(input => {
+        input.addEventListener('change', function() {
+            controllaPausaPranzoTempoReale();
+        });
+        
+        input.addEventListener('input', function() {
+            controllaPausaPranzoTempoReale();
+        });
+    });
+}
+
+// Controllo in tempo reale della pausa pranzo
+function controllaPausaPranzoTempoReale() {
+    const oraInizio = document.getElementById('oreInizio').value;
+    const oraFine = document.getElementById('oreFine').value;
+    const oraInizioGroup = document.getElementById('oreInizio').parentElement;
+    const oraFineGroup = document.getElementById('oreFine').parentElement;
+    
+    // Reset stati
+    oraInizioGroup.classList.remove('input-group-warning', 'input-group-danger');
+    oraFineGroup.classList.remove('input-group-warning', 'input-group-danger');
+    
+    if (!oraInizio || !oraFine) return;
+    
+    // Controlla se gli orari sovrappongono la pausa pranzo
+    if ((oraInizio < ORARIO_PAUSA_FINE && oraFine > ORARIO_PAUSA_INIZIO)) {
+        oraInizioGroup.classList.add('input-group-danger');
+        oraFineGroup.classList.add('input-group-danger');
+        
+        // Mostra tooltip o messaggio
+        console.warn('ATTENZIONE: Orario selezionato sovrappone la pausa pranzo');
+    }
+}
+
+
+
+// Funzione per generare tutte le fasce orarie della giornata
+function generaFasceGiornataIntera() {
+    const fasce = [];
+    
+    // Genera fasce di 30 minuti dalle 06:00 alle 20:00
+    for (let ora = 6; ora < 20; ora++) {
+        for (let minuto = 0; minuto < 60; minuto += 30) {
+            const oraInizio = `${String(ora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}`;
+            const oraFineMinuti = minuto + 30;
+            const oraFine = oraFineMinuti === 60 ? 
+                `${String(ora + 1).padStart(2, '0')}:00` : 
+                `${String(ora).padStart(2, '0')}:${String(oraFineMinutos).padStart(2, '0')}`;
+            
+            fasce.push({ oraInizio, oraFine });
+        }
+    }
+    
+    return fasce;
 }
 // Funzione per eliminare ore lavorate
 async function eliminaOreLavorate(id) {
@@ -1072,9 +1409,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Gestione Ore Lavorate
-  document.getElementById('oreForm').addEventListener('submit', async function(e) {
+ // MODIFICA l'event listener del form ore lavorate per includere i controlli visivi
+document.getElementById('oreForm').addEventListener('submit', async function(e) {
     e.preventDefault();
-    
     
     const nomeDipendente = currentUser.name.split(" ")[0];
     const cognomeDipendente = currentUser.name.split(" ")[1];
@@ -1085,46 +1422,146 @@ document.addEventListener('DOMContentLoaded', function () {
     const nonConformita = document.getElementById('nonConformita').checked;
     const commessaSelect = document.getElementById('oreCommessa');
     const commessa = commessaSelect.value;
-  
-  // Verifica che sia stata selezionata una commessa
-  if (!commessa) {
-    alert("Seleziona una commessa dalla lista");
-    commessaSelect.focus();
-    return;
-  }
-  
+
+    // Verifica che sia stata selezionata una commessa
+    if (!commessa) {
+        mostraNotificaVisiva("Seleziona una commessa dalla lista", "error");
+        commessaSelect.focus();
+        return;
+    }
+
     // Arrotonda gli orari
     oraInizio = arrotondaAlQuartoDora(oraInizio);
     oraFine = arrotondaAlQuartoDora(oraFine);
-  
+
     // Verifica che l'ora di inizio non sia vuota
     if (!oraInizio) {
-      alert("Inserisci l'ora di inizio");
-      return;
+        mostraNotificaVisiva("Inserisci l'ora di inizio", "error");
+        return;
     }
-  
+
     // Verifica che l'ora di fine sia successiva all'ora di inizio
     if (oraFine && oraFine <= oraInizio) {
-      alert("L'ora di fine deve essere successiva all'ora di inizio");
-      return;
+        mostraNotificaVisiva("L'ora di fine deve essere successiva all'ora di inizio", "error");
+        return;
     }
-  
+
+    // Controlla sovrapposizioni e pausa pranzo
+    const controllo = await controllaOrariGiornata(data, oraInizio, oraFine);
+    
+    if (!controllo.valido) {
+        mostraNotificaVisiva(controllo.errore, "error");
+        return;
+    }
+
     // Aggiungi le ore lavorate
     await aggiungiOreLavorate(commessa, nomeDipendente, cognomeDipendente, 
                              data, oraInizio, oraFine, descrizione, nonConformita);
-  
-    // Resetta il form mantenendo la data e impostando la nuova ora di inizio
-    document.getElementById('oreCommessa').value = "";
-    document.getElementById('oreInizio').value = oraFine || "";
-    document.getElementById('oreFine').value = "";
-    document.getElementById('oreDescrizione').value = "";
-    document.getElementById('nonConformita').checked = false;
+
+    // Aggiorna la visualizzazione delle fasce
+    await aggiornaVisualizzazioneFasce(data);
+     // Inizializza i controlli visivi
+    setupControlliTempoReale();
     
-    // Focus sul campo oraFine se c'è un'ora di inizio
-    if (document.getElementById('oreInizio').value) {
-      document.getElementById('oreFine').focus();
+    // Se c'è una data predefinita, aggiorna la visualizzazione
+    const dataDefault = document.getElementById('oreData').value;
+    if (dataDefault) {
+        setTimeout(() => aggiornaVisualizzazioneFasce(dataDefault), 1000);
     }
-  });
+});
+// Aggiungi questa funzione per una timeline visiva avanzata
+function creaTimelineGiornata(oreOccupate) {
+    const timeline = document.createElement('div');
+    timeline.className = 'timeline-giornata';
+    timeline.style.cssText = `
+        display: flex;
+        height: 40px;
+        background: #e9ecef;
+        border-radius: 8px;
+        margin: 10px 0;
+        position: relative;
+        overflow: hidden;
+    `;
+    
+    // Aggiungi la pausa pranzo fissa
+    const pausaPranzo = document.createElement('div');
+    pausaPranzo.className = 'pausa-timeline';
+    pausaPranzo.style.cssText = `
+        position: absolute;
+        left: 50%; // 12:00 è a metà giornata lavorativa
+        width: 8.33%; // 1 ora su 12 ore totali
+        height: 100%;
+        background: repeating-linear-gradient(
+            45deg,
+            #ffc107,
+            #ffc107 10px,
+            #ffd966 10px,
+            #ffd966 20px
+        );
+        opacity: 0.7;
+    `;
+    pausaPranzo.title = 'Pausa Pranzo 12:00-13:00';
+    timeline.appendChild(pausaPranzo);
+    
+    // Aggiungi le fasce occupate
+    oreOccupate.forEach(ore => {
+        const fasciaOccupata = document.createElement('div');
+        fasciaOccupata.className = 'fascia-occupata-timeline';
+        fasciaOccupata.style.cssText = `
+            position: absolute;
+            left: ${calcolaPosizioneTimeline(ore.oraInizio)}%;
+            width: ${calcolaLarghezzaTimeline(ore.oraInizio, ore.oraFine)}%;
+            height: 100%;
+            background: #dc3545;
+            opacity: 0.8;
+            border-radius: 4px;
+        `;
+        fasciaOccupata.title = `${ore.oraInizio}-${ore.oraFine}: ${ore.commessa}`;
+        timeline.appendChild(fasciaOccupata);
+    });
+    
+    return timeline;
+}
+
+function calcolaPosizioneTimeline(ora) {
+    const [ore, minuti] = ora.split(':').map(Number);
+    const minutiTotali = ore * 60 + minuti;
+    // Considera giornata dalle 6:00 alle 18:00 (720 minuti)
+    return ((minutiTotali - 360) / 720) * 100;
+}
+
+function calcolaLarghezzaTimeline(oraInizio, oraFine) {
+    const posInizio = calcolaPosizioneTimeline(oraInizio);
+    const posFine = calcolaPosizioneTimeline(oraFine);
+    return posFine - posInizio;
+}
+
+// Funzione per notifiche visive migliorate
+function mostraNotificaVisiva(messaggio, tipo = 'error') {
+    // Crea una notifica temporanea
+    const notifica = document.createElement('div');
+    notifica.className = `alert alert-${tipo === 'error' ? 'danger' : 'success'} alert-dismissible fade show`;
+    notifica.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+    `;
+    notifica.innerHTML = `
+        <strong>${tipo === 'error' ? '❌ Errore:' : '✅ Successo:'}</strong> ${messaggio}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notifica);
+    
+    // Rimuovi automaticamente dopo 5 secondi
+    setTimeout(() => {
+        if (notifica.parentElement) {
+            notifica.remove();
+        }
+    }, 5000);
+}
   document.getElementById('oreData').addEventListener('change', async function() {
     const dataSelezionata = this.value;
     if (!dataSelezionata) return;
@@ -1137,6 +1574,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
   aggiornaMenuCommesse();
+ 
 });
 async function applicaFiltri() {
   const filtroCommessa = document.getElementById('filtroCommessa').value.trim().toLowerCase();
