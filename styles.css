@@ -188,3 +188,86 @@ table td.actions {
       max-width: 100%;
     }
   }
+  /* Aggiungi al tuo CSS esistente */
+.pausa-pranzo {
+  background-color: #fff3cd !important;
+  border-left: 3px solid #ffc107 !important;
+  color: #856404 !important;
+}
+
+.ora-disabilitata {
+  background-color: #f8d7da !important;
+  color: #721c24 !important;
+  cursor: not-allowed !important;
+}
+/* Aggiungi questi stili al tuo file CSS esistente */
+.fasce-orarie-container {
+    margin: 15px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.fasce-orarie-title {
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #495057;
+}
+
+.fasce-orarie-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.fascia-oraria {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 2px solid;
+}
+
+.fascia-libera {
+    background-color: #d1e7dd;
+    border-color: #badbcc;
+    color: #0f5132;
+}
+
+.fascia-occupata {
+    background-color: #f8d7da;
+    border-color: #f1aeb5;
+    color: #721c24;
+}
+
+.fascia-pausa {
+    background-color: #fff3cd;
+    border-color: #ffd966;
+    color: #856404;
+    font-weight: bold;
+}
+
+.indicatore-pausa {
+    background: linear-gradient(45deg, transparent 48%, #ffc107 48%, #ffc107 52%, transparent 52%);
+    height: 4px;
+    margin: 5px 0;
+    border-radius: 2px;
+}
+
+.ora-disabilitata {
+    background-color: #e9ecef !important;
+    color: #6c757d !important;
+    cursor: not-allowed !important;
+}
+
+.input-group-warning {
+    border-left: 3px solid #ffc107;
+    padding-left: 8px;
+}
+
+.input-group-danger {
+    border-left: 3px solid #dc3545;
+    padding-left: 8px;
+}
