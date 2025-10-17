@@ -47,6 +47,16 @@
                   </div>
                 <button type="submit">Salva</button>
             </form>
+            <!-- Aggiungi questo DIV dopo il form delle ore lavorate -->
+<div id="visualizzazioneFasce" class="fasce-orarie-container" style="display: none;">
+    <div class="fasce-orarie-title">📅 Situazione Oraria per la Giornata Selezionata:</div>
+    <div id="fasceOccupate" class="fasce-orarie-list"></div>
+    <div class="indicatore-pausa" title="Pausa Pranzo 12:00 - 13:00"></div>
+    <div class="fasce-orarie-list">
+        <div class="fascia-oraria fascia-pausa">⏸️ Pausa Pranzo 12:00-13:00</div>
+    </div>
+    <small class="text-muted">Le fasce in rosso indicano orari già occupati</small>
+</div>
             <div id="totaliContainer"></div>
         </div>>
         <div class="admin-only">
