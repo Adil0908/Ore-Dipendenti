@@ -295,76 +295,143 @@ class FirebaseService {
 }
 
 // pagination-manager.js
+// CORREZIONE PAGINATION MANAGER
+// CORREZIONE DEFINITIVA PAGINATION MANAGER
 class PaginationManager {
     constructor(containerId, righePerPagina) {
         this.container = document.getElementById(containerId);
         this.righePerPagina = righePerPagina;
         this.paginaCorrente = 1;
+        this.datiTotali = [];
+        this.callbackAggiornaTabella = null;
     }
 
     render(datiTotali, callbackAggiornaTabella) {
         if (!this.container) return;
         
-        const numeroPagine = Math.ceil(datiTotali.length / this.righePerPagina);
-        if (numeroPagine === 0) return;
+        this.datiTotali = datiTotali || [];
+        this.callbackAggiornaTabella = callbackAggiornaTabella;
+        
+        const numeroPagine = Math.ceil(this.datiTotali.length / this.righePerPagina);
+        
+        // Se non ci sono pagine, nascondi la paginazione
+        if (numeroPagine <= 1) {
+            this.container.innerHTML = '';
+            return;
+        }
         
         this.container.innerHTML = `
             <div class="pagination-controls">
                 <button id="btnPrecedente" class="btn btn-outline-primary btn-sm" ${this.paginaCorrente === 1 ? 'disabled' : ''}>
-                    ‹
+                    ‹ Precedente
                 </button>
                 <div id="numeriPagina" class="pagination-numbers"></div>
                 <button id="btnSuccessiva" class="btn btn-outline-primary btn-sm" ${this.paginaCorrente === numeroPagine ? 'disabled' : ''}>
-                    ›
+                    Successiva ›
                 </button>
-                <span class="pagination-info">Pagina ${this.paginaCorrente} di ${numeroPagine}</span>
+                <span class="pagination-info">Pagina ${this.paginaCorrente} di ${numeroPagine} (${this.datiTotali.length} record)</span>
             </div>
         `;
 
         const numeriPagina = this.container.querySelector('#numeriPagina');
         
-        // Mostra massimo 5 numeri di pagina
-        let startPage = Math.max(1, this.paginaCorrente - 2);
-        let endPage = Math.min(numeroPagine, startPage + 4);
+        // Mostra massimo 7 numeri di pagina
+        let startPage = Math.max(1, this.paginaCorrente - 3);
+        let endPage = Math.min(numeroPagine, startPage + 6);
         
-        if (endPage - startPage < 4) {
-            startPage = Math.max(1, endPage - 4);
+        if (endPage - startPage < 6) {
+            startPage = Math.max(1, endPage - 6);
         }
 
+        // Pulsante prima pagina
+        if (startPage > 1) {
+            const btnFirst = document.createElement('button');
+            btnFirst.textContent = '1';
+            btnFirst.className = 'btn btn-sm btn-outline-primary';
+            btnFirst.addEventListener('click', () => {
+                this.paginaCorrente = 1;
+                this.aggiornaPaginazione();
+            });
+            numeriPagina.appendChild(btnFirst);
+            
+            if (startPage > 2) {
+                const ellipsis = document.createElement('span');
+                ellipsis.textContent = '...';
+                ellipsis.className = 'pagination-ellipsis';
+                numeriPagina.appendChild(ellipsis);
+            }
+        }
+
+        // Numeri di pagina
         for (let i = startPage; i <= endPage; i++) {
             const btn = document.createElement('button');
             btn.textContent = i;
             btn.className = `btn btn-sm ${i === this.paginaCorrente ? 'btn-primary' : 'btn-outline-primary'}`;
             btn.addEventListener('click', () => {
                 this.paginaCorrente = i;
-                callbackAggiornaTabella();
+                this.aggiornaPaginazione();
             });
             numeriPagina.appendChild(btn);
         }
 
+        // Pulsante ultima pagina
+        if (endPage < numeroPagine) {
+            if (endPage < numeroPagine - 1) {
+                const ellipsis = document.createElement('span');
+                ellipsis.textContent = '...';
+                ellipsis.className = 'pagination-ellipsis';
+                numeriPagina.appendChild(ellipsis);
+            }
+            
+            const btnLast = document.createElement('button');
+            btnLast.textContent = numeroPagine;
+            btnLast.className = 'btn btn-sm btn-outline-primary';
+            btnLast.addEventListener('click', () => {
+                this.paginaCorrente = numeroPagine;
+                this.aggiornaPaginazione();
+            });
+            numeriPagina.appendChild(btnLast);
+        }
+
+        // Gestione pulsanti precedente/successiva
         this.container.querySelector('#btnPrecedente').addEventListener('click', () => {
             if (this.paginaCorrente > 1) {
                 this.paginaCorrente--;
-                callbackAggiornaTabella();
+                this.aggiornaPaginazione();
             }
         });
 
         this.container.querySelector('#btnSuccessiva').addEventListener('click', () => {
             if (this.paginaCorrente < numeroPagine) {
                 this.paginaCorrente++;
-                callbackAggiornaTabella();
+                this.aggiornaPaginazione();
             }
         });
     }
 
-    getDatiPagina(datiTotali) {
+    aggiornaPaginazione() {
+        if (this.callbackAggiornaTabella && this.datiTotali) {
+            this.callbackAggiornaTabella();
+        }
+    }
+
+    getDatiPagina() {
+        if (!this.datiTotali || this.datiTotali.length === 0) {
+            return [];
+        }
         const inizio = (this.paginaCorrente - 1) * this.righePerPagina;
         const fine = inizio + this.righePerPagina;
-        return datiTotali.slice(inizio, fine);
+        return this.datiTotali.slice(inizio, fine);
     }
 
     reset() {
         this.paginaCorrente = 1;
+    }
+
+    // Metodo per aggiornare i dati senza ricreare la paginazione
+    aggiornaDati(nuoviDati) {
+        this.datiTotali = nuoviDati || [];
+        this.paginaCorrente = 1; // Reset alla prima pagina
     }
 }
 
@@ -375,6 +442,12 @@ class OreLavorateApp {
         this.paginazioneOre = null;
         this.paginazioneDipendenti = null;
         this.paginazioneCommesse = null;
+        
+        // Proprietà per i dati
+        this.datiTotaliOre = [];
+        this.datiTotaliDipendenti = [];
+        this.datiTotaliCommesse = [];
+        
         this.init();
     }
 
@@ -467,46 +540,53 @@ class OreLavorateApp {
         });
     }
 
-    async gestisciLogin() {
-        try {
-            const email = document.getElementById('inputEmail').value.trim();
-            const password = document.getElementById('inputPassword').value.trim();
+ async gestisciLogin() {
+    try {
+        const email = document.getElementById('inputEmail').value.trim();
+        const password = document.getElementById('inputPassword').value.trim();
 
-            if (!email || !password) {
-                ErrorHandler.showNotification('Inserisci email e password', 'error');
-                return;
-            }
-
-            if (email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
-                stateManager.currentUser = { ruolo: 'admin', name: 'Amministratore Sistema' };
-                await this.mostraApplicazione();
-                return;
-            }
-
-            const dipendenti = await this.firebaseService.getCollection("dipendenti");
-            const dipendente = dipendenti.find(d => d.email === email && d.password === password);
-
-            if (dipendente) {
-                if (dipendente.ruolo === "dipendente") {
-                    stateManager.currentUser = {
-                        ruolo: 'dipendente',
-                        name: `${dipendente.nome} ${dipendente.cognome}`
-                    };
-                    await this.mostraApplicazione();
-                } else {
-                    ErrorHandler.showNotification('Il tuo account non ha i privilegi necessari!', 'error');
-                }
-            } else {
-                ErrorHandler.showNotification('Credenziali non valide!', 'error');
-            }
-
-            document.getElementById('inputEmail').value = "";
-            document.getElementById('inputPassword').value = "";
-
-        } catch (error) {
-            ErrorHandler.handleError(error, 'login');
+        if (!email || !password) {
+            ErrorHandler.showNotification('Inserisci email e password', 'error');
+            return;
         }
+
+        if (email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
+            stateManager.currentUser = { 
+                ruolo: 'admin', 
+                name: 'Amministratore Sistema',
+                email: ADMIN_CREDENTIALS.email // AGGIUNGI email
+            };
+            await this.mostraApplicazione();
+            return;
+        }
+
+        const dipendenti = await this.firebaseService.getCollection("dipendenti");
+        const dipendente = dipendenti.find(d => d.email === email && d.password === password);
+
+        if (dipendente) {
+            if (dipendente.ruolo === "dipendente") {
+                stateManager.currentUser = {
+                    ruolo: 'dipendente',
+                    name: `${dipendente.nome} ${dipendente.cognome}`,
+                    email: dipendente.email, // AGGIUNGI email
+                    id: dipendente.id // AGGIUNGI ID per maggiore sicurezza
+                };
+                console.log("Login dipendente:", stateManager.currentUser);
+                await this.mostraApplicazione();
+            } else {
+                ErrorHandler.showNotification('Il tuo account non ha i privilegi necessari!', 'error');
+            }
+        } else {
+            ErrorHandler.showNotification('Credenziali non valide!', 'error');
+        }
+
+        document.getElementById('inputEmail').value = "";
+        document.getElementById('inputPassword').value = "";
+
+    } catch (error) {
+        ErrorHandler.handleError(error, 'login');
     }
+}
 
     logout() {
         stateManager.currentUser = null;
@@ -570,52 +650,88 @@ class OreLavorateApp {
         `;
         const appContent = document.getElementById('appContent');
         appContent.insertBefore(benvenuto, appContent.firstChild);
+        // DEBUG: verifica i dati dopo il login
+    if (stateManager.currentUser?.ruolo === 'dipendente') {
+        setTimeout(() => this.verificaDatiDipendente(), 1000);
+    }
     }
 
     async handleOreForm(e) {
-        e.preventDefault();
+    e.preventDefault();
+    
+    try {
+        // CONTROLLO SICUREZZA: verifica che l'utente sia un dipendente
+        if (!stateManager.currentUser || stateManager.currentUser.ruolo !== 'dipendente') {
+            ErrorHandler.showNotification("Errore: accesso non autorizzato", 'error');
+            return;
+        }
+
+        const formData = this.getOreFormData();
+        if (!this.validateOreForm(formData)) return;
+
+        // LOG per debug
+        console.log("Tentativo di salvataggio ore per:", stateManager.currentUser.name);
+        console.log("Dati form:", formData);
+
+        const controllo = await this.controllaOrariGiornata(
+            formData.data, 
+            formData.oraInizio, 
+            formData.oraFine
+        );
         
-        try {
-            const formData = this.getOreFormData();
-            if (!this.validateOreForm(formData)) return;
+        if (!controllo.valido) {
+            ErrorHandler.showNotification(controllo.errore, 'error');
+            return;
+        }
 
-            const controllo = await this.controllaOrariGiornata(
-                formData.data, 
-                formData.oraInizio, 
-                formData.oraFine
-            );
-            
-            if (!controllo.valido) {
-                ErrorHandler.showNotification(controllo.errore, 'error');
-                return;
-            }
+        await this.firebaseService.addDocument("oreLavorate", formData);
+        ErrorHandler.showNotification("Ore lavorate aggiunte con successo!", 'success');
+        
+        await this.aggiornaTabellaOreLavorate();
+        e.target.reset();
 
-            await this.firebaseService.addDocument("oreLavorate", formData);
-            ErrorHandler.showNotification("Ore lavorate aggiunte con successo!", 'success');
-            
-            await this.aggiornaTabellaOreLavorate();
-            e.target.reset();
-
-        } catch (error) {
+    } catch (error) {
+        if (error.message === "Utente non autorizzato" || error.message === "Profilo utente incompleto") {
+            ErrorHandler.showNotification(error.message, 'error');
+        } else {
             ErrorHandler.handleError(error, 'salvataggio ore lavorate');
         }
     }
+}
 
     getOreFormData() {
-        const nomeDipendente = stateManager.currentUser.name.split(" ")[0];
-        const cognomeDipendente = stateManager.currentUser.name.split(" ")[1];
-        
-        return {
-            commessa: document.getElementById('oreCommessa').value,
-            nomeDipendente,
-            cognomeDipendente,
-            data: document.getElementById('oreData').value,
-            oraInizio: Utils.arrotondaAlQuartoDora(document.getElementById('oreInizio').value),
-            oraFine: Utils.arrotondaAlQuartoDora(document.getElementById('oreFine').value),
-            descrizione: document.getElementById('oreDescrizione').value,
-            nonConformita: document.getElementById('nonConformita').checked
-        };
+    // VERIFICA che l'utente sia effettivamente loggato come dipendente
+    if (!stateManager.currentUser || stateManager.currentUser.ruolo !== 'dipendente') {
+        ErrorHandler.showNotification("Errore: utente non autorizzato", 'error');
+        throw new Error("Utente non autorizzato");
     }
+    
+    // VERIFICA che il nome sia completo
+    if (!stateManager.currentUser.name || stateManager.currentUser.name.split(" ").length < 2) {
+        ErrorHandler.showNotification("Errore: profilo utente incompleto", 'error');
+        throw new Error("Profilo utente incompleto");
+    }
+    
+    const nomeCompleto = stateManager.currentUser.name.split(" ");
+    const nomeDipendente = nomeCompleto[0];
+    const cognomeDipendente = nomeCompleto.slice(1).join(" "); // Gestisce cognomi composti
+    
+    console.log("Dipendente corrente:", stateManager.currentUser);
+    console.log("Nome:", nomeDipendente, "Cognome:", cognomeDipendente);
+    
+    return {
+        commessa: document.getElementById('oreCommessa').value,
+        nomeDipendente: nomeDipendente,
+        cognomeDipendente: cognomeDipendente,
+        data: document.getElementById('oreData').value,
+        oraInizio: Utils.arrotondaAlQuartoDora(document.getElementById('oreInizio').value),
+        oraFine: Utils.arrotondaAlQuartoDora(document.getElementById('oreFine').value),
+        descrizione: document.getElementById('oreDescrizione').value,
+        nonConformita: document.getElementById('nonConformita').checked,
+        // AGGIUNGI l'email per maggiore sicurezza
+        emailDipendente: stateManager.currentUser.email || stateManager.currentUser.name
+    };
+}
 
     validateOreForm(data) {
         if (!data.commessa) {
@@ -640,7 +756,33 @@ class OreLavorateApp {
 
         return true;
     }
-
+// METODO TEMPORANEO - da rimuovere dopo l'uso
+async correggiDatiOreLavorate() {
+    try {
+        const tutteLeOre = await this.firebaseService.getCollection("oreLavorate");
+        const dipendenti = await this.firebaseService.getCollection("dipendenti");
+        
+        for (const ore of tutteLeOre) {
+            // Trova il dipendente corretto in base all'email
+            const dipendenteCorretto = dipendenti.find(d => 
+                d.nome === ore.nomeDipendente && 
+                d.cognome === ore.cognomeDipendente
+            );
+            
+            if (dipendenteCorretto && dipendenteCorretto.email) {
+                // Aggiorna con l'email per tracciabilità
+                await this.firebaseService.updateDocument("oreLavorate", ore.id, {
+                    emailDipendente: dipendenteCorretto.email
+                });
+                console.log("Corretto record:", ore.id, "per", dipendenteCorretto.email);
+            }
+        }
+        
+        console.log("Correzione dati completata");
+    } catch (error) {
+        console.error("Errore correzione dati:", error);
+    }
+}
     async handleCommessaForm(e) {
         e.preventDefault();
         try {
@@ -717,18 +859,25 @@ class OreLavorateApp {
         }
     }
 
-    async aggiornaTabellaOreLavorate(oreFiltrate = null) {
-        const tbody = document.querySelector('#orelavorateTable tbody');
-        if (!tbody) return;
+   // CORREZIONE METODI AGGIORNAMENTO TABELLE - VERSIONE SICURA
+async aggiornaTabellaOreLavorate(oreFiltrate = null) {
+    const tbody = document.querySelector('#orelavorateTable tbody');
+    if (!tbody) return;
 
-        tbody.innerHTML = '';
+    tbody.innerHTML = '';
 
-        if (!oreFiltrate) {
+    try {
+        // Se vengono passati dati filtrati, usali, altrimenti carica tutti i dati
+        if (oreFiltrate) {
+            this.datiTotaliOre = oreFiltrate;
+            this.paginazioneOre.aggiornaDati(oreFiltrate);
+        } else if (this.datiTotaliOre.length === 0) {
             const filtri = this.getFiltriAttivi();
-            oreFiltrate = await this.firebaseService.getOreLavorateFiltrate(filtri);
+            this.datiTotaliOre = await this.firebaseService.getOreLavorateFiltrate(filtri);
+            this.paginazioneOre.aggiornaDati(this.datiTotaliOre);
         }
 
-        const datiPagina = this.paginazioneOre.getDatiPagina(oreFiltrate);
+        const datiPagina = this.paginazioneOre.getDatiPagina();
 
         if (datiPagina.length === 0) {
             const row = document.createElement('tr');
@@ -758,7 +907,7 @@ class OreLavorateApp {
                 row.querySelector('.btnEliminaOreLavorate').addEventListener('click', () => this.eliminaOreLavorate(ore.id));
             });
 
-            const totaleOreDecimali = Utils.calcolaTotaleGenerale(oreFiltrate);
+            const totaleOreDecimali = Utils.calcolaTotaleGenerale(this.datiTotaliOre);
             const totaleFormattato = Utils.formattaOreDecimali(totaleOreDecimali);
 
             const totalRow = document.createElement('tr');
@@ -771,20 +920,28 @@ class OreLavorateApp {
             tbody.appendChild(totalRow);
         }
 
-        this.paginazioneOre.render(oreFiltrate, () => this.aggiornaTabellaOreLavorate(oreFiltrate));
+        // Aggiorna la paginazione
+        this.paginazioneOre.render(this.datiTotaliOre, () => this.aggiornaTabellaOreLavorate());
+
+    } catch (error) {
+        console.error('Errore nel caricamento tabella ore:', error);
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Errore nel caricamento dei dati</td></tr>`;
     }
+}
 
-    async aggiornaTabellaDipendenti() {
-        const tbody = document.querySelector('#dipendentiTable tbody');
-        if (!tbody) return;
+async aggiornaTabellaDipendenti() {
+    const tbody = document.querySelector('#dipendentiTable tbody');
+    if (!tbody) return;
 
-        tbody.innerHTML = '';
+    tbody.innerHTML = '';
 
-        if (stateManager.datiTotaliDipendenti.length === 0) {
-            stateManager.datiTotaliDipendenti = await this.firebaseService.getCollection("dipendenti");
+    try {
+        if (this.datiTotaliDipendenti.length === 0) {
+            this.datiTotaliDipendenti = await this.firebaseService.getCollection("dipendenti");
+            this.paginazioneDipendenti.aggiornaDati(this.datiTotaliDipendenti);
         }
 
-        const datiPagina = this.paginazioneDipendenti.getDatiPagina(stateManager.datiTotaliDipendenti);
+        const datiPagina = this.paginazioneDipendenti.getDatiPagina();
 
         if (datiPagina.length === 0) {
             const row = document.createElement('tr');
@@ -811,28 +968,35 @@ class OreLavorateApp {
             });
         }
 
-        this.paginazioneDipendenti.render(stateManager.datiTotaliDipendenti, () => this.aggiornaTabellaDipendenti());
+        this.paginazioneDipendenti.render(this.datiTotaliDipendenti, () => this.aggiornaTabellaDipendenti());
+
+    } catch (error) {
+        console.error('Errore nel caricamento tabella dipendenti:', error);
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Errore nel caricamento dei dati</td></tr>`;
     }
+}
 
-    async aggiornaTabellaCommesse(filtro = '') {
-        const tbody = document.querySelector('#commesseTable tbody');
-        if (!tbody) return;
+async aggiornaTabellaCommesse(filtro = '') {
+    const tbody = document.querySelector('#commesseTable tbody');
+    if (!tbody) return;
 
-        tbody.innerHTML = '';
+    tbody.innerHTML = '';
 
-        if (stateManager.datiTotaliCommesse.length === 0 || filtro) {
-            stateManager.datiTotaliCommesse = await this.firebaseService.getCollection("commesse");
+    try {
+        if (this.datiTotaliCommesse.length === 0 || filtro) {
+            this.datiTotaliCommesse = await this.firebaseService.getCollection("commesse");
             
             if (filtro) {
                 const filtroLowerCase = filtro.toLowerCase();
-                stateManager.datiTotaliCommesse = stateManager.datiTotaliCommesse.filter(commessa => 
+                this.datiTotaliCommesse = this.datiTotaliCommesse.filter(commessa => 
                     commessa.nomeCommessa.toLowerCase().includes(filtroLowerCase) ||
                     commessa.cliente.toLowerCase().includes(filtroLowerCase)
                 );
             }
+            this.paginazioneCommesse.aggiornaDati(this.datiTotaliCommesse);
         }
 
-        const datiPagina = this.paginazioneCommesse.getDatiPagina(stateManager.datiTotaliCommesse);
+        const datiPagina = this.paginazioneCommesse.getDatiPagina();
 
         if (datiPagina.length === 0) {
             const row = document.createElement('tr');
@@ -856,8 +1020,16 @@ class OreLavorateApp {
             });
         }
 
-        this.paginazioneCommesse.render(stateManager.datiTotaliCommesse, () => this.aggiornaTabellaCommesse(filtro));
+        this.paginazioneCommesse.render(this.datiTotaliCommesse, () => this.aggiornaTabellaCommesse(filtro));
+
+    } catch (error) {
+        console.error('Errore nel caricamento tabella commesse:', error);
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">Errore nel caricamento dei dati</td></tr>`;
     }
+}
+
+// Aggiungi queste proprietà al costruttore della classe OreLavorateApp
+
 
     async modificaOreLavorate(id) {
         try {
@@ -1009,45 +1181,71 @@ class OreLavorateApp {
         }
     }
 
-    async controllaOrariGiornata(data, nuovaOraInizio, nuovaOraFine, idEscluso = null) {
-        try {
-            if (nuovaOraInizio < CONSTANTS.ORARIO_PAUSA_FINE && nuovaOraFine > CONSTANTS.ORARIO_PAUSA_INIZIO) {
-                return {
-                    valido: false,
-                    errore: `Impossibile registrare ore durante la pausa pranzo (${CONSTANTS.ORARIO_PAUSA_INIZIO} - ${CONSTANTS.ORARIO_PAUSA_FINE})`
-                };
-            }
-
-            const oreEsistenti = await this.firebaseService.getCollection("oreLavorate");
-            const oreFiltrate = oreEsistenti.filter(ore => 
-                ore.data === data && 
-                ore.nomeDipendente === stateManager.currentUser.name.split(" ")[0] &&
-                ore.id !== idEscluso
-            );
-
-            for (const oreEsistente of oreFiltrate) {
-                const sovrappone = Utils.siSovrappongono(
-                    nuovaOraInizio, nuovaOraFine,
-                    oreEsistente.oraInizio, oreEsistente.oraFine
-                );
-                
-                if (sovrappone) {
-                    return {
-                        valido: false,
-                        errore: `Sovrapposizione con fascia oraria esistente: ${oreEsistente.oraInizio} - ${oreEsistente.oraFine}`
-                    };
-                }
-            }
-
-            return { valido: true };
-        } catch (error) {
-            ErrorHandler.handleError(error, 'controllo orari');
+   async controllaOrariGiornata(data, nuovaOraInizio, nuovaOraFine, idEscluso = null) {
+    try {
+        if (nuovaOraInizio < CONSTANTS.ORARIO_PAUSA_FINE && nuovaOraFine > CONSTANTS.ORARIO_PAUSA_INIZIO) {
             return {
                 valido: false,
-                errore: "Errore di sistema durante il controllo degli orari"
+                errore: `Impossibile registrare ore durante la pausa pranzo (${CONSTANTS.ORARIO_PAUSA_INIZIO} - ${CONSTANTS.ORARIO_PAUSA_FINE})`
             };
         }
+
+        const oreEsistenti = await this.firebaseService.getCollection("oreLavorate");
+        
+        // CONTROLLO RINFORZATO: usa nome E cognome per identificare il dipendente
+        const nomeCorrente = stateManager.currentUser.name.split(" ")[0];
+        const cognomeCorrente = stateManager.currentUser.name.split(" ").slice(1).join(" ");
+        
+        const oreFiltrate = oreEsistenti.filter(ore => {
+            const corrispondeData = ore.data === data;
+            const corrispondeNome = ore.nomeDipendente === nomeCorrente;
+            const corrispondeCognome = ore.cognomeDipendente === cognomeCorrente;
+            const nonEscluso = ore.id !== idEscluso;
+            
+            return corrispondeData && corrispondeNome && corrispondeCognome && nonEscluso;
+        });
+
+        console.log("Ore esistenti per", stateManager.currentUser.name, "in data", data, ":", oreFiltrate.length);
+
+        for (const oreEsistente of oreFiltrate) {
+            const sovrappone = Utils.siSovrappongono(
+                nuovaOraInizio, nuovaOraFine,
+                oreEsistente.oraInizio, oreEsistente.oraFine
+            );
+            
+            if (sovrappone) {
+                return {
+                    valido: false,
+                    errore: `Sovrapposizione con fascia oraria esistente: ${oreEsistente.oraInizio} - ${oreEsistente.oraFine}`
+                };
+            }
+        }
+
+        return { valido: true };
+    } catch (error) {
+        ErrorHandler.handleError(error, 'controllo orari');
+        return {
+            valido: false,
+            errore: "Errore di sistema durante il controllo degli orari"
+        };
     }
+}
+async verificaDatiDipendente() {
+    try {
+        const tutteLeOre = await this.firebaseService.getCollection("oreLavorate");
+        console.log("Tutte le ore nel database:", tutteLeOre);
+        
+        const oreDipendenteCorrente = tutteLeOre.filter(ore => 
+            ore.nomeDipendente === stateManager.currentUser.name.split(" ")[0] &&
+            ore.cognomeDipendente === stateManager.currentUser.name.split(" ").slice(1).join(" ")
+        );
+        
+        console.log("Ore del dipendente corrente:", oreDipendenteCorrente);
+        
+    } catch (error) {
+        console.error("Errore verifica dati:", error);
+    }
+}
 
     getFiltriAttivi() {
         return {
@@ -1061,16 +1259,16 @@ class OreLavorateApp {
     }
 
     async applicaFiltri() {
-        try {
-            const filtri = this.getFiltriAttivi();
-            stateManager.datiFiltrati = await this.firebaseService.getOreLavorateFiltrate(filtri);
-            this.paginazioneOre.reset();
-            await this.aggiornaTabellaOreLavorate(stateManager.datiFiltrati);
-            ErrorHandler.showNotification("Filtri applicati con successo", 'success');
-        } catch (error) {
-            ErrorHandler.handleError(error, 'applicazione filtri');
-        }
+    try {
+        const filtri = this.getFiltriAttivi();
+        const datiFiltrati = await this.firebaseService.getOreLavorateFiltrate(filtri);
+        this.paginazioneOre.reset();
+        await this.aggiornaTabellaOreLavorate(datiFiltrati);
+        ErrorHandler.showNotification("Filtri applicati con successo", 'success');
+    } catch (error) {
+        ErrorHandler.handleError(error, 'applicazione filtri');
     }
+}
 
     async resetFiltri() {
         document.getElementById('filtroCommessa').value = "";
