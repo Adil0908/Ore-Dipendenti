@@ -8,10 +8,9 @@
     
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js"></script>
-        <!-- jsPDF -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-  
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
     <script src="app.js"></script>
@@ -32,7 +31,7 @@
                 <select id="oreCommessa" required>
                     <option value="">Seleziona una commessa</option>
                     <!-- Le opzioni verranno popolate dinamicamente -->
-                  </select>
+                </select>
                 <label for="oreData">Data:</label>
                 <input type="date" id="oreData" name="data" required>
                 <label for="oreInizio">Ora Inizio:</label>
@@ -44,21 +43,22 @@
                 <div>
                     <label for="nonConformita">Non Conformità:</label>
                     <input type="checkbox" id="nonConformita" name="nonConformita">
-                  </div>
+                </div>
                 <button type="submit">Salva</button>
             </form>
-            <!-- Aggiungi questo DIV dopo il form delle ore lavorate -->
-<div id="visualizzazioneFasce" class="fasce-orarie-container" style="display: none;">
-    <div class="fasce-orarie-title">📅 Situazione Oraria per la Giornata Selezionata:</div>
-    <div id="fasceOccupate" class="fasce-orarie-list"></div>
-    <div class="indicatore-pausa" title="Pausa Pranzo 12:00 - 13:00"></div>
-    <div class="fasce-orarie-list">
-        <div class="fascia-oraria fascia-pausa">⏸️ Pausa Pranzo 12:00-13:00</div>
-    </div>
-    <small class="text-muted">Le fasce in rosso indicano orari già occupati</small>
-</div>
+            <!-- Visualizzazione fasce orarie -->
+            <div id="visualizzazioneFasce" class="fasce-orarie-container" style="display: none;">
+                <div class="fasce-orarie-title">📅 Situazione Oraria per la Giornata Selezionata:</div>
+                <div id="fasceOccupate" class="fasce-orarie-list"></div>
+                <div class="indicatore-pausa" title="Pausa Pranzo 12:00 - 13:00"></div>
+                <div class="fasce-orarie-list">
+                    <div class="fascia-oraria fascia-pausa">⏸️ Pausa Pranzo 12:00-13:00</div>
+                </div>
+                <small class="text-muted">Le fasce in rosso indicano orari già occupati</small>
+            </div>
             <div id="totaliContainer"></div>
-        </div>>
+        </div>
+
         <div class="admin-only">
             <h2>Registrazione Ore Lavorate</h2>
             <table id="orelavorateTable">
@@ -71,98 +71,94 @@
                         <th>Ora Fine</th>
                         <th>Descrizione</th>
                         <th>Non Conformità</th>
-                         <th>Ore Lavorate</th>
+                        <th>Ore Lavorate</th>
                         <th>Azioni</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Le commesse verranno aggiunte qui dinamicamente -->
+                    <!-- Le ore lavorate verranno aggiunte qui dinamicamente -->
                 </tbody>
             </table>
-            <div id="paginazione">
-                <button id="btnPrecedente">Precedente</button>
-                <span id="numeriPagina"></span>
-                <button id="btnSuccessiva">Successiva</button>
-                <button id="btnMostraTutti" class="btn btn-secondary">Mostra Tutti i Dati</button>
-              </div>
+            <!-- PAGINAZIONE ORE LAVORATE - SOLO CONTENITORE VUOTO -->
+            <div id="paginationOre"></div>
+            <button id="btnMostraTutti" class="btn btn-secondary">Mostra Tutti i Dati</button>
         </div>
        
         <!-- Sezione Filtri Ore Lavorate -->
         <div class="admin-only">
-        <h2>Filtri Ore Lavorate</h2>
-        <form id="filtraOreLavorate">
-            <!-- Filtri esistenti -->
-            <input type="text" id="filtroCommessa" placeholder="Filtra per commessa">
-            <input type="text" id="filtroDipendente" placeholder="Filtra per dipendente">
-            <div class="row">
-                <div class="col-md-4">
-                  <label for="filtroAnno">Anno</label>
-                  <select id="filtroAnno" class="form-control">
-                    <option value="">Tutti gli anni</option>
-                    <!-- Le opzioni verranno popolate dinamicamente via JavaScript -->
-                  </select>
+            <h2>Filtri Ore Lavorate</h2>
+            <form id="filtraOreLavorate">
+                <!-- Filtri esistenti -->
+                <input type="text" id="filtroCommessa" placeholder="Filtra per commessa">
+                <input type="text" id="filtroDipendente" placeholder="Filtra per dipendente">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label for="filtroAnno">Anno</label>
+                        <select id="filtroAnno" class="form-control">
+                            <option value="">Tutti gli anni</option>
+                            <!-- Le opzioni verranno popolate dinamicamente via JavaScript -->
+                        </select>
+                    </div>
+                
+                    <div class="col-md-4">
+                        <label for="filtroMese">Mese</label>
+                        <select id="filtroMese" class="form-control">
+                            <option value="">Tutti i mesi</option>
+                            <option value="01">Gennaio</option>
+                            <option value="02">Febbraio</option>
+                            <option value="03">Marzo</option> 
+                            <option value="04">Aprile</option> 
+                            <option value="05">Maggio</option>
+                            <option value="06">Giugno</option>
+                            <option value="07">Luglio</option>
+                            <option value="08">Agosto</option>
+                            <option value="09">Settembre</option>
+                            <option value="10">Ottobre</option>
+                            <option value="11">Novembre</option>
+                            <option value="12">Dicembre</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="filtroGiorno">Giorno</label>
+                        <select id="filtroGiorno" class="form-control">
+                            <option value="">Tutti i giorni</option>
+                            <!-- Opzioni verranno popolate dinamicamente da 1 a 31 -->
+                        </select>
+                    </div>
                 </div>
             
-                <div class="col-md-4">
-                  <label for="filtroMese">Mese</label>
-                  <select id="filtroMese" class="form-control">
-                    <option value="">Tutti i mesi</option>
-                    <option value="01">Gennaio</option>
-                    <option value="02">Febbraio</option>
-                    <option value="03">Marzo</option> 
-                    <option value="04">Aprile</option> 
-                    <option value="05">Maggio</option>
-                    <option value="06">Giugno</option>
-                    <option value="07">Luglio</option>
-                    <option value="08">Agosto</option>
-                    <option value="09">Settembre</option>
-                    <option value="10">Ottobre</option>
-                    <option value="11">Novembre</option>
-                    <option value="12">Dicembre</option>
-                  </select>
-                </div>
-                <div class="col-md-4">
-                  <label for="filtroGiorno">Giorno</label>
-                  <select id="filtroGiorno" class="form-control">
-                    <option value="">Tutti i giorni</option>
-                    <!-- Opzioni verranno popolate dinamicamente da 1 a 31 -->
-                  </select>
-                </div>
-              </div>
-          
-            <!-- Nuovo filtro per non conformità -->
-            <label>
-              <input type="checkbox" id="filtroNonConformita"> Mostra solo non conformità
-            </label>
-          
-            <button type="submit" id="btnApplicaFiltri">Applica Filtri</button>
-            <button type="button" id="btnResetFiltri">Reset Filtri</button>
-            <button type="button" id="btnScaricaPDF">Scarica PDF</button>
-          </form>
-<div class="admin-only">
-    <h2> Ore Mensili</h2>
-    <label for="selettoreMese">Seleziona un mese:</label>
-<select id="selettoreMese">
-  <option value="0">Gennaio</option>
-  <option value="1">Febbraio</option>
-  <option value="2">Marzo</option>
-  <option value="3">Aprile</option>
-  <option value="4">Maggio</option>
-  <option value="5">Giugno</option>
-  <option value="6">Luglio</option>
-  <option value="7">Agosto</option>
-  <option value="8">Settembre</option>
-  <option value="9">Ottobre</option>
-  <option value="10">Novembre</option>
-  <option value="11">Dicembre</option>
-</select>
+                <!-- Nuovo filtro per non conformità -->
+                <label>
+                    <input type="checkbox" id="filtroNonConformita"> Mostra solo non conformità
+                </label>
+            
+                <button type="submit" id="btnApplicaFiltri">Applica Filtri</button>
+                <button type="button" id="btnResetFiltri">Reset Filtri</button>
+                <button type="button" id="btnScaricaPDF">Scarica PDF</button>
+            </form>
 
-<button id="btnMostraTabella">Mostra Tabella</button>
-
-<div id="tabelleMensili"></div>
-</div> 
-
-    </div>  
+            <div class="admin-only">
+                <h2>Ore Mensili</h2>
+                <label for="selettoreMese">Seleziona un mese:</label>
+                <select id="selettoreMese">
+                    <option value="0">Gennaio</option>
+                    <option value="1">Febbraio</option>
+                    <option value="2">Marzo</option>
+                    <option value="3">Aprile</option>
+                    <option value="4">Maggio</option>
+                    <option value="5">Giugno</option>
+                    <option value="6">Luglio</option>
+                    <option value="7">Agosto</option>
+                    <option value="8">Settembre</option>
+                    <option value="9">Ottobre</option>
+                    <option value="10">Novembre</option>
+                    <option value="11">Dicembre</option>
+                </select>
+                <button id="btnMostraTabella">Mostra Tabella</button>
+                <div id="tabelleMensili"></div>
+            </div> 
+        </div>  
+        
         <!-- Sezione Gestione Commesse (visibile solo agli admin) -->
         <div class="admin-only">
             <h2>Gestione Commesse</h2>
@@ -177,7 +173,7 @@
                 <input type="text" id="cercaCommessa" placeholder="Cerca commessa..." style="padding: 8px; width: 300px;">
                 <button id="btnCercaCommessa" style="padding: 8px 15px;">Cerca</button>
                 <button id="btnResetCercaCommessa" style="padding: 8px 15px; margin-left: 5px;">Reset</button>
-              </div>
+            </div>
             <table id="commesseTable">
                 <thead>
                     <tr>
@@ -190,11 +186,8 @@
                     <!-- Le commesse verranno aggiunte qui dinamicamente -->
                 </tbody>
             </table>
-            <div id="paginazioneCommesse">
-                <button id="btnPrecedenteCommesse">Precedente</button>
-                <span id="numeriPaginaCommesse"></span>
-                <button id="btnSuccessivaCommesse">Successiva</button>
-              </div>
+            <!-- PAGINAZIONE COMMESSE - SOLO CONTENITORE VUOTO -->
+            <div id="paginationCommesse"></div>
         </div>
     
         <!-- Sezione Gestione Dipendenti (visibile solo agli admin) -->
@@ -210,10 +203,10 @@
                 <label for="dipendentePassword">Password:</label>
                 <input type="password" id="dipendentePassword" name="password" required>
                 <label for="dipendenteRuolo">Ruolo:</label>
-    <select id="dipendenteRuolo" name="ruolo" required>
-        <option value="admin">Amministratore</option>
-        <option value="dipendente">Dipendente</option>
-    </select>
+                <select id="dipendenteRuolo" name="ruolo" required>
+                    <option value="admin">Amministratore</option>
+                    <option value="dipendente">Dipendente</option>
+                </select>
                 <button type="submit">Aggiungi Dipendente</button>
             </form>
           
@@ -232,13 +225,8 @@
                     <!-- I dipendenti verranno aggiunti qui dinamicamente -->
                 </tbody>
             </table>
-            <!-- Paginazione per la tabella Dipendenti -->
-<div id="paginazioneDipendenti">
-    <button id="btnPrecedenteDipendenti">Precedente</button>
-    <span id="numeriPaginaDipendenti"></span>
-    <button id="btnSuccessivaDipendenti">Successiva</button>
-  </div>
-        </div>
+            <!-- PAGINAZIONE DIPENDENTI - SOLO CONTENITORE VUOTO -->
+            <div id="paginationDipendenti"></div>
         </div>
     </div>
    
