@@ -1258,19 +1258,25 @@ async verificaDatiDipendente() {
         };
     }
 
-    async applicaFiltri() {
+async applicaFiltri() {
     try {
         const filtri = this.getFiltriAttivi();
         const datiFiltrati = await this.firebaseService.getOreLavorateFiltrate(filtri);
-        this.paginazioneOre.reset();
+        
+        // MEMORIZZA i dati filtrati per il PDF
+        stateManager.datiFiltrati = datiFiltrati;
+        this.datiTotaliOre = datiFiltrati;
+        this.paginazioneOre.aggiornaDati(datiFiltrati);
+        
         await this.aggiornaTabellaOreLavorate(datiFiltrati);
-        ErrorHandler.showNotification("Filtri applicati con successo", 'success');
+        ErrorHandler.showNotification(`Filtri applicati con successo (${datiFiltrati.length} record trovati)`, 'success');
     } catch (error) {
         ErrorHandler.handleError(error, 'applicazione filtri');
     }
 }
 
     async resetFiltri() {
+    try {
         document.getElementById('filtroCommessa').value = "";
         document.getElementById('filtroDipendente').value = "";
         document.getElementById('filtroAnno').value = new Date().getFullYear().toString();
@@ -1279,10 +1285,20 @@ async verificaDatiDipendente() {
         document.getElementById('filtroNonConformita').checked = false;
 
         this.aggiornaGiorni();
-        this.paginazioneOre.reset();
+        
+        // RESETTA anche i dati filtrati
+        stateManager.datiFiltrati = null;
+        
+        // Ricarica tutti i dati senza filtri
+        this.datiTotaliOre = await this.firebaseService.getCollection("oreLavorate");
+        this.paginazioneOre.aggiornaDati(this.datiTotaliOre);
         await this.aggiornaTabellaOreLavorate();
+        
         ErrorHandler.showNotification("Filtri resettati", 'info');
+    } catch (error) {
+        ErrorHandler.handleError(error, 'reset filtri');
     }
+}
 
     aggiornaGiorni() {
         const mese = document.getElementById('filtroMese')?.value;
@@ -1306,50 +1322,187 @@ async verificaDatiDipendente() {
         }
     }
 
-    async generaPDFFiltrato() {
-        try {
-            const { jsPDF } = window.jspdf;
-            if (!jsPDF) {
-                ErrorHandler.showNotification("jsPDF non trovato. Assicurati che sia incluso nella pagina.", 'error');
-                return;
-            }
-
-            const oreFiltrate = stateManager.datiFiltrati || await this.firebaseService.getCollection("oreLavorate");
-
-            const doc = new jsPDF({
-                orientation: 'landscape',
-                unit: 'mm',
-                format: 'a4'
-            });
-
-            doc.setFontSize(18);
-            doc.text("Report Ore Lavorate Filtrate", 14, 20);
-
-            doc.autoTable({
-                startY: 25,
-                head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione', 'Ore Lavorate', 'Non Conformità']],  
-                body: oreFiltrate.map(ore => [
-                    ore.commessa,
-                    `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
-                    ore.data,
-                    ore.oraInizio,
-                    ore.oraFine,
-                    ore.descrizione,
-                    Utils.formattaOreDecimali(Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine)),
-                    ore.nonConformita ? 'Sì' : 'No'
-                ]),
-                theme: 'grid',
-                styles: { fontSize: 8, cellPadding: 2 },
-                headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-                margin: { top: 20 }
-            });
-
-            doc.save('ore_lavorate_filtrate.pdf');
-            ErrorHandler.showNotification("PDF generato con successo", 'success');
-        } catch (error) {
-            ErrorHandler.handleError(error, 'generazione PDF');
+async generaPDFFiltrato() {
+    try {
+        const { jsPDF } = window.jspdf;
+        if (!jsPDF) {
+            ErrorHandler.showNotification("jsPDF non trovato. Assicurati che sia incluso nella pagina.", 'error');
+            return;
         }
+
+        // USA I DATI FILTRATI invece di tutti i dati
+        let oreFiltrate;
+        
+        // Se ci sono dati filtrati attivi, usali
+        if (stateManager.datiFiltrati && stateManager.datiFiltrati.length > 0) {
+            oreFiltrate = stateManager.datiFiltrati;
+            console.log("PDF: usando dati filtrati", oreFiltrate.length, "record");
+        } 
+        // Altrimenti applica i filtri correnti
+        else {
+            const filtri = this.getFiltriAttivi();
+            oreFiltrate = await this.firebaseService.getOreLavorateFiltrate(filtri);
+            console.log("PDF: applicando filtri correnti", oreFiltrate.length, "record");
+        }
+
+        // Se non ci sono dati, mostra un messaggio
+        if (!oreFiltrate || oreFiltrate.length === 0) {
+            ErrorHandler.showNotification("Nessun dato da esportare con i filtri attuali", 'warning');
+            return;
+        }
+
+        const doc = new jsPDF({
+            orientation: 'landscape',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        // Titolo dinamico in base ai filtri
+        const titolo = this.generaTitoloPDF();
+        doc.setFontSize(18);
+        doc.text(titolo, 14, 20);
+
+        // Aggiungi informazioni sui filtri applicati
+        const infoFiltri = this.generaInfoFiltri();
+        if (infoFiltri) {
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text(infoFiltri, 14, 28);
+            doc.setTextColor(0, 0, 0); // Ripristina colore nero
+        }
+
+        doc.autoTable({
+            startY: infoFiltri ? 35 : 25,
+            head: [['Commessa', 'Dipendente', 'Data', 'Ora Inizio', 'Ora Fine', 'Descrizione', 'Ore Lavorate', 'Non Conformità']],  
+            body: oreFiltrate.map(ore => [
+                ore.commessa,
+                `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
+                ore.data,
+                ore.oraInizio,
+                ore.oraFine,
+                ore.descrizione,
+                Utils.formattaOreDecimali(Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine)),
+                ore.nonConformita ? 'Sì' : 'No'
+            ]),
+            theme: 'grid',
+            styles: { fontSize: 8, cellPadding: 2 },
+            headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+            margin: { top: 20 }
+        });
+
+        // Calcola e aggiungi i totali
+        this.aggiungiTotaliPDF(doc, oreFiltrate);
+
+        // Nome file dinamico
+        const nomeFile = this.generaNomeFilePDF();
+        doc.save(nomeFile);
+        
+        ErrorHandler.showNotification(`PDF generato con successo (${oreFiltrate.length} record)`, 'success');
+        
+    } catch (error) {
+        ErrorHandler.handleError(error, 'generazione PDF');
     }
+}
+
+// Aggiungi questi metodi helper per migliorare il PDF
+generaTitoloPDF() {
+    const filtri = this.getFiltriAttivi();
+    let titolo = "Report Ore Lavorate";
+    
+    if (filtri.commessa) {
+        titolo += ` - Commessa: ${filtri.commessa}`;
+    }
+    if (filtri.dipendente) {
+        titolo += ` - Dipendente: ${filtri.dipendente}`;
+    }
+    if (filtri.nonConformita) {
+        titolo += " - Solo Non Conformità";
+    }
+    
+    return titolo;
+}
+
+generaInfoFiltri() {
+    const filtri = this.getFiltriAttivi();
+    const info = [];
+    
+    if (filtri.anno) {
+        info.push(`Anno: ${filtri.anno}`);
+    }
+    if (filtri.mese) {
+        const mesi = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", 
+                     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
+        const nomeMese = mesi[parseInt(filtri.mese) - 1];
+        info.push(`Mese: ${nomeMese}`);
+    }
+    if (filtri.giorno) {
+        info.push(`Giorno: ${filtri.giorno}`);
+    }
+    
+    return info.length > 0 ? `Filtri applicati: ${info.join(', ')}` : '';
+}
+
+aggiungiTotaliPDF(doc, oreFiltrate) {
+    const totaleOre = Utils.calcolaTotaleGenerale(oreFiltrate);
+    const totaleFormattato = Utils.formattaOreDecimali(totaleOre);
+    
+    // Calcola ore per dipendente
+    const orePerDipendente = {};
+    oreFiltrate.forEach(ore => {
+        const dipendente = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
+        const oreLavorate = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+        
+        if (!orePerDipendente[dipendente]) {
+            orePerDipendente[dipendente] = 0;
+        }
+        orePerDipendente[dipendente] += oreLavorate;
+    });
+
+    const startY = doc.lastAutoTable.finalY + 10;
+    
+    // Totale generale
+    doc.setFontSize(12);
+    doc.setTextColor(41, 128, 185);
+    doc.text(`Totale ore lavorate: ${totaleFormattato}`, 14, startY);
+    
+    // Ore per dipendente (se più di un dipendente)
+    if (Object.keys(orePerDipendente).length > 1) {
+        let yPos = startY + 8;
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        doc.text("Ore per dipendente:", 14, yPos);
+        
+        yPos += 5;
+        Object.entries(orePerDipendente).forEach(([dipendente, ore]) => {
+            const oreFormattate = Utils.formattaOreDecimali(ore);
+            doc.text(`• ${dipendente}: ${oreFormattate} ore`, 20, yPos);
+            yPos += 4;
+        });
+    }
+}
+
+generaNomeFilePDF() {
+    const filtri = this.getFiltriAttivi();
+    let nomeFile = 'ore_lavorate';
+    
+    if (filtri.commessa) {
+        nomeFile += `_${filtri.commessa.replace(/\s+/g, '_')}`;
+    }
+    if (filtri.dipendente) {
+        nomeFile += `_${filtri.dipendente.replace(/\s+/g, '_')}`;
+    }
+    if (filtri.anno) {
+        nomeFile += `_${filtri.anno}`;
+    }
+    if (filtri.mese) {
+        nomeFile += `_${filtri.mese}`;
+    }
+    if (filtri.nonConformita) {
+        nomeFile += '_non_conformita';
+    }
+    
+    return `${nomeFile}.pdf`;
+}
 
     async mostraTabellaMensile() {
         const selettoreMese = document.getElementById('selettoreMese');
