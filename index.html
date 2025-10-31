@@ -6,230 +6,459 @@
     <title>Ore Dipendenti Union14srl</title>
     <link rel="stylesheet" href="styles.css">
     
+    <!-- Bootstrap CSS per migliorare l'UI -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome per le icone -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js"></script>
     <!-- jsPDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+ 
 </head>
 <body>
     <script src="app.js"></script>
-    <div id="loginPage">
-        <h2>Ore dipendenti</h2>
-        <input type="email" id="inputEmail" placeholder="Email" aria-label="Email">
-        <input type="password" id="inputPassword" placeholder="Password" aria-label="Password">
-        <button id="btnLogin">Accedi</button>
+    <div id="loginPage" class="login-container">
+        <div class="login-form">
+            <h2>Ore dipendenti</h2>
+            <input type="email" id="inputEmail" placeholder="Email" aria-label="Email" class="form-control mb-2">
+            <input type="password" id="inputPassword" placeholder="Password" aria-label="Password" class="form-control mb-3">
+            <button id="btnLogin" class="btn btn-primary w-100">Accedi</button>
+        </div>
     </div>
-    <div id="appContent" style="display: none;">
-        <!-- Sezione Logout -->
-        <button id="logoutButton">Logout</button>
     
-        <!-- Sezione Ore Lavorate (visibile solo ai dipendenti) -->
-        <div class="dipendente-only">
-            <h2>Registrazione Ore Lavorate</h2>
-            <form id="oreForm">
-                <select id="oreCommessa" required>
-                    <option value="">Seleziona una commessa</option>
-                    <!-- Le opzioni verranno popolate dinamicamente -->
-                </select>
-                <label for="oreData">Data:</label>
-                <input type="date" id="oreData" name="data" required>
-                <label for="oreInizio">Ora Inizio:</label>
-                <input type="time" id="oreInizio" name="oraInizio" required>
-                <label for="oreFine">Ora Fine:</label>
-                <input type="time" id="oreFine" name="oraFine" required>
-                <label for="oreDescrizione">Descrizione Lavoro:</label>
-                <textarea id="oreDescrizione" name="descrizione" required></textarea>
-                <div>
-                    <label for="nonConformita">Non Conformità:</label>
-                    <input type="checkbox" id="nonConformita" name="nonConformita">
-                </div>
-                <button type="submit">Salva</button>
-            </form>
-            <!-- Visualizzazione fasce orarie -->
-            <div id="visualizzazioneFasce" class="fasce-orarie-container" style="display: none;">
-                <div class="fasce-orarie-title">📅 Situazione Oraria per la Giornata Selezionata:</div>
-                <div id="fasceOccupate" class="fasce-orarie-list"></div>
-                <div class="indicatore-pausa" title="Pausa Pranzo 12:00 - 13:00"></div>
-                <div class="fasce-orarie-list">
-                    <div class="fascia-oraria fascia-pausa">⏸️ Pausa Pranzo 12:00-13:00</div>
-                </div>
-                <small class="text-muted">Le fasce in rosso indicano orari già occupati</small>
+    <div id="appContent" style="display: none;" class="container-fluid">
+        <!-- Sezione Logout -->
+        <nav class="navbar navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <span class="navbar-brand">Gestione Ore Lavorative</span>
+                <button id="logoutButton" class="btn btn-outline-danger">Logout</button>
             </div>
-            <div id="totaliContainer"></div>
-        </div>
+        </nav>
 
-        <div class="admin-only">
-            <h2>Registrazione Ore Lavorate</h2>
-            <table id="orelavorateTable">
-                <thead>
-                    <tr>
-                        <th>Commessa</th>
-                        <th>Dipendente</th>
-                        <th>Data</th>
-                        <th>Ora Inizio</th>
-                        <th>Ora Fine</th>
-                        <th>Descrizione</th>
-                        <th>Non Conformità</th>
-                        <th>Ore Lavorate</th>
-                        <th>Azioni</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Le ore lavorate verranno aggiunte qui dinamicamente -->
-                </tbody>
-            </table>
-            <!-- PAGINAZIONE ORE LAVORATE - SOLO CONTENITORE VUOTO -->
-            <div id="paginationOre"></div>
-            <button id="btnMostraTutti" class="btn btn-secondary">Mostra Tutti i Dati</button>
-        </div>
-       
-        <!-- Sezione Filtri Ore Lavorate -->
-        <div class="admin-only">
-            <h2>Filtri Ore Lavorate</h2>
-            <form id="filtraOreLavorate">
-                <!-- Filtri esistenti -->
-                <input type="text" id="filtroCommessa" placeholder="Filtra per commessa">
-                <input type="text" id="filtroDipendente" placeholder="Filtra per dipendente">
-                <div class="row">
-                    <div class="col-md-4">
-                        <label for="filtroAnno">Anno</label>
-                        <select id="filtroAnno" class="form-control">
-                            <option value="">Tutti gli anni</option>
-                            <!-- Le opzioni verranno popolate dinamicamente via JavaScript -->
+        <!-- SEZIONE DIPENDENTI: SOLO FORM INSERIMENTO ORE -->
+        <div class="dipendente-only card mb-4">
+            <div class="card-header">
+                <h2><i class="fas fa-clock"></i> Registrazione Ore Lavorate</h2>
+            </div>
+            <div class="card-body">
+                <form id="oreForm" class="row g-3">
+                    <div class="col-md-6">
+                        <label for="oreCommessa" class="form-label">Commessa:</label>
+                        <select id="oreCommessa" class="form-select" required>
+                            <option value="">Seleziona una commessa</option>
+                            <!-- Le opzioni verranno popolate dinamicamente -->
                         </select>
                     </div>
+                    <div class="col-md-6">
+                        <label for="oreData" class="form-label">Data:</label>
+                        <input type="date" id="oreData" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="oreInizio" class="form-label">Ora Inizio:</label>
+                        <input type="time" id="oreInizio" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="oreFine" class="form-label">Ora Fine:</label>
+                        <input type="time" id="oreFine" class="form-control" required>
+                    </div>
+                    <div class="col-12">
+                        <label for="oreDescrizione" class="form-label">Descrizione Lavoro:</label>
+                        <textarea id="oreDescrizione" class="form-control" rows="3" required></textarea>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input type="checkbox" id="nonConformita" class="form-check-input">
+                            <label for="nonConformita" class="form-check-label">Non Conformità</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> Salva Ore Lavorate
+                        </button>
+                    </div>
+                </form>
                 
-                    <div class="col-md-4">
-                        <label for="filtroMese">Mese</label>
-                        <select id="filtroMese" class="form-control">
-                            <option value="">Tutti i mesi</option>
-                            <option value="01">Gennaio</option>
-                            <option value="02">Febbraio</option>
-                            <option value="03">Marzo</option> 
-                            <option value="04">Aprile</option> 
-                            <option value="05">Maggio</option>
-                            <option value="06">Giugno</option>
-                            <option value="07">Luglio</option>
-                            <option value="08">Agosto</option>
-                            <option value="09">Settembre</option>
-                            <option value="10">Ottobre</option>
-                            <option value="11">Novembre</option>
-                            <option value="12">Dicembre</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="filtroGiorno">Giorno</label>
-                        <select id="filtroGiorno" class="form-control">
-                            <option value="">Tutti i giorni</option>
-                            <!-- Opzioni verranno popolate dinamicamente da 1 a 31 -->
-                        </select>
+                <!-- Visualizzazione fasce orarie -->
+                <div id="visualizzazioneFasce" class="fasce-orarie-container mt-4" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-calendar-day"></i> Situazione Oraria per la Giornata Selezionata</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="fasceOccupate" class="fasce-orarie-list"></div>
+                            <div class="timeline-container mt-3">
+                                <div class="timeline-title">Timeline Giornata:</div>
+                                <div class="timeline-giornata">
+                                    <div class="pausa-timeline" title="Pausa Pranzo 12:00-13:00"></div>
+                                </div>
+                            </div>
+                            <small class="text-muted mt-2 d-block">
+                                <i class="fas fa-info-circle"></i> Le fasce in rosso indicano orari già occupati
+                            </small>
+                        </div>
                     </div>
                 </div>
-            
-                <!-- Nuovo filtro per non conformità -->
-                <label>
-                    <input type="checkbox" id="filtroNonConformita"> Mostra solo non conformità
-                </label>
-            
-                <button type="submit" id="btnApplicaFiltri">Applica Filtri</button>
-                <button type="button" id="btnResetFiltri">Reset Filtri</button>
-                <button type="button" id="btnScaricaPDF">Scarica PDF</button>
-            </form>
+            </div>
+        </div>
 
-            <div class="admin-only">
-                <h2>Ore Mensili</h2>
-                <label for="selettoreMese">Seleziona un mese:</label>
-                <select id="selettoreMese">
-                    <option value="0">Gennaio</option>
-                    <option value="1">Febbraio</option>
-                    <option value="2">Marzo</option>
-                    <option value="3">Aprile</option>
-                    <option value="4">Maggio</option>
-                    <option value="5">Giugno</option>
-                    <option value="6">Luglio</option>
-                    <option value="7">Agosto</option>
-                    <option value="8">Settembre</option>
-                    <option value="9">Ottobre</option>
-                    <option value="10">Novembre</option>
-                    <option value="11">Dicembre</option>
-                </select>
-                <button id="btnMostraTabella">Mostra Tabella</button>
-                <div id="tabelleMensili"></div>
-            </div> 
+        <!-- SEZIONE ADMIN: MONITORAGGIO COMMESSE -->
+        <div class="admin-only">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0"><i class="fas fa-chart-line"></i> Monitoraggio Margini Commesse</h3>
+                    <button id="btnDiagnosticaCommesse" class="btn btn-sm btn-outline-info">
+                        <i class="fas fa-stethoscope"></i> Diagnostica
+                    </button>
+                </div>
+                <div class="card-body">
+
+                    <div class="row mb-3">
+                         <!-- NUOVO FILTRO PER COMMESSA SPECIFICA -->
+                <div class="col-md-4">
+                    <label for="filtroNomeCommessa" class="form-label">Cerca Commessa:</label>
+                    <input type="text" id="filtroNomeCommessa" class="form-control" 
+                           placeholder="Nome commessa..." list="listaCommesse">
+                    <datalist id="listaCommesse">
+                        <!-- Le opzioni verranno popolate dinamicamente -->
+                    </datalist>
+                </div>
+                
+                <div class="col-md-4">
+                    <label for="filtroCommessaMonitor" class="form-label">Filtra per Stato:</label>
+                    <select id="filtroCommessaMonitor" class="form-select">
+                        <option value="">Tutte le commesse</option>
+                        <option value="attive">Solo attive</option>
+                        <option value="concluse">Solo concluse</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-4 d-flex align-items-end gap-2">
+                    <button id="btnAggiornaMonitor" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> Aggiorna
+                    </button>
+                    <button id="btnResetFiltriMonitor" class="btn btn-secondary">
+                        <i class="fas fa-undo"></i> Reset
+                    </button>
+                    <button id="btnScaricaPDFMonitor" class="btn btn-success">
+    <i class="fas fa-file-pdf"></i> Scarica PDF Monitoraggio
+</button>
+                </div>
+            </div>
+                    
+                    <div class="table-responsive">
+                        <table id="monitorCommesseTable" class="table table-striped table-bordered table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Commessa</th>
+                                    <th>Preventivo (€)</th>
+                                    <th>Ore Lavorate</th>
+                                    <th>Ore Non Conformità</th>
+                                    <th>Costo Ore (€)</th>
+                                    <th>Margine (€)</th>
+                                    <th>Margine (%)</th>
+                                    <th>Stato & Azioni</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- I dati verranno popolati dinamicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Indicatori di Stato -->
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <div class="alert alert-info py-2">
+                                <small>
+                                    <strong>Legenda:</strong> 
+                                    <span class="badge bg-success">ECCELLENTE</span> 
+                                    <span class="badge bg-info">BUONO</span> 
+                                    <span class="badge bg-warning">SUFFICIENTE</span> 
+                                    <span class="badge bg-danger">LIMITE</span> 
+                                    <span class="badge bg-dark">IN PERDITA</span>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEZIONE ADMIN: TABELLA ORE LAVORATE (SOLO PER ADMIN) -->
+        <div class="admin-only card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-list"></i> Storico Ore Lavorate</h3>
+            </div>
+            <div class="card-body">
+                <!-- Filtri Ore Lavorate -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4><i class="fas fa-filter"></i> Filtri Ore Lavorate</h4>
+                    </div>
+                    <div class="card-body">
+                        <form id="filtraOreLavorate">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="filtroCommessa" class="form-label">Filtra per commessa:</label>
+                                    <input type="text" id="filtroCommessa" class="form-control" placeholder="Nome commessa...">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="filtroDipendente" class="form-label">Filtra per dipendente:</label>
+                                    <input type="text" id="filtroDipendente" class="form-control" placeholder="Nome dipendente...">
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <label for="filtroAnno" class="form-label">Anno</label>
+                                    <select id="filtroAnno" class="form-control">
+                                        <option value="">Tutti gli anni</option>
+                                        <!-- Le opzioni verranno popolate dinamicamente via JavaScript -->
+                                    </select>
+                                </div>
+                            
+                                <div class="col-md-4">
+                                    <label for="filtroMese" class="form-label">Mese</label>
+                                    <select id="filtroMese" class="form-control">
+                                        <option value="">Tutti i mesi</option>
+                                        <option value="01">Gennaio</option>
+                                        <option value="02">Febbraio</option>
+                                        <option value="03">Marzo</option> 
+                                        <option value="04">Aprile</option> 
+                                        <option value="05">Maggio</option>
+                                        <option value="06">Giugno</option>
+                                        <option value="07">Luglio</option>
+                                        <option value="08">Agosto</option>
+                                        <option value="09">Settembre</option>
+                                        <option value="10">Ottobre</option>
+                                        <option value="11">Novembre</option>
+                                        <option value="12">Dicembre</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <label for="filtroGiorno" class="form-label">Giorno</label>
+                                    <select id="filtroGiorno" class="form-control">
+                                        <option value="">Tutti i giorni</option>
+                                        <!-- Opzioni verranno popolate dinamicamente da 1 a 31 -->
+                                    </select>
+                                </div>
+                                
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input type="checkbox" id="filtroNonConformita" class="form-check-input">
+                                        <label for="filtroNonConformita" class="form-check-label">Mostra solo non conformità</label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12">
+                                    <button type="submit" id="btnApplicaFiltri" class="btn btn-primary">
+                                        <i class="fas fa-check"></i> Applica Filtri
+                                    </button>
+                                    <button type="button" id="btnResetFiltri" class="btn btn-secondary">
+                                        <i class="fas fa-undo"></i> Reset Filtri
+                                    </button>
+                                    <button type="button" id="btnScaricaPDF" class="btn btn-success">
+                                        <i class="fas fa-download"></i> Scarica PDF
+                                    </button>
+                                    <button type="button" id="btnMostraTutti" class="btn btn-info">
+                                        <i class="fas fa-eye"></i> Mostra Tutti
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Tabella Ore Lavorate -->
+                <div class="table-responsive">
+                    <table id="orelavorateTable" class="table table-striped table-bordered">
+                        <thead class="table-primary">
+                            <tr>
+                                <th>Commessa</th>
+                                <th>Dipendente</th>
+                                <th>Data</th>
+                                <th>Ora Inizio</th>
+                                <th>Ora Fine</th>
+                                <th>Descrizione</th>
+                                <th>Non Conformità</th>
+                                <th>Ore Lavorate</th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Le ore lavorate verranno aggiunte qui dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- PAGINAZIONE ORE LAVORATE -->
+                <div id="paginationOre" class="mt-3"></div>
+            </div>
+        </div>
+
+        <!-- Sezione Ore Mensili -->
+        <div class="admin-only card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-calendar-alt"></i> Report Mensili</h3>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-6">
+                        <label for="selettoreMese" class="form-label">Seleziona un mese:</label>
+                        <select id="selettoreMese" class="form-select">
+                            <option value="0">Gennaio</option>
+                            <option value="1">Febbraio</option>
+                            <option value="2">Marzo</option>
+                            <option value="3">Aprile</option>
+                            <option value="4">Maggio</option>
+                            <option value="5">Giugno</option>
+                            <option value="6">Luglio</option>
+                            <option value="7">Agosto</option>
+                            <option value="8">Settembre</option>
+                            <option value="9">Ottobre</option>
+                            <option value="10">Novembre</option>
+                            <option value="11">Dicembre</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <button id="btnMostraTabella" class="btn btn-primary">
+                            <i class="fas fa-table"></i> Genera Report
+                        </button>
+                    </div>
+                </div>
+                <div id="tabelleMensili" class="mt-3"></div>
+            </div>
         </div>  
         
-        <!-- Sezione Gestione Commesse (visibile solo agli admin) -->
-        <div class="admin-only">
-            <h2>Gestione Commesse</h2>
-            <form id="commessaForm">
-                <label for="nomeCommessa">Nome Commessa:</label>
-                <input type="text" id="nomeCommessa" name="nomeCommessa" required>
-                <label for="cliente">Cliente:</label>
-                <input type="text" id="cliente" name="cliente" required>
-                <button type="submit">Aggiungi Commessa</button>
-            </form>
-            <div class="search-container" style="margin-bottom: 15px;">
-                <input type="text" id="cercaCommessa" placeholder="Cerca commessa..." style="padding: 8px; width: 300px;">
-                <button id="btnCercaCommessa" style="padding: 8px 15px;">Cerca</button>
-                <button id="btnResetCercaCommessa" style="padding: 8px 15px; margin-left: 5px;">Reset</button>
+        <!-- Sezione Gestione Commesse -->
+        <div class="admin-only card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-briefcase"></i> Gestione Commesse</h3>
             </div>
-            <table id="commesseTable">
-                <thead>
-                    <tr>
-                        <th>Nome Commessa</th>
-                        <th>Cliente</th>
-                        <th>Azioni</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Le commesse verranno aggiunte qui dinamicamente -->
-                </tbody>
-            </table>
-            <!-- PAGINAZIONE COMMESSE - SOLO CONTENITORE VUOTO -->
-            <div id="paginationCommesse"></div>
+            <div class="card-body">
+                <form id="commessaForm" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="nomeCommessa" class="form-label">Nome Commessa:</label>
+                        <input type="text" id="nomeCommessa" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="cliente" class="form-label">Cliente:</label>
+                        <input type="text" id="cliente" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="valorePreventivo" class="form-label">Valore Preventivo (€):</label>
+                        <input type="number" id="valorePreventivo" class="form-control" step="0.01" min="0" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="statoCommessa" class="form-label">Stato Commessa:</label>
+                        <select id="statoCommessa" class="form-select" required>
+                            <option value="attiva">Attiva</option>
+                            <option value="conclusa">Conclusa</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-plus"></i> Aggiungi Commessa
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="search-container mt-4 mb-3">
+                    <div class="input-group">
+                        <input type="text" id="cercaCommessa" class="form-control" placeholder="Cerca commessa...">
+                        <button id="btnCercaCommessa" class="btn btn-outline-primary">Cerca</button>
+                        <button id="btnResetCercaCommessa" class="btn btn-outline-secondary">Reset</button>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table id="commesseTable" class="table table-striped table-bordered">
+                        <thead class="table-info">
+                            <tr>
+                                <th>Nome Commessa</th>
+                                <th>Cliente</th>
+                                <th>Valore Preventivo (€)</th>  
+                                <th>Ore Totali Previste</th>
+                                <th>Stato</th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Le commesse verranno aggiunte qui dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- PAGINAZIONE COMMESSE -->
+                <div id="paginationCommesse" class="mt-3"></div>
+            </div>
         </div>
     
-        <!-- Sezione Gestione Dipendenti (visibile solo agli admin) -->
-        <div class="admin-only">
-            <h2>Gestione Dipendenti</h2>
-            <form id="dipendentiForm">
-                <label for="dipendenteNome">Nome:</label>
-                <input type="text" id="dipendenteNome" name="nome" required>
-                <label for="dipendenteCognome">Cognome:</label>
-                <input type="text" id="dipendenteCognome" name="cognome" required>
-                <label for="dipendenteEmail">Email:</label>
-                <input type="email" id="dipendenteEmail" name="email" required>
-                <label for="dipendentePassword">Password:</label>
-                <input type="password" id="dipendentePassword" name="password" required>
-                <label for="dipendenteRuolo">Ruolo:</label>
-                <select id="dipendenteRuolo" name="ruolo" required>
-                    <option value="admin">Amministratore</option>
-                    <option value="dipendente">Dipendente</option>
-                </select>
-                <button type="submit">Aggiungi Dipendente</button>
-            </form>
-          
-            <table id="dipendentiTable">
-                <thead>
-                    <tr>
-                        <th>Nome</th>
-                        <th>Cognome</th>
-                        <th>Email</th>
-                        <th>Password</th>
-                        <th>Ruolo</th>
-                        <th>Azioni</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- I dipendenti verranno aggiunti qui dinamicamente -->
-                </tbody>
-            </table>
-            <!-- PAGINAZIONE DIPENDENTI - SOLO CONTENITORE VUOTO -->
-            <div id="paginationDipendenti"></div>
+        <!-- Sezione Gestione Dipendenti -->
+        <div class="admin-only card mb-4">
+            <div class="card-header">
+                <h3><i class="fas fa-users"></i> Gestione Dipendenti</h3>
+            </div>
+            <div class="card-body">
+                <form id="dipendentiForm" class="row g-3">
+                    <div class="col-md-6">
+                        <label for="dipendenteNome" class="form-label">Nome:</label>
+                        <input type="text" id="dipendenteNome" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="dipendenteCognome" class="form-label">Cognome:</label>
+                        <input type="text" id="dipendenteCognome" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="dipendenteEmail" class="form-label">Email:</label>
+                        <input type="email" id="dipendenteEmail" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="dipendentePassword" class="form-label">Password:</label>
+                        <input type="password" id="dipendentePassword" class="form-control" required>
+                    </div>
+                    <div class="col-md-12">
+                        <label for="dipendenteRuolo" class="form-label">Ruolo:</label>
+                        <select id="dipendenteRuolo" class="form-select" required>
+                            <option value="admin">Amministratore</option>
+                            <option value="dipendente">Dipendente</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-user-plus"></i> Aggiungi Dipendente
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="table-responsive mt-4">
+                    <table id="dipendentiTable" class="table table-striped table-bordered">
+                        <thead class="table-warning">
+                            <tr>
+                                <th>Nome</th>
+                                <th>Cognome</th>
+                                <th>Email</th>
+                                <th>Password</th>
+                                <th>Ruolo</th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- I dipendenti verranno aggiunti qui dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- PAGINAZIONE DIPENDENTI -->
+                <div id="paginationDipendenti" class="mt-3"></div>
+            </div>
         </div>
     </div>
    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script type="module" src="script.js"></script>
 </body>
 </html>
