@@ -4,7 +4,7 @@
     --primary-hover-color: #218838;
     --secondary-color: #6c757d;
     --danger-color: #dc3545;
-    --warning-color: #ffc107;
+    --warning-color: #7f07ff;
     --info-color: #17a2b8;
     --success-color: #28a745;
     --background-color: #ffffff;
@@ -202,7 +202,7 @@ h3 {
 }
 
 .btn-warning:hover {
-    background-color: #e0a800;
+    background-color: #dbc307;
     border-color: #d39e00;
 }
 
@@ -422,7 +422,7 @@ h3 {
 }
 
 .badge-warning { 
-    background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%); 
+    background: linear-gradient(135deg, #ffd041 0%, #fd7e14 100%); 
     color: #212529; 
 }
 
@@ -439,7 +439,7 @@ h3 {
 /* Colori testo per margini */
 .text-success { color: #28a745 !important; font-weight: 600; }
 .text-info { color: #17a2b8 !important; font-weight: 600; }
-.text-warning { color: #f8d512 !important; font-weight: 600; }
+.text-warning { color: #a812f8 !important; font-weight: 600; }
 .text-danger { color: #dc3545 !important; font-weight: 700; }
 
 /* Progress bar personalizzata */
@@ -891,4 +891,112 @@ h3 {
         flex: 1;
         margin: 0 0.25rem;
     }
+}
+/* Stili per l'eliminazione massiva */
+.card .btn-danger {
+    transition: all 0.3s ease;
+}
+
+.card .btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+}
+
+.card .btn-danger:active {
+    transform: translateY(0);
+}
+
+#contatoreEliminazione {
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+#confermaEliminazione {
+    animation: pulse 1.5s infinite;
+    border-left: 4px solid #dc3545;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+/* Stili per le anteprime */
+#anteprimaEliminazione .badge {
+    font-size: 0.8em;
+    padding: 0.25em 0.6em;
+}
+
+/* Effetto hover sulle card di eliminazione */
+.eliminazione-card:hover {
+    border-color: #dc3545;
+    transition: border-color 0.3s ease;
+}
+/* Stili per i filtri avanzati */
+#filtriAvanzatiMonitor {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    margin-top: 10px;
+    transition: all 0.3s ease;
+}
+
+/* Effetto hover sui pulsanti filtro */
+.btn-outline-info:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+}
+
+/* Badge per filtro attivo */
+.filtro-attivo {
+    background-color: #e7f1ff;
+    border-color: #0d6efd;
+}
+
+/* Indicatore filtro attivo */
+.indicator-filtro {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: #0d6efd;
+    border-radius: 50%;
+    margin-right: 5px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.7; }
+    70% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+/* Tooltip per filtri */
+.filtro-tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.filtro-tooltip .tooltip-text {
+    visibility: hidden;
+    width: 200px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -100px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 12px;
+}
+
+.filtro-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
 }
