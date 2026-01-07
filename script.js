@@ -460,7 +460,8 @@ class OreLavorateApp {
         this.paginazioneOre = null;
         this.paginazioneDipendenti = null;
         this.paginazioneCommesse = null;
-        
+         this.massDeleteManager = null;
+        this.filtriAvanzatiVisibili = false;
         // Proprietà per i dati
         this.datiTotaliOre = [];
         this.datiTotaliDipendenti = [];
@@ -529,11 +530,21 @@ class OreLavorateApp {
         }, 2000);
   // Verifica librerie PDF
         this.verificaLibreriePDF();
-    } catch (error) {
+      }catch (error) {
         ErrorHandler.handleError(error, 'inizializzazione app');
     }
+     // Inizializza il gestore eliminazione massiva
+            this.massDeleteManager = new MassDeleteManager(this.firebaseService, this);
+            
+            console.log('Applicazione inizializzata con successo');
+            
+        } catch (error) {
+            ErrorHandler.handleError(error, 'inizializzazione app');
+        }
     
-}
+    
+     
+
 
     setupEventListeners() {
         this.rimuoviEventListeners();
@@ -559,6 +570,87 @@ class OreLavorateApp {
             e.preventDefault();
             this.generaPDFFiltrato();
         });
+         // NUOVI EVENT LISTENERS PER FILTRI ANNO E AVANZATI
+    
+    // Filtro per anno
+    document.getElementById('filtroAnnoMonitor')?.addEventListener('change', (e) => {
+        const filtroAnno = e.target.value;
+        const filtroStato = document.getElementById('filtroCommessaMonitor').value;
+        const filtroNome = document.getElementById('filtroNomeCommessa').value;
+        const filtroMese = document.getElementById('filtroMeseMonitor')?.value || '';
+        const filtroCliente = document.getElementById('filtroClienteMonitor')?.value || '';
+        const filtroMargine = document.getElementById('filtroMargineMonitor')?.value || '';
+        
+        this.aggiornaMonitorCommesse(filtroStato, filtroNome, filtroAnno, filtroMese, filtroCliente, filtroMargine);
+    });
+    
+    // Filtro per mese (se visibile)
+    document.getElementById('filtroMeseMonitor')?.addEventListener('change', (e) => {
+        this.applicaFiltriMonitorCompleti();
+    });
+    
+    // Filtro per cliente
+    document.getElementById('filtroClienteMonitor')?.addEventListener('input', (e) => {
+        clearTimeout(this.filtroTimeout);
+        this.filtroTimeout = setTimeout(() => {
+            this.applicaFiltriMonitorCompleti();
+        }, 500);
+    });
+    
+    // Filtro per margine
+    document.getElementById('filtroMargineMonitor')?.addEventListener('change', (e) => {
+        this.applicaFiltriMonitorCompleti();
+    });
+    
+    // Pulsante mostra/nascondi filtri avanzati
+    document.getElementById('btnMostraFiltriAvanzati')?.addEventListener('click', () => {
+        this.mostraNascondiFiltriAvanzati();
+    });
+    
+    document.getElementById('btnMostraFiltriBase')?.addEventListener('click', () => {
+        this.mostraNascondiFiltriAvanzati();
+    });
+}
+
+// Nuovo metodo per applicare tutti i filtri
+applicaFiltriMonitorCompleti() {
+    const filtroAnno = document.getElementById('filtroAnnoMonitor')?.value || '';
+    const filtroStato = document.getElementById('filtroCommessaMonitor')?.value || '';
+    const filtroNome = document.getElementById('filtroNomeCommessa')?.value || '';
+    const filtroMese = document.getElementById('filtroMeseMonitor')?.value || '';
+    const filtroCliente = document.getElementById('filtroClienteMonitor')?.value || '';
+    const filtroMargine = document.getElementById('filtroMargineMonitor')?.value || '';
+    
+    this.aggiornaMonitorCommesse(filtroStato, filtroNome, filtroAnno, filtroMese, filtroCliente, filtroMargine);
+}
+
+// Nuovo metodo per mostrare/nascondere filtri avanzati
+mostraNascondiFiltriAvanzati() {
+    this.filtriAvanzatiVisibili = !this.filtriAvanzatiVisibili;
+    const filtriAvanzatiDiv = document.getElementById('filtriAvanzatiMonitor');
+    const btnMostra = document.getElementById('btnMostraFiltriAvanzati');
+    const btnNascondi = document.getElementById('btnMostraFiltriBase');
+    
+    if (filtriAvanzatiDiv && btnMostra && btnNascondi) {
+        if (this.filtriAvanzatiVisibili) {
+            filtriAvanzatiDiv.style.display = 'block';
+            btnMostra.style.display = 'none';
+            btnNascondi.style.display = 'block';
+        } else {
+            filtriAvanzatiDiv.style.display = 'none';
+            btnMostra.style.display = 'block';
+            btnNascondi.style.display = 'none';
+            
+            // Resetta i filtri avanzati se nascosti
+            document.getElementById('filtroMeseMonitor').value = '';
+            document.getElementById('filtroClienteMonitor').value = '';
+            document.getElementById('filtroMargineMonitor').value = '';
+            
+            // Riapplica i filtri base
+            this.applicaFiltriMonitorCompleti();
+        }
+    }
+
   // Aggiungi pulsante diagnostica (solo admin)
     if (stateManager.currentUser?.ruolo === 'admin') {
         const diagnosticaBtn = document.createElement('button');
@@ -764,22 +856,7 @@ class OreLavorateApp {
 // NUOVO METODO: Reset filtri monitoraggio
 // MODIFICA il metodo resetFiltriMonitor per non caricare automaticamente
 resetFiltriMonitor() {
-    document.getElementById('filtroNomeCommessa').value = '';
-    document.getElementById('filtroCommessaMonitor').value = '';
-    
-    // Rimuovi info filtri
-    const existingInfo = document.getElementById('infoFiltriMonitor');
-    if (existingInfo) {
-        existingInfo.remove();
-    }
-    
-    // SOLO se la tabella è visibile, aggiorna
-    const tabellaVisibile = document.getElementById('monitorCommesseTable')?.style.display !== 'none';
-    if (tabellaVisibile) {
-        this.aggiornaMonitorCommesse('', '');
-    } else {
-        ErrorHandler.showNotification('Filtri resettati', 'info');
-    }
+    this.resetFiltriMonitorCompleto();
 }
        
        
@@ -874,6 +951,15 @@ async mostraApplicazione() {
         });
     }
 
+ if (stateManager.currentUser?.ruolo === 'admin') {
+            // ... codice esistente ...
+            
+            // Inizializza eliminazione massiva per admin
+            if (this.massDeleteManager) {
+                await this.massDeleteManager.popolaSelects();
+            }
+        }
+
     if (stateManager.currentUser?.ruolo === 'admin') {
         document.querySelectorAll('.admin-only').forEach(el => {
             el.style.display = 'block';
@@ -909,6 +995,18 @@ async mostraApplicazione() {
     }
 
     await this.aggiornaMenuCommesse();
+
+    if (stateManager.currentUser?.ruolo === 'admin') {
+        document.querySelectorAll('.admin-only').forEach(el => {
+            el.style.display = 'block';
+        });
+        
+        // Popola il filtro anno al primo caricamento
+        setTimeout(async () => {
+            const commesse = await this.firebaseService.getCollection("commesse");
+            this.popolaFiltroAnnoMonitor(commesse);
+        }, 1000);
+    }
     
     // AGGIORNAMENTO UNICO DELLE TABELLE - ESCLUDI MONITORAGGIO
     if (stateManager.currentUser?.ruolo === 'admin') {
@@ -985,33 +1083,363 @@ mostraMessaggioMonitoraggioIniziale() {
 }
 
 // MODIFICA il metodo aggiornaEMostraMonitoraggio per accettare parametri
-async aggiornaEMostraMonitoraggio(filtroStato = '', filtroNome = '') {
+async aggiornaMonitorCommesse(filtroStato = '', filtroNome = '', filtroAnno = '', filtroMese = '', filtroCliente = '', filtroMargine = '') {
     try {
-        // Mostra loading
-        const btn = document.getElementById('btnCaricaMonitoraggioIniziale') || document.getElementById('btnAggiornaMonitor');
-        if (btn) {
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Caricamento...';
-            btn.disabled = true;
-            
-            // Attendi l'aggiornamento
-            await this.aggiornaMonitorCommesse(filtroStato, filtroNome);
-            
-            // Ripristina pulsante
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        } else {
-            await this.aggiornaMonitorCommesse(filtroStato, filtroNome);
+        console.log('🔄 Aggiornamento monitor commesse con filtri:', {
+            filtroStato, filtroNome, filtroAnno, filtroMese, filtroCliente, filtroMargine
+        });
+        
+        const [tutteLeCommesse, tutteLeOre] = await Promise.all([
+            this.firebaseService.getCollection("commesse"),
+            this.firebaseService.getCollection("oreLavorate")
+        ]);
+
+        // Popola la datalist delle commesse
+        await this.popolaDatalistCommesse(tutteLeCommesse);
+        
+        // Popola il filtro anno con anni unici dalle commesse
+        this.popolaFiltroAnnoMonitor(tutteLeCommesse);
+
+        // Filtra commesse valide
+        let commesseValide = tutteLeCommesse.filter(commessa => 
+            commessa && typeof commessa === 'object' && commessa.nomeCommessa
+        );
+
+        // APPLICA TUTTI I FILTRI IN SEQUENZA
+        
+        // 1. Filtro per nome commessa
+        if (filtroNome && filtroNome.trim() !== '') {
+            const filtroLowerCase = filtroNome.toLowerCase().trim();
+            commesseValide = commesseValide.filter(commessa => 
+                commessa.nomeCommessa.toLowerCase().includes(filtroLowerCase) ||
+                (commessa.cliente && commessa.cliente.toLowerCase().includes(filtroLowerCase))
+            );
         }
         
-        // Nascondi il messaggio e mostra la tabella
-        this.mostraTabellaMonitoraggio();
+        // 2. Filtro per stato
+        if (filtroStato === 'attive') {
+            commesseValide = commesseValide.filter(c => 
+                c.stato === 'attiva' || !c.stato
+            );
+        } else if (filtroStato === 'concluse') {
+            commesseValide = commesseValide.filter(c => c.stato === 'conclusa');
+        }
         
+        // 3. Filtro per anno (NUOVO)
+        if (filtroAnno && filtroAnno.trim() !== '') {
+            commesseValide = this.filtraPerAnno(commesseValide, tutteLeOre, filtroAnno);
+        }
+        
+        // 4. Filtro per mese (opzionale)
+        if (filtroMese && filtroMese.trim() !== '' && filtroAnno) {
+            commesseValide = this.filtraPerMese(commesseValide, tutteLeOre, filtroAnno, filtroMese);
+        }
+        
+        // 5. Filtro per cliente
+        if (filtroCliente && filtroCliente.trim() !== '') {
+            const filtroClienteLowerCase = filtroCliente.toLowerCase().trim();
+            commesseValide = commesseValide.filter(commessa => 
+                commessa.cliente && commessa.cliente.toLowerCase().includes(filtroClienteLowerCase)
+            );
+        }
+        
+        console.log('📋 Commesse dopo filtri:', commesseValide.length);
+
+        const tbody = document.querySelector('#monitorCommesseTable tbody');
+        if (!tbody) {
+            console.error('❌ Elemento tbody non trovato');
+            return;
+        }
+
+        tbody.innerHTML = '';
+
+        if (commesseValide.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-4">
+                        <div class="text-muted">
+                            <i class="fas fa-search fa-2x mb-2"></i><br>
+                            Nessuna commessa trovata con i filtri attuali
+                        </div>
+                    </td>
+                </tr>
+            `;
+        } else {
+            // APPLICA ULTERIORE FILTRO PER MARGINE (dopo aver calcolato le statistiche)
+            const commesseConStatistiche = [];
+            
+            for (const commessa of commesseValide) {
+                try {
+                    const statistiche = this.calcolaStatisticheCommessa(commessa, tutteLeOre);
+                    
+                    // Filtro per margine (se specificato)
+                    if (filtroMargine && !this.controllaFiltroMargine(statistiche, filtroMargine)) {
+                        continue; // Salta questa commessa
+                    }
+                    
+                    const row = this.creaRigaMonitorCommessa(commessa, statistiche);
+                    tbody.appendChild(row);
+                    
+                    commesseConStatistiche.push({ commessa, statistiche });
+                    
+                } catch (error) {
+                    console.error(`❌ Errore nella creazione riga per:`, commessa, error);
+                }
+            }
+
+            // Se dopo il filtro margine non ci sono commesse
+            if (commesseConStatistiche.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <div class="text-muted">
+                                <i class="fas fa-chart-line fa-2x mb-2"></i><br>
+                                Nessuna commessa con i criteri di margine selezionati
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            // Mostra informazioni sui filtri applicati
+            this.mostraInfoFiltriMonitor(commesseConStatistiche.length, tutteLeCommesse.length, {
+                stato: filtroStato,
+                nome: filtroNome,
+                anno: filtroAnno,
+                mese: filtroMese,
+                cliente: filtroCliente,
+                margine: filtroMargine
+            });
+        }
+
+        // IMPORTANTE: Mostra la tabella dopo l'aggiornamento
+        this.mostraTabellaMonitoraggio();
+        // Chiama questo metodo dopo ogni aggiornamento dei filtri
+// Aggiungi all'interno di aggiornaMonitorCommesse, dopo aver applicato i filtri:
+this.aggiornaIndicatoriFiltri();
+
+        console.log('✅ Monitoraggio commesse aggiornato con successo');
+
     } catch (error) {
-        console.error('Errore nel caricamento monitoraggio:', error);
-        ErrorHandler.showNotification('Errore nel caricamento del monitoraggio', 'error');
+        console.error('❌ Errore critico in aggiornaMonitorCommesse:', error);
+        ErrorHandler.handleError(error, 'aggiornamento monitor commesse');
     }
 }
+
+// NUOVO METODO: Filtra commesse per anno
+filtraPerAnno(commesse, tutteLeOre, anno) {
+    return commesse.filter(commessa => {
+        // Cerca le ore di questa commessa nell'anno specificato
+        const oreCommessaAnno = tutteLeOre.filter(ore => {
+            if (ore.commessa !== commessa.nomeCommessa) return false;
+            const [annoOre] = ore.data.split('-');
+            return annoOre === anno;
+        });
+        
+        // Includi la commessa se ha almeno un'ora nell'anno specificato
+        // OPPURE se non ha ore ma vogliamo comunque vederla (commenta la riga sotto se vuoi vedere solo commesse con ore)
+        return oreCommessaAnno.length > 0 || true;
+    });
+}
+
+// NUOVO METODO: Filtra commesse per mese
+filtraPerMese(commesse, tutteLeOre, anno, mese) {
+    return commesse.filter(commessa => {
+        // Cerca le ore di questa commessa nel mese/anno specificato
+        const oreCommessaMese = tutteLeOre.filter(ore => {
+            if (ore.commessa !== commessa.nomeCommessa) return false;
+            const [annoOre, meseOre] = ore.data.split('-');
+            return annoOre === anno && meseOre === mese;
+        });
+        
+        return oreCommessaMese.length > 0 || true;
+    });
+}
+
+// NUOVO METODO: Controlla filtro margine
+controllaFiltroMargine(statistiche, filtroMargine) {
+    if (!statistiche || typeof statistiche.marginePercentuale === 'undefined') {
+        return false;
+    }
+    
+    const marginePercent = statistiche.marginePercentuale;
+    
+    switch(filtroMargine) {
+        case 'positivo':
+            return marginePercent >= 0;
+        case 'negativo':
+            return marginePercent < 0;
+        case 'alto':
+            return marginePercent >= 20;
+        case 'medio':
+            return marginePercent >= 10 && marginePercent < 20;
+        case 'basso':
+            return marginePercent >= 0 && marginePercent < 10;
+        default:
+            return true;
+    }
+}
+
+// NUOVO METODO: Popola il filtro anno con anni unici
+popolaFiltroAnnoMonitor(commesse) {
+    const selectAnno = document.getElementById('filtroAnnoMonitor');
+    if (!selectAnno) return;
+    
+    // Salva il valore corrente
+    const valoreCorrente = selectAnno.value;
+    
+    // Estrai tutti gli anni unici dalle date delle commesse (dataCreazione)
+    const anniUnici = new Set();
+    const annoCorrente = new Date().getFullYear();
+    
+    // Aggiungi anni dalle date di creazione delle commesse
+    commesse.forEach(commessa => {
+        if (commessa.dataCreazione) {
+            const dataCreazione = new Date(commessa.dataCreazione);
+            if (!isNaN(dataCreazione.getTime())) {
+                anniUnici.add(dataCreazione.getFullYear());
+            }
+        }
+    });
+    
+    // Aggiungi anno corrente e qualche anno precedente
+    for (let i = annoCorrente; i >= annoCorrente - 5; i--) {
+        anniUnici.add(i);
+    }
+    
+    // Converti set in array e ordina discendente
+    const anniOrdinati = Array.from(anniUnici).sort((a, b) => b - a);
+    
+    // Popola il select
+    selectAnno.innerHTML = '<option value="">Tutti gli anni</option>';
+    
+    anniOrdinati.forEach(anno => {
+        const option = document.createElement('option');
+        option.value = anno;
+        option.textContent = anno;
+        selectAnno.appendChild(option);
+    });
+    
+    // Ripristina il valore selezionato
+    if (valoreCorrente) {
+        selectAnno.value = valoreCorrente;
+    } else {
+        // Se nessun valore selezionato, imposta l'anno corrente
+        selectAnno.value = annoCorrente;
+    }
+}
+// AGGIORNA il metodo mostraInfoFiltri per gestire più filtri
+mostraInfoFiltriMonitor(commesseFiltrate, commesseTotali, filtri) {
+    // Rimuovi info precedenti
+    const existingInfo = document.getElementById('infoFiltriMonitor');
+    if (existingInfo) {
+        existingInfo.remove();
+    }
+
+    // Crea solo se ci sono filtri attivi
+    const filtriAttivi = [];
+    
+    if (filtri.stato) {
+        const statoTesto = filtri.stato === 'attive' ? 'Attive' : 'Concluse';
+        filtriAttivi.push(`Stato: ${statoTesto}`);
+    }
+    
+    if (filtri.nome) {
+        filtriAttivi.push(`Commessa: "${filtri.nome}"`);
+    }
+    
+    if (filtri.anno) {
+        filtriAttivi.push(`Anno: ${filtri.anno}`);
+    }
+    
+    if (filtri.mese) {
+        const mesi = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", 
+                     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
+        const nomeMese = mesi[parseInt(filtri.mese) - 1];
+        filtriAttivi.push(`Mese: ${nomeMese}`);
+    }
+    
+    if (filtri.cliente) {
+        filtriAttivi.push(`Cliente: "${filtri.cliente}"`);
+    }
+    
+    if (filtri.margine) {
+        const mappaMargini = {
+            'positivo': 'Margine positivo',
+            'negativo': 'Margine negativo',
+            'alto': 'Margine alto (>20%)',
+            'medio': 'Margine medio (10-20%)',
+            'basso': 'Margine basso (<10%)'
+        };
+        filtriAttivi.push(mappaMargini[filtri.margine] || `Margine: ${filtri.margine}`);
+    }
+    
+    if (filtriAttivi.length === 0) return;
+    
+    const infoDiv = document.createElement('div');
+    infoDiv.id = 'infoFiltriMonitor';
+    infoDiv.className = 'alert alert-info py-2 mt-3';
+    
+    let infoText = `<strong><i class="fas fa-filter"></i> Filtri attivi:</strong> `;
+    infoText += filtriAttivi.join(' • ');
+    infoText += ` | <strong>Risultati:</strong> ${commesseFiltrate} di ${commesseTotali} commesse`;
+    
+    // Aggiungi pulsante per rimuovere tutti i filtri
+    infoText += `
+        <button id="btnRimuoviTuttiFiltri" class="btn btn-sm btn-outline-danger float-end">
+            <i class="fas fa-times"></i> Rimuovi tutti i filtri
+        </button>
+    `;
+    
+    infoDiv.innerHTML = infoText;
+
+    // Inserisci dopo la tabella
+    const table = document.getElementById('monitorCommesseTable');
+    if (table) {
+        table.parentNode.insertBefore(infoDiv, table.nextSibling);
+    }
+
+    // Aggiungi event listener al pulsante rimuovi filtri
+    setTimeout(() => {
+        document.getElementById('btnRimuoviTuttiFiltri')?.addEventListener('click', () => {
+            this.resetFiltriMonitorCompleto();
+        });
+    }, 100);
+}
+
+// NUOVO METODO: Reset completo di tutti i filtri
+resetFiltriMonitorCompleto() {
+    document.getElementById('filtroNomeCommessa').value = '';
+    document.getElementById('filtroCommessaMonitor').value = '';
+    document.getElementById('filtroAnnoMonitor').value = '';
+    document.getElementById('filtroMeseMonitor').value = '';
+    document.getElementById('filtroClienteMonitor').value = '';
+    document.getElementById('filtroMargineMonitor').value = '';
+    
+    // Nascondi filtri avanzati
+    this.filtriAvanzatiVisibili = false;
+    const filtriAvanzatiDiv = document.getElementById('filtriAvanzatiMonitor');
+    const btnMostra = document.getElementById('btnMostraFiltriAvanzati');
+    const btnNascondi = document.getElementById('btnMostraFiltriBase');
+    
+    if (filtriAvanzatiDiv && btnMostra && btnNascondi) {
+        filtriAvanzatiDiv.style.display = 'none';
+        btnMostra.style.display = 'block';
+        btnNascondi.style.display = 'none';
+    }
+    
+    // Rimuovi info filtri
+    const existingInfo = document.getElementById('infoFiltriMonitor');
+    if (existingInfo) {
+        existingInfo.remove();
+    }
+    
+    // Aggiorna il monitoraggio
+    this.aggiornaMonitorCommesse();
+    
+    ErrorHandler.showNotification('Tutti i filtri sono stati rimossi', 'info');
+}
+
 
 // AGGIUNGI questo metodo per mostrare la tabella
 mostraTabellaMonitoraggio() {
@@ -5115,13 +5543,685 @@ generaNomeFileMonitoraggio(filtroNome, filtroStato) {
     
     return `${nomeFile}.pdf`;
 }
-
-
-
-
+// Aggiungi questo metodo per evidenziare i filtri attivi
+aggiornaIndicatoriFiltri() {
+    const elementiFiltro = [
+        { id: 'filtroAnnoMonitor', icona: 'fas fa-calendar' },
+        { id: 'filtroNomeCommessa', icona: 'fas fa-search' },
+        { id: 'filtroCommessaMonitor', icona: 'fas fa-flag' },
+        { id: 'filtroMeseMonitor', icona: 'fas fa-calendar-alt' },
+        { id: 'filtroClienteMonitor', icona: 'fas fa-user-tie' },
+        { id: 'filtroMargineMonitor', icona: 'fas fa-chart-line' }
+    ];
+    
+    elementiFiltro.forEach(elemento => {
+        const el = document.getElementById(elemento.id);
+        const parent = el?.closest('.form-group, .col-md-3, .col-md-4');
+        
+        if (parent) {
+            if (el.value && el.value.trim() !== '') {
+                parent.classList.add('filtro-attivo');
+                
+                // Aggiungi icona se non presente
+                const label = parent.querySelector('label');
+                if (label && !label.querySelector('.indicator-filtro')) {
+                    const indicator = document.createElement('span');
+                    indicator.className = 'indicator-filtro';
+                    label.insertBefore(indicator, label.firstChild);
+                }
+            } else {
+                parent.classList.remove('filtro-attivo');
+                
+                // Rimuovi icona
+                const label = parent.querySelector('label');
+                if (label) {
+                    const indicator = label.querySelector('.indicator-filtro');
+                    if (indicator) {
+                        indicator.remove();
+                    }
+                }
+            }
+        }
+    });
+}
 
 
 }
+
+// mass-delete-manager.js - Classe per gestione eliminazione massiva
+class MassDeleteManager {
+    constructor(firebaseService, oreLavorateApp) {
+        this.firebaseService = firebaseService;
+        this.app = oreLavorateApp;
+        this.datiDaEliminare = [];
+        this.tipoEliminazione = '';
+        this.criteri = {};
+        
+        this.init();
+    }
+
+    async init() {
+        this.setupEventListeners();
+        await this.popolaSelects();
+        this.setupAnteprima();
+    }
+
+    setupEventListeners() {
+        // Pulsanti eliminazione
+        document.getElementById('btnEliminaPerCommessa')?.addEventListener('click', () => this.preparaEliminazionePerCommessa());
+        document.getElementById('btnEliminaPerDipendente')?.addEventListener('click', () => this.preparaEliminazionePerDipendente());
+        document.getElementById('btnEliminaPerPeriodo')?.addEventListener('click', () => this.preparaEliminazionePerPeriodo());
+        document.getElementById('btnEliminaPerMese')?.addEventListener('click', () => this.preparaEliminazionePerMese());
+        document.getElementById('btnEliminaPerSettimana')?.addEventListener('click', () => this.preparaEliminazionePerSettimana());
+        document.getElementById('btnEliminaNonConformita')?.addEventListener('click', () => this.preparaEliminazioneNonConformita());
+        document.getElementById('btnEliminaConFiltri')?.addEventListener('click', () => this.preparaEliminazioneConFiltri());
+        
+        // Pulsanti conferma/annulla
+        document.getElementById('btnConfermaEliminazione')?.addEventListener('click', () => this.eseguiEliminazioneMassiva());
+        document.getElementById('btnAnnullaEliminazione')?.addEventListener('click', () => this.annullaEliminazione());
+        
+        // Change listeners per anteprima
+        const selects = [
+            'eliminaCommessaSelect', 'eliminaDipendenteSelect', 'eliminaDataDa', 
+            'eliminaDataA', 'eliminaMese', 'eliminaAnno', 'eliminaSettimana',
+            'eliminaMeseSettimana', 'eliminaAnnoSettimana', 'eliminaNCCommessa',
+            'eliminaNCPeriodo', 'eliminaFiltroCommessa', 'eliminaFiltroDipendente',
+            'eliminaFiltroData'
+        ];
+        
+        selects.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.addEventListener('change', () => this.aggiornaAnteprima());
+            }
+        });
+    }
+
+    async popolaSelects() {
+        // Popola commesse
+        const commesse = await this.firebaseService.getCollection("commesse");
+        const commesseSelects = [
+            'eliminaCommessaSelect', 'eliminaNCCommessa', 'eliminaFiltroCommessa'
+        ];
+        
+        commesseSelects.forEach(selectId => {
+            const select = document.getElementById(selectId);
+            if (select) {
+                // Salva valore corrente
+                const valoreCorrente = select.value;
+                select.innerHTML = '<option value="">Tutte le commesse</option>';
+                
+                commesse.forEach(commessa => {
+                    const option = document.createElement('option');
+                    option.value = commessa.nomeCommessa;
+                    option.textContent = commessa.nomeCommessa;
+                    select.appendChild(option);
+                });
+                
+                // Ripristina valore selezionato
+                if (valoreCorrente) {
+                    select.value = valoreCorrente;
+                }
+            }
+        });
+
+        // Popola dipendenti
+        const dipendenti = await this.firebaseService.getCollection("dipendenti");
+        const dipendentiSelects = [
+            'eliminaDipendenteSelect', 'eliminaFiltroDipendente'
+        ];
+        
+        dipendentiSelects.forEach(selectId => {
+            const select = document.getElementById(selectId);
+            if (select) {
+                const valoreCorrente = select.value;
+                select.innerHTML = '<option value="">Tutti i dipendenti</option>';
+                
+                dipendenti.forEach(dipendente => {
+                    const option = document.createElement('option');
+                    option.value = `${dipendente.nome} ${dipendente.cognome}`;
+                    option.textContent = `${dipendente.nome} ${dipendente.cognome}`;
+                    select.appendChild(option);
+                });
+                
+                if (valoreCorrente) {
+                    select.value = valoreCorrente;
+                }
+            }
+        });
+
+        // Popola anni (ultimi 5 anni + anno corrente + 1 anno futuro)
+        const annoCorrente = new Date().getFullYear();
+        const anniSelects = ['eliminaAnno', 'eliminaAnnoSettimana'];
+        
+        anniSelects.forEach(selectId => {
+            const select = document.getElementById(selectId);
+            if (select) {
+                const valoreCorrente = select.value;
+                select.innerHTML = '';
+                
+                for (let i = annoCorrente - 2; i <= annoCorrente + 1; i++) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = i;
+                    if (i === annoCorrente) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                }
+                
+                if (valoreCorrente) {
+                    select.value = valoreCorrente;
+                }
+            }
+        });
+    }
+
+    setupAnteprima() {
+        // Setup per aggiornamento automatico anteprima
+        this.aggiornaAnteprima();
+    }
+
+    async aggiornaAnteprima() {
+        try {
+            const criterio = this.getCriteriCorrenti();
+            if (!criterio.tipo || criterio.tipo === 'nessuno') {
+                this.updateAnteprima(0, []);
+                return;
+            }
+
+            const tutteLeOre = await this.firebaseService.getCollection("oreLavorate");
+            const oreFiltrate = this.filtraOrePerCriterio(tutteLeOre, criterio);
+            
+            this.updateAnteprima(oreFiltrate.length, oreFiltrate);
+            
+        } catch (error) {
+            console.error("Errore nell'aggiornamento anteprima:", error);
+            this.updateAnteprima(0, []);
+        }
+    }
+
+    getCriteriCorrenti() {
+        // Controlla quale modalità è attiva in base ai campi compilati
+        const commessa = document.getElementById('eliminaCommessaSelect')?.value;
+        const dipendente = document.getElementById('eliminaDipendenteSelect')?.value;
+        const dataDa = document.getElementById('eliminaDataDa')?.value;
+        const dataA = document.getElementById('eliminaDataA')?.value;
+        const mese = document.getElementById('eliminaMese')?.value;
+        const anno = document.getElementById('eliminaAnno')?.value;
+        const settimana = document.getElementById('eliminaSettimana')?.value;
+        const meseSettimana = document.getElementById('eliminaMeseSettimana')?.value;
+        const annoSettimana = document.getElementById('eliminaAnnoSettimana')?.value;
+        const ncCommessa = document.getElementById('eliminaNCCommessa')?.value;
+        const ncPeriodo = document.getElementById('eliminaNCPeriodo')?.value;
+        const filtroCommessa = document.getElementById('eliminaFiltroCommessa')?.value;
+        const filtroDipendente = document.getElementById('eliminaFiltroDipendente')?.value;
+        const filtroData = document.getElementById('eliminaFiltroData')?.value;
+
+        // Determina il tipo di eliminazione in base ai campi compilati
+        if (commessa) {
+            return { tipo: 'commessa', valore: commessa };
+        }
+        
+        if (dipendente) {
+            return { tipo: 'dipendente', valore: dipendente };
+        }
+        
+        if (dataDa && dataA) {
+            return { tipo: 'periodo', dataDa, dataA };
+        }
+        
+        if (mese && anno) {
+            return { tipo: 'mese', mese, anno };
+        }
+        
+        if (settimana && meseSettimana && annoSettimana) {
+            return { tipo: 'settimana', settimana, mese: meseSettimana, anno: annoSettimana };
+        }
+        
+        if (ncCommessa || ncPeriodo) {
+            return { tipo: 'nonconformita', commessa: ncCommessa, periodo: ncPeriodo };
+        }
+        
+        if (filtroCommessa || filtroDipendente || filtroData) {
+            return { 
+                tipo: 'filtri', 
+                commessa: filtroCommessa, 
+                dipendente: filtroDipendente, 
+                data: filtroData 
+            };
+        }
+
+        return { tipo: 'nessuno' };
+    }
+
+    filtraOrePerCriterio(ore, criterio) {
+        switch(criterio.tipo) {
+            case 'commessa':
+                return ore.filter(o => o.commessa === criterio.valore);
+                
+            case 'dipendente':
+                const [nome, cognome] = criterio.valore.split(' ');
+                return ore.filter(o => 
+                    o.nomeDipendente === nome && 
+                    o.cognomeDipendente === cognome
+                );
+                
+            case 'periodo':
+                return ore.filter(o => {
+                    const dataOre = new Date(o.data);
+                    const dataDa = new Date(criterio.dataDa);
+                    const dataA = new Date(criterio.dataA);
+                    return dataOre >= dataDa && dataOre <= dataA;
+                });
+                
+            case 'mese':
+                return ore.filter(o => {
+                    const [annoOre, meseOre] = o.data.split('-');
+                    return annoOre === criterio.anno && meseOre === criterio.mese;
+                });
+                
+            case 'settimana':
+                return ore.filter(o => {
+                    const [annoOre, meseOre, giornoOre] = o.data.split('-').map(Number);
+                    const giorno = parseInt(giornoOre);
+                    const settimanaRichiesta = parseInt(criterio.settimana);
+                    
+                    // Calcola la settimana del mese (1-5)
+                    const settimanaOre = Math.ceil(giorno / 7);
+                    
+                    return annoOre == criterio.anno && 
+                           meseOre == criterio.mese && 
+                           settimanaOre == settimanaRichiesta;
+                });
+                
+            case 'nonconformita':
+                let filtrate = ore.filter(o => o.nonConformita === true);
+                if (criterio.commessa) {
+                    filtrate = filtrate.filter(o => o.commessa === criterio.commessa);
+                }
+                if (criterio.periodo) {
+                    const dataLimite = this.calcolaDataLimite(criterio.periodo);
+                    filtrate = filtrate.filter(o => new Date(o.data) >= dataLimite);
+                }
+                return filtrate;
+                
+            case 'filtri':
+                let risultato = [...ore];
+                if (criterio.commessa) {
+                    risultato = risultato.filter(o => o.commessa === criterio.commessa);
+                }
+                if (criterio.dipendente) {
+                    const [nome, cognome] = criterio.dipendente.split(' ');
+                    risultato = risultato.filter(o => 
+                        o.nomeDipendente === nome && 
+                        o.cognomeDipendente === cognome
+                    );
+                }
+                if (criterio.data) {
+                    risultato = risultato.filter(o => o.data === criterio.data);
+                }
+                return risultato;
+                
+            default:
+                return [];
+        }
+    }
+
+    calcolaDataLimite(periodo) {
+        const oggi = new Date();
+        const dataLimite = new Date();
+        
+        switch(periodo) {
+            case 'mese':
+                dataLimite.setMonth(oggi.getMonth() - 1);
+                break;
+            case 'trimestre':
+                dataLimite.setMonth(oggi.getMonth() - 3);
+                break;
+            case 'anno':
+                dataLimite.setFullYear(oggi.getFullYear() - 1);
+                break;
+            default:
+                return new Date(0); // Data molto vecchia
+        }
+        
+        return dataLimite;
+    }
+
+    updateAnteprima(numeroOre, oreFiltrate) {
+        // Aggiorna contatore
+        const contatore = document.getElementById('contatoreEliminazione');
+        if (contatore) {
+            contatore.textContent = numeroOre;
+            contatore.className = `display-4 ${numeroOre > 0 ? 'text-danger' : 'text-muted'}`;
+        }
+
+        // Aggiorna anteprima dettagliata
+        const anteprima = document.getElementById('anteprimaEliminazione');
+        if (anteprima) {
+            if (numeroOre === 0) {
+                anteprima.innerHTML = '<p class="text-muted mb-0">Seleziona i criteri per vedere quante ore verranno eliminate</p>';
+                return;
+            }
+
+            let html = '<div class="row g-2">';
+            
+            // Raggruppa per commessa
+            const perCommessa = {};
+            oreFiltrate.forEach(ore => {
+                if (!perCommessa[ore.commessa]) {
+                    perCommessa[ore.commessa] = 0;
+                }
+                perCommessa[ore.commessa]++;
+            });
+
+            Object.entries(perCommessa).forEach(([commessa, count]) => {
+                html += `
+                    <div class="col-md-3">
+                        <div class="bg-white p-2 rounded border">
+                            <small class="text-muted">${commessa}</small>
+                            <div class="fw-bold">${count} ore</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Totale ore
+            const totaleOre = oreFiltrate.reduce((tot, ore) => {
+                const oreLavorate = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+                return tot + oreLavorate;
+            }, 0);
+
+            html += `
+                <div class="col-md-12 mt-2">
+                    <div class="bg-light p-2 rounded border">
+                        <div class="d-flex justify-content-between">
+                            <span><strong>Totale ore lavorate:</strong></span>
+                            <span class="text-danger fw-bold">${Utils.formattaOreDecimali(totaleOre)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            anteprima.innerHTML = html;
+        }
+    }
+
+    async preparaEliminazionePerCommessa() {
+        const commessa = document.getElementById('eliminaCommessaSelect').value;
+        if (!commessa) {
+            ErrorHandler.showNotification("Seleziona una commessa", 'error');
+            return;
+        }
+
+        this.tipoEliminazione = 'commessa';
+        this.criteri = { tipo: 'commessa', valore: commessa };
+        await this.mostraConfermaEliminazione();
+    }
+
+    async preparaEliminazionePerDipendente() {
+        const dipendente = document.getElementById('eliminaDipendenteSelect').value;
+        if (!dipendente) {
+            ErrorHandler.showNotification("Seleziona un dipendente", 'error');
+            return;
+        }
+
+        this.tipoEliminazione = 'dipendente';
+        this.criteri = { tipo: 'dipendente', valore: dipendente };
+        await this.mostraConfermaEliminazione();
+    }
+
+    async preparaEliminazionePerPeriodo() {
+        const dataDa = document.getElementById('eliminaDataDa').value;
+        const dataA = document.getElementById('eliminaDataA').value;
+        
+        if (!dataDa || !dataA) {
+            ErrorHandler.showNotification("Seleziona entrambe le date", 'error');
+            return;
+        }
+
+        if (new Date(dataDa) > new Date(dataA)) {
+            ErrorHandler.showNotification("La data 'Da' deve essere precedente alla data 'A'", 'error');
+            return;
+        }
+
+        this.tipoEliminazione = 'periodo';
+        this.criteri = { tipo: 'periodo', dataDa, dataA };
+        await this.mostraConfermaEliminazione();
+    }
+
+    async preparaEliminazionePerMese() {
+        const mese = document.getElementById('eliminaMese').value;
+        const anno = document.getElementById('eliminaAnno').value;
+        
+        if (!mese || !anno) {
+            ErrorHandler.showNotification("Seleziona mese e anno", 'error');
+            return;
+        }
+
+        this.tipoEliminazione = 'mese';
+        this.criteri = { tipo: 'mese', mese, anno };
+        await this.mostraConfermaEliminazione();
+    }
+
+    async preparaEliminazionePerSettimana() {
+        const settimana = document.getElementById('eliminaSettimana').value;
+        const mese = document.getElementById('eliminaMeseSettimana').value;
+        const anno = document.getElementById('eliminaAnnoSettimana').value;
+        
+        if (!settimana || !mese || !anno) {
+            ErrorHandler.showNotification("Seleziona settimana, mese e anno", 'error');
+            return;
+        }
+
+        this.tipoEliminazione = 'settimana';
+        this.criteri = { tipo: 'settimana', settimana, mese, anno };
+        await this.mostraConfermaEliminazione();
+    }
+
+    async preparaEliminazioneNonConformita() {
+        const commessa = document.getElementById('eliminaNCCommessa').value;
+        const periodo = document.getElementById('eliminaNCPeriodo').value;
+        
+        if (!commessa && !periodo) {
+            if (!confirm("Stai per eliminare TUTTE le non conformità. Vuoi procedere?")) {
+                return;
+            }
+        }
+
+        this.tipoEliminazione = 'nonconformita';
+        this.criteri = { tipo: 'nonconformita', commessa, periodo };
+        await this.mostraConfermaEliminazione();
+    }
+
+    async preparaEliminazioneConFiltri() {
+        const commessa = document.getElementById('eliminaFiltroCommessa').value;
+        const dipendente = document.getElementById('eliminaFiltroDipendente').value;
+        const data = document.getElementById('eliminaFiltroData').value;
+        
+        if (!commessa && !dipendente && !data) {
+            ErrorHandler.showNotification("Seleziona almeno un criterio di filtro", 'error');
+            return;
+        }
+
+        this.tipoEliminazione = 'filtri';
+        this.criteri = { tipo: 'filtri', commessa, dipendente, data };
+        await this.mostraConfermaEliminazione();
+    }
+
+    async mostraConfermaEliminazione() {
+        // Recupera i dati da eliminare
+        const tutteLeOre = await this.firebaseService.getCollection("oreLavorate");
+        this.datiDaEliminare = this.filtraOrePerCriterio(tutteLeOre, this.criteri);
+        
+        if (this.datiDaEliminare.length === 0) {
+            ErrorHandler.showNotification("Nessun dato da eliminare con i criteri selezionati", 'warning');
+            return;
+        }
+
+        // Calcola totale ore
+        const totaleOre = this.datiDaEliminare.reduce((tot, ore) => {
+            const oreLavorate = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+            return tot + oreLavorate;
+        }, 0);
+
+        // Prepara testo conferma
+        const testoConferma = document.getElementById('testoConferma');
+        const numeroOreConferma = document.getElementById('numeroOreConferma');
+        
+        if (testoConferma && numeroOreConferma) {
+            numeroOreConferma.textContent = this.datiDaEliminare.length;
+            testoConferma.innerHTML = `
+                Stai per eliminare <span class="fw-bold">${this.datiDaEliminare.length}</span> record
+                per un totale di <span class="fw-bold text-danger">${Utils.formattaOreDecimali(totaleOre)}</span> ore lavorate.
+                <br><small class="text-muted">Questa azione è irreversibile!</small>
+            `;
+        }
+
+        // Mostra il pannello di conferma
+        const confermaDiv = document.getElementById('confermaEliminazione');
+        if (confermaDiv) {
+            confermaDiv.style.display = 'block';
+            confermaDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
+    async eseguiEliminazioneMassiva() {
+        try {
+            if (this.datiDaEliminare.length === 0) {
+                ErrorHandler.showNotification("Nessun dato da eliminare", 'error');
+                return;
+            }
+
+            // Mostra loading
+            const btnConferma = document.getElementById('btnConfermaEliminazione');
+            const testoOriginale = btnConferma.innerHTML;
+            btnConferma.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Eliminazione in corso...';
+            btnConferma.disabled = true;
+
+            // Esegui eliminazioni in batch (max 10 alla volta per non sovraccaricare Firebase)
+            const batchSize = 10;
+            let eliminati = 0;
+            let errori = 0;
+
+            for (let i = 0; i < this.datiDaEliminare.length; i += batchSize) {
+                const batch = this.datiDaEliminare.slice(i, i + batchSize);
+                
+                // Esegui eliminazioni in parallelo
+                const risultati = await Promise.allSettled(
+                    batch.map(ore => this.firebaseService.deleteDocument("oreLavorate", ore.id))
+                );
+
+                risultati.forEach(risultato => {
+                    if (risultato.status === 'fulfilled') {
+                        eliminati++;
+                    } else {
+                        errori++;
+                        console.error("Errore eliminazione:", risultato.reason);
+                    }
+                });
+
+                // Aggiorna UI
+                btnConferma.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Eliminati ${eliminati} di ${this.datiDaEliminare.length}...`;
+            }
+
+            // Ripristina pulsante
+            btnConferma.innerHTML = testoOriginale;
+            btnConferma.disabled = false;
+
+            // Nascondi pannello conferma
+            this.annullaEliminazione();
+
+            // Mostra risultato
+            if (errori > 0) {
+                ErrorHandler.showNotification(
+                    `Eliminazione completata con ${errori} errori. ${eliminati} record eliminati.`, 
+                    'warning'
+                );
+            } else {
+                ErrorHandler.showNotification(
+                    `Eliminati ${eliminati} record con successo!`, 
+                    'success'
+                );
+            }
+
+            // Aggiorna tutte le visualizzazioni
+            await this.app.aggiornaTabellaOreLavorate();
+            await this.app.aggiornaMonitorCommesse();
+            
+            // Resetta i campi
+            this.resetCampi();
+            this.aggiornaAnteprima();
+
+        } catch (error) {
+            console.error("Errore nell'eliminazione massiva:", error);
+            ErrorHandler.handleError(error, 'eliminazione massiva');
+            
+            // Ripristina pulsante
+            const btnConferma = document.getElementById('btnConfermaEliminazione');
+            if (btnConferma) {
+                btnConferma.innerHTML = '<i class="fas fa-check"></i> CONFERMA ELIMINAZIONE';
+                btnConferma.disabled = false;
+            }
+        }
+    }
+
+    annullaEliminazione() {
+        // Nascondi pannello conferma
+        const confermaDiv = document.getElementById('confermaEliminazione');
+        if (confermaDiv) {
+            confermaDiv.style.display = 'none';
+        }
+        
+        // Resetta dati
+        this.datiDaEliminare = [];
+        this.tipoEliminazione = '';
+        this.criteri = {};
+    }
+
+    resetCampi() {
+        // Resetta tutti i campi di selezione
+        const campiDaResettare = [
+            'eliminaCommessaSelect', 'eliminaDipendenteSelect', 'eliminaDataDa',
+            'eliminaDataA', 'eliminaMese', 'eliminaAnno', 'eliminaSettimana',
+            'eliminaMeseSettimana', 'eliminaAnnoSettimana', 'eliminaNCCommessa',
+            'eliminaNCPeriodo', 'eliminaFiltroCommessa', 'eliminaFiltroDipendente',
+            'eliminaFiltroData'
+        ];
+        
+        campiDaResettare.forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) {
+                campo.value = '';
+            }
+        });
+        
+        // Ripristina valori default per mese e anno
+        const annoCorrente = new Date().getFullYear().toString();
+        const meseCorrente = String(new Date().getMonth() + 1).padStart(2, '0');
+        
+        const annoSelects = ['eliminaAnno', 'eliminaAnnoSettimana'];
+        annoSelects.forEach(id => {
+            const select = document.getElementById(id);
+            if (select) {
+                select.value = annoCorrente;
+            }
+        });
+        
+        const meseSelects = ['eliminaMese', 'eliminaMeseSettimana'];
+        meseSelects.forEach(id => {
+            const select = document.getElementById(id);
+            if (select) {
+                select.value = meseCorrente;
+            }
+        });
+    }
+}
+
+
+
+
 
 // Inizializza l'app quando il DOM è pronto
 document.addEventListener('DOMContentLoaded', () => {
