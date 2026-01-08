@@ -19,7 +19,7 @@
  
 </head>
 <body>
-    
+    <script src="app.js"></script>
     <div id="loginPage" class="login-container">
         <div class="login-form">
             <h2>Ore dipendenti</h2>
@@ -105,30 +105,19 @@
         </div>
 
         <!-- SEZIONE ADMIN: MONITORAGGIO COMMESSE -->
-<div class="admin-only">
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="mb-0"><i class="fas fa-chart-line"></i> Monitoraggio Margini Commesse</h3>
-            <div class="btn-group" role="group">
-                <button id="btnDiagnosticaCommesse" class="btn btn-sm btn-outline-info">
-                    <i class="fas fa-stethoscope"></i> Diagnostica
-                </button>
-            </div>
-        </div>
-        <div class="card-body">
-
-            <div class="row mb-3">
-                <!-- FILTRO PER ANNO -->
-                <div class="col-md-3">
-                    <label for="filtroAnnoMonitor" class="form-label">Anno:</label>
-                    <select id="filtroAnnoMonitor" class="form-select">
-                        <option value="">Tutti gli anni</option>
-                        <!-- Le opzioni verranno popolate dinamicamente -->
-                    </select>
+        <div class="admin-only">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0"><i class="fas fa-chart-line"></i> Monitoraggio Margini Commesse</h3>
+                    <button id="btnDiagnosticaCommesse" class="btn btn-sm btn-outline-info">
+                        <i class="fas fa-stethoscope"></i> Diagnostica
+                    </button>
                 </div>
-                
-                <!-- FILTRO PER NOME COMMESSA -->
-                <div class="col-md-3">
+                <div class="card-body">
+
+                    <div class="row mb-3">
+                         <!-- NUOVO FILTRO PER COMMESSA SPECIFICA -->
+                <div class="col-md-4">
                     <label for="filtroNomeCommessa" class="form-label">Cerca Commessa:</label>
                     <input type="text" id="filtroNomeCommessa" class="form-control" 
                            placeholder="Nome commessa..." list="listaCommesse">
@@ -137,9 +126,8 @@
                     </datalist>
                 </div>
                 
-                <!-- FILTRO PER STATO -->
-                <div class="col-md-3">
-                    <label for="filtroCommessaMonitor" class="form-label">Stato:</label>
+                <div class="col-md-4">
+                    <label for="filtroCommessaMonitor" class="form-label">Filtra per Stato:</label>
                     <select id="filtroCommessaMonitor" class="form-select">
                         <option value="">Tutte le commesse</option>
                         <option value="attive">Solo attive</option>
@@ -147,117 +135,57 @@
                     </select>
                 </div>
                 
-                <!-- PULSANTI AZIONE -->
-                <div class="col-md-3 d-flex align-items-end gap-2">
-                    <button id="btnAggiornaMonitor" class="btn btn-primary flex-fill">
+                <div class="col-md-4 d-flex align-items-end gap-2">
+                    <button id="btnAggiornaMonitor" class="btn btn-primary">
                         <i class="fas fa-sync-alt"></i> Aggiorna
                     </button>
                     <button id="btnResetFiltriMonitor" class="btn btn-secondary">
-                        <i class="fas fa-undo"></i>
+                        <i class="fas fa-undo"></i> Reset
                     </button>
                     <button id="btnScaricaPDFMonitor" class="btn btn-success">
-                        <i class="fas fa-file-pdf"></i>
-                    </button>
+    <i class="fas fa-file-pdf"></i> Scarica PDF Monitoraggio
+</button>
                 </div>
             </div>
-
-            <!-- Pulsante per mostrare/nascondere filtri avanzati -->
-            <div class="row mb-3">
-                <div class="col-md-12">
-                    <button id="btnMostraFiltriAvanzati" class="btn btn-sm btn-outline-info">
-                        <i class="fas fa-filter"></i> Mostra Filtri Avanzati
-                    </button>
-                    <small class="text-muted ms-2">
-                        <i class="fas fa-info-circle"></i> Filtra per anno, mese, cliente o margine
-                    </small>
-                </div>
-            </div>
-
-            <!-- FILTRI AVANZATI (inizialmente nascosti) -->
-            <div class="row mb-3" id="filtriAvanzatiMonitor" style="display: none;">
-                <div class="col-md-3">
-                    <label for="filtroMeseMonitor" class="form-label">Mese (opzionale):</label>
-                    <select id="filtroMeseMonitor" class="form-select">
-                        <option value="">Tutti i mesi</option>
-                        <option value="01">Gennaio</option>
-                        <option value="02">Febbraio</option>
-                        <option value="03">Marzo</option>
-                        <option value="04">Aprile</option>
-                        <option value="05">Maggio</option>
-                        <option value="06">Giugno</option>
-                        <option value="07">Luglio</option>
-                        <option value="08">Agosto</option>
-                        <option value="09">Settembre</option>
-                        <option value="10">Ottobre</option>
-                        <option value="11">Novembre</option>
-                        <option value="12">Dicembre</option>
-                    </select>
-                </div>
-                
-                <div class="col-md-3">
-                    <label for="filtroClienteMonitor" class="form-label">Cliente (opzionale):</label>
-                    <input type="text" id="filtroClienteMonitor" class="form-control" 
-                           placeholder="Nome cliente...">
-                </div>
-                
-                <div class="col-md-3">
-                    <label for="filtroMargineMonitor" class="form-label">Margine:</label>
-                    <select id="filtroMargineMonitor" class="form-select">
-                        <option value="">Tutti i margini</option>
-                        <option value="positivo">Solo positivo</option>
-                        <option value="negativo">Solo negativo</option>
-                        <option value="alto">Alto (> 20%)</option>
-                        <option value="medio">Medio (10-20%)</option>
-                        <option value="basso">Basso (< 10%)</option>
-                    </select>
-                </div>
-                
-                <div class="col-md-3 d-flex align-items-end">
-                    <button id="btnMostraFiltriBase" class="btn btn-outline-secondary w-100">
-                        <i class="fas fa-eye-slash"></i> Nascondi Filtri Avanzati
-                    </button>
-                </div>
-            </div>
-            
-            <!-- TABELLA MONITORAGGIO -->
-            <div class="table-responsive">
-                <table id="monitorCommesseTable" class="table table-striped table-bordered table-hover">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Commessa</th>
-                            <th>Preventivo (€)</th>
-                            <th>Ore Lavorate</th>
-                            <th>Ore Non Conformità</th>
-                            <th>Costo Ore (€)</th>
-                            <th>Margine (€)</th>
-                            <th>Margine (%)</th>
-                            <th>Stato & Azioni</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- I dati verranno popolati dinamicamente -->
-                    </tbody>
-                </table>
-            </div>
-            
-            <!-- Indicatori di Stato -->
-            <div class="row mt-3">
-                <div class="col-md-12">
-                    <div class="alert alert-info py-2">
-                        <small>
-                            <strong>Legenda:</strong> 
-                            <span class="badge bg-success">ECCELLENTE</span> 
-                            <span class="badge bg-info">BUONO</span> 
-                            <span class="badge bg-warning">SUFFICIENTE</span> 
-                            <span class="badge bg-danger">LIMITE</span> 
-                            <span class="badge bg-dark">IN PERDITA</span>
-                        </small>
+                    
+                    <div class="table-responsive">
+                        <table id="monitorCommesseTable" class="table table-striped table-bordered table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Commessa</th>
+                                    <th>Preventivo (€)</th>
+                                    <th>Ore Lavorate</th>
+                                    <th>Ore Non Conformità</th>
+                                    <th>Costo Ore (€)</th>
+                                    <th>Margine (€)</th>
+                                    <th>Margine (%)</th>
+                                    <th>Stato & Azioni</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- I dati verranno popolati dinamicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Indicatori di Stato -->
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <div class="alert alert-info py-2">
+                                <small>
+                                    <strong>Legenda:</strong> 
+                                    <span class="badge bg-success">ECCELLENTE</span> 
+                                    <span class="badge bg-info">BUONO</span> 
+                                    <span class="badge bg-warning">SUFFICIENTE</span> 
+                                    <span class="badge bg-danger">LIMITE</span> 
+                                    <span class="badge bg-dark">IN PERDITA</span>
+                                </small>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
         <!-- SEZIONE ADMIN: TABELLA ORE LAVORATE (SOLO PER ADMIN) -->
         <div class="admin-only card mb-4">
@@ -467,274 +395,7 @@
                 <div id="paginationCommesse" class="mt-3"></div>
             </div>
         </div>
-    <!-- Nuova Sezione: Eliminazione Massiva Ore -->
-<div class="admin-only card mb-4">
-    <div class="card-header bg-danger text-white">
-        <h3><i class="fas fa-trash-alt"></i> Eliminazione Massiva Ore Lavorate</h3>
-    </div>
-    <div class="card-body">
-        <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle"></i> <strong>ATTENZIONE:</strong> Questa operazione è irreversibile. 
-            Verranno eliminate permanentemente tutte le ore corrispondenti ai criteri selezionati.
-        </div>
-        
-        <div class="row g-3">
-            <!-- Opzione 1: Elimina per Commessa -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-briefcase"></i> Per Commessa</h5>
-                    </div>
-                    <div class="card-body">
-                        <label for="eliminaCommessaSelect" class="form-label">Seleziona Commessa:</label>
-                        <select id="eliminaCommessaSelect" class="form-select">
-                            <option value="">Seleziona una commessa</option>
-                        </select>
-                        <button id="btnEliminaPerCommessa" class="btn btn-danger mt-3 w-100">
-                            <i class="fas fa-trash"></i> Elimina Tutte le Ore della Commessa
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Opzione 2: Elimina per Dipendente -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-user"></i> Per Dipendente</h5>
-                    </div>
-                    <div class="card-body">
-                        <label for="eliminaDipendenteSelect" class="form-label">Seleziona Dipendente:</label>
-                        <select id="eliminaDipendenteSelect" class="form-select">
-                            <option value="">Seleziona un dipendente</option>
-                        </select>
-                        <button id="btnEliminaPerDipendente" class="btn btn-danger mt-3 w-100">
-                            <i class="fas fa-trash"></i> Elimina Tutte le Ore del Dipendente
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Opzione 3: Elimina per Periodo -->
-            <div class="col-md-6 mt-3">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-calendar"></i> Per Periodo</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-2">
-                            <div class="col-md-6">
-                                <label for="eliminaDataDa" class="form-label">Da:</label>
-                                <input type="date" id="eliminaDataDa" class="form-control">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="eliminaDataA" class="form-label">A:</label>
-                                <input type="date" id="eliminaDataA" class="form-control">
-                            </div>
-                        </div>
-                        <button id="btnEliminaPerPeriodo" class="btn btn-danger mt-3 w-100">
-                            <i class="fas fa-trash"></i> Elimina Ore del Periodo
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Opzione 4: Elimina per Mese -->
-            <div class="col-md-6 mt-3">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-calendar-alt"></i> Per Mese</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-2">
-                            <div class="col-md-6">
-                                <label for="eliminaMese" class="form-label">Mese:</label>
-                                <select id="eliminaMese" class="form-select">
-                                    <option value="01">Gennaio</option>
-                                    <option value="02">Febbraio</option>
-                                    <option value="03">Marzo</option>
-                                    <option value="04">Aprile</option>
-                                    <option value="05">Maggio</option>
-                                    <option value="06">Giugno</option>
-                                    <option value="07">Luglio</option>
-                                    <option value="08">Agosto</option>
-                                    <option value="09">Settembre</option>
-                                    <option value="10">Ottobre</option>
-                                    <option value="11">Novembre</option>
-                                    <option value="12">Dicembre</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="eliminaAnno" class="form-label">Anno:</label>
-                                <select id="eliminaAnno" class="form-select">
-                                    <!-- Popolato dinamicamente -->
-                                </select>
-                            </div>
-                        </div>
-                        <button id="btnEliminaPerMese" class="btn btn-danger mt-3 w-100">
-                            <i class="fas fa-trash"></i> Elimina Ore del Mese Selezionato
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Opzione 5: Elimina per Settimana -->
-            <div class="col-md-12 mt-3">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-calendar-week"></i> Per Settimana</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-2">
-                            <div class="col-md-3">
-                                <label for="eliminaSettimana" class="form-label">Settimana:</label>
-                                <select id="eliminaSettimana" class="form-select">
-                                    <option value="1">Settimana 1 (1-7)</option>
-                                    <option value="2">Settimana 2 (8-14)</option>
-                                    <option value="3">Settimana 3 (15-21)</option>
-                                    <option value="4">Settimana 4 (22-28)</option>
-                                    <option value="5">Settimana 5 (29-31)</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label for="eliminaMeseSettimana" class="form-label">Mese:</label>
-                                <select id="eliminaMeseSettimana" class="form-select">
-                                    <option value="01">Gennaio</option>
-                                    <option value="02">Febbraio</option>
-                                    <option value="03">Marzo</option>
-                                    <option value="04">Aprile</option>
-                                    <option value="05">Maggio</option>
-                                    <option value="06">Giugno</option>
-                                    <option value="07">Luglio</option>
-                                    <option value="08">Agosto</option>
-                                    <option value="09">Settembre</option>
-                                    <option value="10">Ottobre</option>
-                                    <option value="11">Novembre</option>
-                                    <option value="12">Dicembre</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label for="eliminaAnnoSettimana" class="form-label">Anno:</label>
-                                <select id="eliminaAnnoSettimana" class="form-select">
-                                    <!-- Popolato dinamicamente -->
-                                </select>
-                            </div>
-                            <div class="col-md-3 d-flex align-items-end">
-                                <button id="btnEliminaPerSettimana" class="btn btn-danger w-100">
-                                    <i class="fas fa-trash"></i> Elimina Ore della Settimana
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Opzione 6: Elimina per Non Conformità -->
-            <div class="col-md-12 mt-3">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-exclamation-triangle"></i> Solo Non Conformità</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-2">
-                            <div class="col-md-4">
-                                <label for="eliminaNCCommessa" class="form-label">Commessa (opzionale):</label>
-                                <select id="eliminaNCCommessa" class="form-select">
-                                    <option value="">Tutte le commesse</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="eliminaNCPeriodo" class="form-label">Periodo (opzionale):</label>
-                                <select id="eliminaNCPeriodo" class="form-select">
-                                    <option value="">Tutti i periodi</option>
-                                    <option value="mese">Ultimo mese</option>
-                                    <option value="trimestre">Ultimo trimestre</option>
-                                    <option value="anno">Ultimo anno</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4 d-flex align-items-end">
-                                <button id="btnEliminaNonConformita" class="btn btn-danger w-100">
-                                    <i class="fas fa-trash"></i> Elimina Solo Non Conformità
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Opzione 7: Elimina per Filtri Combinati -->
-            <div class="col-md-12 mt-3">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-filter"></i> Elimina con Filtri Combinati</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-2">
-                            <div class="col-md-3">
-                                <label for="eliminaFiltroCommessa" class="form-label">Commessa:</label>
-                                <select id="eliminaFiltroCommessa" class="form-select">
-                                    <option value="">Tutte le commesse</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label for="eliminaFiltroDipendente" class="form-label">Dipendente:</label>
-                                <select id="eliminaFiltroDipendente" class="form-select">
-                                    <option value="">Tutti i dipendenti</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label for="eliminaFiltroData" class="form-label">Data (opzionale):</label>
-                                <input type="date" id="eliminaFiltroData" class="form-control">
-                            </div>
-                            <div class="col-md-3 d-flex align-items-end">
-                                <button id="btnEliminaConFiltri" class="btn btn-danger w-100">
-                                    <i class="fas fa-trash"></i> Elimina con Filtri
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Contatore e Anteprima -->
-            <div class="col-md-12 mt-4">
-                <div class="card bg-light">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <div class="col-md-6">
-                                <h6><i class="fas fa-info-circle"></i> Anteprima Eliminazione:</h6>
-                                <div id="anteprimaEliminazione" class="mt-2">
-                                    <p class="text-muted mb-0">Seleziona i criteri per vedere quante ore verranno eliminate</p>
-                                </div>
-                            </div>
-                            <div class="col-md-6 text-end">
-                                <div id="contatoreEliminazione" class="display-4 text-danger">0</div>
-                                <small class="text-muted">ore da eliminare</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Pulsante Conferma Finale -->
-            <div class="col-md-12 mt-3">
-                <div class="alert alert-danger" id="confermaEliminazione" style="display: none;">
-                    <h5><i class="fas fa-exclamation-circle"></i> Conferma Eliminazione Massiva</h5>
-                    <p id="testoConferma">Stai per eliminare <span id="numeroOreConferma" class="fw-bold">0</span> ore.</p>
-                    <p class="mb-3"><strong>Questa azione è irreversibile!</strong></p>
-                    <div class="d-flex gap-2">
-                        <button id="btnConfermaEliminazione" class="btn btn-danger">
-                            <i class="fas fa-check"></i> CONFERMA ELIMINAZIONE
-                        </button>
-                        <button id="btnAnnullaEliminazione" class="btn btn-secondary">
-                            <i class="fas fa-times"></i> Annulla
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+    
         <!-- Sezione Gestione Dipendenti -->
         <div class="admin-only card mb-4">
             <div class="card-header">
