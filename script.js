@@ -38,6 +38,7 @@ const ADMIN_CREDENTIALS = {
 };
 const TARIFFA_ORARIA = 28.50;
 const COSTO_ORARIO_NON_CONFORMITA = 28.50; 
+const TARIFFA_ORARIA_INTEGRAZIONE = 28.50;
 // state-manager.js
 class StateManager {
     constructor() {
@@ -1182,6 +1183,7 @@ async handleCommessaForm(e) {
             cliente: cliente,
             valorePreventivo: valorePreventivo,
             oreTotaliPreviste: oreTotaliCommessa,
+            oreIntegrazione: 0,
             stato: statoCommessa,
             dataCreazione: new Date().toISOString(),
             dataUltimaModifica: new Date().toISOString()
@@ -1740,7 +1742,7 @@ async aggiornaTabellaCommesse(filtro = '') {
             const nuovoCliente = prompt("Inserisci il nuovo cliente:", commessa.cliente);
             const nuovoValorePreventivo = parseFloat(prompt("Inserisci il nuovo valore preventivo (€):", commessa.valorePreventivo));
             const nuovoStato = confirm("La commessa è attiva? (OK per Attiva, Annulla per Conclusa)") ? 'attiva' : 'conclusa';
-
+            const oreIntegrazioneEsistenti = commessa.oreIntegrazione || 0;
             if (nuovoNomeCommessa && nuovoCliente && !isNaN(nuovoValorePreventivo)) {
                 const nuoveOreTotali = this.calcolaOreDaPreventivo(nuovoValorePreventivo);
                 
@@ -1749,6 +1751,7 @@ async aggiornaTabellaCommesse(filtro = '') {
                     cliente: nuovoCliente,
                     valorePreventivo: nuovoValorePreventivo,
                     oreTotaliPreviste: nuoveOreTotali,
+                    oreIntegrazione: oreIntegrazioneEsistenti,
                     stato: nuovoStato,
                     dataUltimaModifica: new Date().toISOString()
                 });
@@ -2556,41 +2559,7 @@ controllaPausaPranzoTempoReale() {
     }
 }
 
-     async handleCommessaForm(e) {
-        e.preventDefault();
-        try {
-            const nomeCommessa = document.getElementById('nomeCommessa').value;
-            const cliente = document.getElementById('cliente').value;
-            const valorePreventivo = parseFloat(document.getElementById('valorePreventivo').value);
-            const statoCommessa = document.getElementById('statoCommessa').value;
-            
-            if (!nomeCommessa || !cliente || !valorePreventivo) {
-                ErrorHandler.showNotification("Compila tutti i campi", 'error');
-                return;
-            }
-
-            const oreTotaliCommessa = this.calcolaOreDaPreventivo(valorePreventivo);
-            
-            await this.firebaseService.addDocument("commesse", {
-                nomeCommessa: nomeCommessa,
-                cliente: cliente,
-                valorePreventivo: valorePreventivo,
-                oreTotaliPreviste: oreTotaliCommessa,
-                stato: statoCommessa, // NUOVO CAMPO
-                dataCreazione: new Date().toISOString(),
-                dataUltimaModifica: new Date().toISOString()
-            });
-            
-            ErrorHandler.showNotification(`Commessa ${statoCommessa === 'attiva' ? 'attiva' : 'conclusa'} aggiunta con successo!`, 'success');
-            await this.aggiornaTabellaCommesse();
-            await this.aggiornaMenuCommesse(); // Questo mostrerà solo commesse attive
-            await this.aggiornaMonitorCommesse();
-            
-            e.target.reset();
-        } catch (error) {
-            ErrorHandler.handleError(error, 'aggiunta commessa');
-        }
-    }
+    
 
     calcolaOreDaPreventivo(valorePreventivo) {
     if (!valorePreventivo || valorePreventivo <= 0) return 0;
@@ -2609,128 +2578,288 @@ async aggiornaMonitorCommesse(filtroStato = '', filtroNome = '') {
             this.firebaseService.getCollection("oreLavorate")
         ]);
 
-        // Popola la datalist delle commesse
-        await this.popolaDatalistCommesse(tutteLeCommesse);
-
         // Filtra commesse valide
-        const commesseValide = tutteLeCommesse.filter(commessa => 
+        let commesseDaMostrare = tutteLeCommesse.filter(commessa => 
             commessa && typeof commessa === 'object' && commessa.nomeCommessa
         );
-
-        console.log('✅ Commesse valide:', commesseValide.length);
-
-        // Popola il filtro stato
-        await this.popolaFiltroCommesseMonitor(commesseValide);
-
-        const tbody = document.querySelector('#monitorCommesseTable tbody');
-        if (!tbody) {
-            console.error('❌ Elemento tbody non trovato');
-            return;
-        }
-
-        tbody.innerHTML = '';
-
-        // APPLICA TUTTI I FILTRI
-        let commesseDaMostrare = commesseValide;
         
-        // Filtro per nome commessa
+        // Applica filtri
         if (filtroNome && filtroNome.trim() !== '') {
             const filtroLowerCase = filtroNome.toLowerCase().trim();
             commesseDaMostrare = commesseDaMostrare.filter(commessa => 
-                commessa.nomeCommessa.toLowerCase().includes(filtroLowerCase) ||
-                (commessa.cliente && commessa.cliente.toLowerCase().includes(filtroLowerCase))
+                commessa.nomeCommessa.toLowerCase().includes(filtroLowerCase)
             );
-            console.log(`🔍 Filtro nome: "${filtroNome}" - ${commesseDaMostrare.length} commesse trovate`);
         }
         
-        // Filtro per stato
         if (filtroStato === 'attive') {
-            commesseDaMostrare = commesseDaMostrare.filter(c => 
-                c.stato === 'attiva' || !c.stato
-            );
+            commesseDaMostrare = commesseDaMostrare.filter(c => c.stato === 'attiva' || !c.stato);
         } else if (filtroStato === 'concluse') {
             commesseDaMostrare = commesseDaMostrare.filter(c => c.stato === 'conclusa');
         }
 
-        console.log('📋 Commesse da mostrare dopo filtri:', commesseDaMostrare.length);
+        const tbody = document.querySelector('#monitorCommesseTable tbody');
+        if (!tbody) return;
+        
+        tbody.innerHTML = '';
 
         if (commesseDaMostrare.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="8" class="text-center py-4">
-                        <div class="text-muted">
-                            <i class="fas fa-search fa-2x mb-2"></i><br>
-                            Nessuna commessa trovata con i filtri attuali
-                        </div>
-                    </td>
-                </tr>
-            `;
-        } else {
-            // ORDINA: prima attive, poi concluse, poi per nome
-            commesseDaMostrare.sort((a, b) => {
-                const statoA = a.stato || 'attiva';
-                const statoB = b.stato || 'attiva';
-                
-                if (statoA === 'attiva' && statoB === 'conclusa') return -1;
-                if (statoA === 'conclusa' && statoB === 'attiva') return 1;
-                
-                return a.nomeCommessa.localeCompare(b.nomeCommessa);
-            });
-
-            // CREA LE RIGHE DELLA TABELLA
-            let righeConErrore = 0;
-            
-            for (const commessa of commesseDaMostrare) {
-                try {
-                    console.log(`🔄 Elaborando: ${commessa.nomeCommessa}`);
-                    
-                    const statistiche = this.calcolaStatisticheCommessa(commessa, tutteLeOre);
-                    
-                    // VERIFICA che le statistiche siano valide
-                    if (!statistiche || typeof statistiche.oreTotaliPreviste === 'undefined') {
-                        console.error('❌ Statistiche non valide per:', commessa.nomeCommessa);
-                        righeConErrore++;
-                        continue;
-                    }
-                    
-                    const row = this.creaRigaMonitorCommessa(commessa, statistiche);
-                    tbody.appendChild(row);
-                    
-                } catch (error) {
-                    console.error(`❌ Errore nella creazione riga per:`, commessa, error);
-                    righeConErrore++;
-                    
-                    const errorRow = document.createElement('tr');
-                    errorRow.className = 'table-danger';
-                    errorRow.innerHTML = `
-                        <td colspan="8" class="text-center">
-                            <small class="text-danger">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                Errore nel caricamento: "${commessa.nomeCommessa || 'N/D'}"
-                            </small>
-                        </td>
-                    `;
-                    tbody.appendChild(errorRow);
-                }
-            }
-
-            // Mostra informazioni sui filtri applicati
-            this.mostraInfoFiltri(commesseDaMostrare.length, commesseValide.length, filtroNome, filtroStato);
-
-            if (righeConErrore > 0) {
-                console.warn(`⚠️ ${righeConErrore} righe con errori su ${commesseDaMostrare.length} totali`);
-            }
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center">Nessuna commessa trovata</td></tr>`;
+            return;
         }
 
-        // IMPORTANTE: Mostra la tabella dopo l'aggiornamento
-        this.mostraTabellaMonitoraggio();
+        // Ordina: attive prima, poi per nome
+        commesseDaMostrare.sort((a, b) => {
+            const statoA = a.stato === 'attiva' ? 0 : 1;
+            const statoB = b.stato === 'attiva' ? 0 : 1;
+            if (statoA !== statoB) return statoA - statoB;
+            return a.nomeCommessa.localeCompare(b.nomeCommessa);
+        });
 
-        console.log('✅ Monitoraggio commesse aggiornato con successo');
+        for (const commessa of commesseDaMostrare) {
+            const statistiche = this.calcolaStatisticheConIntegrazione(commessa, tutteLeOre);
+            const row = this.creaRigaMonitoraggio(commessa, statistiche);
+            tbody.appendChild(row);
+        }
+
+        this.mostraTabellaMonitoraggio();
+        console.log('✅ Monitoraggio aggiornato');
 
     } catch (error) {
-        console.error('❌ Errore critico in aggiornaMonitorCommesse:', error);
-        ErrorHandler.handleError(error, 'aggiornamento monitor commesse');
+        console.error('❌ Errore aggiornamento monitor:', error);
     }
+}
+// ========== CALCOLO STATISTICHE CON INTEGRAZIONE ==========
+// ========== CALCOLO STATISTICHE CON INTEGRAZIONE (CORRETTO) ==========
+calcolaStatisticheConIntegrazione(commessa, tutteLeOre) {
+    const valorePreventivo = parseFloat(commessa.valorePreventivo) || 0;
+    const orePrevisteOriginali = parseFloat(commessa.oreTotaliPreviste) || 0;
+    const oreIntegrazione = parseFloat(commessa.oreIntegrazione) || 0;
+    const oreTotaliDisponibili = orePrevisteOriginali + oreIntegrazione;
+    
+    // Calcolo del costo delle ore di integrazione (che poi diventa RICAVO aggiuntivo)
+    const costoCostoIntegrazione = oreIntegrazione * TARIFFA_ORARIA;
+    
+    // RICAVO TOTALE = Preventivo + Costo delle ore di integrazione
+    const ricavoTotale = valorePreventivo + costoCostoIntegrazione;
+    
+    // Filtra ore per questa commessa
+    const oreCommessa = tutteLeOre.filter(ore => 
+        ore.commessa && ore.commessa.toLowerCase().trim() === commessa.nomeCommessa.toLowerCase().trim()
+    );
+    
+    // Calcola ore lavorate totali
+    const oreLavorateTotali = oreCommessa.reduce((tot, ore) => {
+        return tot + Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+    }, 0);
+    
+    // Calcola ore non conformità
+    const oreNonConformita = oreCommessa
+        .filter(ore => ore.nonConformita === true)
+        .reduce((tot, ore) => tot + Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine), 0);
+    
+    // Calcoli COSTI (quello che l'azienda paga ai dipendenti)
+    const costoOreConformi = (oreLavorateTotali - oreNonConformita) * TARIFFA_ORARIA;
+    const costoOreNC = oreNonConformita * COSTO_ORARIO_NON_CONFORMITA;
+    const costoTotaleAzienda = costoOreConformi + costoOreNC;
+    
+    // MARGINE CORRETTO = Ricavo totale - Costo azienda
+    const margineEuro = ricavoTotale - costoTotaleAzienda;
+    const marginePercentuale = ricavoTotale > 0 ? (margineEuro / ricavoTotale) * 100 : 0;
+    
+    // Per la visualizzazione: valore aggiuntivo dell'integrazione sul fatturato
+    const valoreAggiuntivoIntegrazione = costoCostoIntegrazione; // Quanto fattura in più
+    
+    return {
+        valorePreventivo,
+        orePrevisteOriginali,
+        oreIntegrazione,
+        valoreAggiuntivoIntegrazione,  // NUOVO: quanto aggiunge al fatturato
+        oreTotaliDisponibili,
+        oreLavorateTotali,
+        oreNonConformita,
+        costoTotaleAzienda,
+        ricavoTotale,                   // NUOVO: preventivo + integrazione
+        margineEuro,
+        marginePercentuale,
+        hasIntegrazione: oreIntegrazione > 0
+    };
+}
+// ========== CREAZIONE RIGA TABELLA ==========
+// ========== CREAZIONE RIGA TABELLA (CON LOGICA CORRETTA) ==========
+creaRigaMonitoraggio(commessa, stats) {
+    const row = document.createElement('tr');
+    const statoCommessa = commessa.stato || 'attiva';
+    const isAttiva = statoCommessa === 'attiva';
+    
+    // Formattazione valori
+    const oreLavFormattate = Utils.formattaOreDecimali(stats.oreLavorateTotali);
+    const orePrevFormattate = Utils.formattaOreDecimali(stats.orePrevisteOriginali);
+    const oreIntegrFormattate = Utils.formattaOreDecimali(stats.oreIntegrazione);
+    const oreNCFormattate = Utils.formattaOreDecimali(stats.oreNonConformita);
+    
+    // Determina se le ore lavorate superano quelle disponibili
+    const superamento = stats.oreLavorateTotali > stats.oreTotaliDisponibili && stats.oreTotaliDisponibili > 0;
+    
+    // Colore margine basato sulla percentuale
+    let margineClass = 'text-success';
+    let margineBadge = 'success';
+    if (stats.marginePercentuale < 0) {
+        margineClass = 'text-danger';
+        margineBadge = 'danger';
+    } else if (stats.marginePercentuale < 10) {
+        margineClass = 'text-warning';
+        margineBadge = 'warning';
+    } else if (stats.marginePercentuale < 20) {
+        margineClass = 'text-info';
+        margineBadge = 'info';
+    }
+    
+    row.innerHTML = `
+        <td style="min-width: 180px;">
+            <strong>${this.escapeHtml(commessa.nomeCommessa)}</strong>
+            <br><small class="text-muted">${this.escapeHtml(commessa.cliente || 'N/D')}</small>
+            ${stats.hasIntegrazione ? '<br><span class="badge bg-warning text-dark mt-1">💰 + Integrazione</span>' : ''}
+        </td>
+        <td class="text-end">
+            <div>
+                <strong>€ ${stats.valorePreventivo.toFixed(2)}</strong>
+                ${stats.hasIntegrazione ? `<br><small class="text-success">+€ ${stats.valoreAggiuntivoIntegrazione.toFixed(2)}</small>` : ''}
+                ${stats.hasIntegrazione ? `<br><small class="text-primary fw-bold">= € ${stats.ricavoTotale.toFixed(2)}</small>` : ''}
+            </div>
+        </td>
+        <td class="text-center">
+            <div>
+                <span class="${superamento ? 'text-danger fw-bold' : ''}">${oreLavFormattate}</span>
+                <br><small class="text-muted">/ ${orePrevFormattate}</small>
+                ${stats.hasIntegrazione ? `<br><small class="text-success">+${oreIntegrFormattate} extra</small>` : ''}
+            </div>
+        </td>
+        <td class="text-center ${stats.oreNonConformita > 0 ? 'text-warning' : ''}">
+            ${oreNCFormattate}
+        </td>
+        <td class="text-center bg-light">
+            ${stats.hasIntegrazione ? `
+                <div>
+                    <strong class="text-success">+${oreIntegrFormattate}</strong>
+                    <br><small class="text-muted">€ ${stats.valoreAggiuntivoIntegrazione.toFixed(2)}</small>
+                    <br>
+                    <button class="btn btn-sm btn-outline-warning mt-1" 
+                            onclick="app.modificaIntegrazione('${commessa.id}', ${stats.oreIntegrazione})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </div>
+            ` : `
+                <button class="btn btn-sm btn-outline-success" 
+                        onclick="app.aggiungiIntegrazione('${commessa.id}')">
+                    <i class="fas fa-plus"></i> Aggiungi
+                </button>
+            `}
+        </td>
+        <td class="text-end">
+            <div>
+                € ${stats.costoTotaleAzienda.toFixed(2)}
+                <br><small class="text-muted">(costo azienda)</small>
+            </div>
+        </td>
+        <td class="text-end ${margineClass}">
+            <div>
+                <strong>€ ${stats.margineEuro >= 0 ? '+' : ''}${stats.margineEuro.toFixed(2)}</strong>
+                ${stats.hasIntegrazione ? `<br><small class="text-muted">(incl. +€${stats.valoreAggiuntivoIntegrazione.toFixed(2)})</small>` : ''}
+            </div>
+        </td>
+        <td class="text-end ${margineClass}">
+            <strong>${stats.marginePercentuale >= 0 ? '+' : ''}${stats.marginePercentuale.toFixed(1)}%</strong>
+            <br><small class="text-muted">su ricavo totale</small>
+        </td>
+        <td class="text-center">
+            <span class="badge ${isAttiva ? 'bg-success' : 'bg-secondary'}">
+                ${isAttiva ? 'ATTIVA' : 'CONCLUSA'}
+            </span>
+            <br>
+            <button class="btn btn-sm btn-outline-secondary mt-1" 
+                    onclick="app.cambiaStatoCommessa('${commessa.id}', '${statoCommessa}')">
+                ${isAttiva ? '🔒 Concludi' : '↩️ Riattiva'}
+            </button>
+        </td>
+    `;
+    
+    return row;
+}
+
+// ========== METODI PER GESTIRE INTEGRAZIONE ==========
+async aggiungiIntegrazione(commessaId) {
+    try {
+        const oreInput = prompt("Inserisci le ore di integrazione (es: 10.5 per 10 ore e 30 minuti):", "0");
+        if (oreInput === null) return;
+        
+        let oreIntegrazione = parseFloat(oreInput.replace(',', '.'));
+        if (isNaN(oreIntegrazione) || oreIntegrazione < 0) {
+            ErrorHandler.showNotification("Inserisci un numero valido", 'error');
+            return;
+        }
+        
+        oreIntegrazione = Math.round(oreIntegrazione * 100) / 100;
+        
+        await this.firebaseService.updateDocument("commesse", commessaId, {
+            oreIntegrazione: oreIntegrazione,
+            dataUltimaModifica: new Date().toISOString()
+        });
+        
+        ErrorHandler.showNotification(
+            oreIntegrazione > 0 ? `✅ +${oreIntegrazione} ore di integrazione aggiunte` : '🗑️ Integrazione rimossa',
+            'success'
+        );
+        
+        await this.aggiornaMonitorCommesse();
+        
+    } catch (error) {
+        ErrorHandler.handleError(error, 'aggiunta integrazione');
+    }
+}
+async modificaIntegrazione(commessaId, oreCorrenti) {
+    try {
+        const oreCorrentiFormattate = Utils.formattaOreDecimali(oreCorrenti);
+        const nuovoInput = prompt(
+            `Ore integrazione attuali: ${oreCorrentiFormattate}\n\nNuovo valore (0 per rimuovere):`,
+            oreCorrenti.toString().replace('.', ',')
+        );
+        
+        if (nuovoInput === null) return;
+        
+        let oreIntegrazione = parseFloat(nuovoInput.replace(',', '.'));
+        if (isNaN(oreIntegrazione) || oreIntegrazione < 0) {
+            ErrorHandler.showNotification("Inserisci un numero valido", 'error');
+            return;
+        }
+        
+        oreIntegrazione = Math.round(oreIntegrazione * 100) / 100;
+        
+        await this.firebaseService.updateDocument("commesse", commessaId, {
+            oreIntegrazione: oreIntegrazione,
+            dataUltimaModifica: new Date().toISOString()
+        });
+        
+        ErrorHandler.showNotification(
+            oreIntegrazione > 0 ? `✅ Integrazione aggiornata: +${oreIntegrazione} ore` : '🗑️ Integrazione rimossa',
+            'success'
+        );
+        
+        await this.aggiornaMonitorCommesse();
+        
+    } catch (error) {
+        ErrorHandler.handleError(error, 'modifica integrazione');
+    }
+}
+
+// ========== UTILITY ==========
+escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 // AGGIUNGI questo metodo per pulire tutto e ricominciare
 async resetCompletoMonitoraggio() {
@@ -2949,6 +3078,12 @@ calcolaStatisticheCommessa(commessa, tutteLeOre) {
             preventivo: valorePreventivo,
             orePreviste: oreTotaliPreviste
         });
+        // LEGGI LE ORE DI INTEGRAZIONE DALLA COMMESSA
+        const oreIntegrazione = parseFloat(commessa.oreIntegrazione) || 0;
+        const costoOreIntegrazione = oreIntegrazione * TARIFFA_ORARIA_INTEGRAZIONE;
+        // MODIFICA: le ore totali previste diventano: ore originali + integrazione
+        const oreTotaliPrevisteOriginali = parseFloat(commessa.oreTotaliPreviste) || 0;
+        const oreTotaliPrevisteConIntegrazione = oreTotaliPrevisteOriginali + oreIntegrazione;
 
         // Calcola ore lavorate totali
         const oreLavorateTotali = oreCommessa.reduce((totale, ore) => {
@@ -2957,6 +3092,7 @@ calcolaStatisticheCommessa(commessa, tutteLeOre) {
             const oreGiornata = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
             return totale + (oreGiornata || 0);
         }, 0);
+        
 
         // Calcola ore non conformità
         const oreNonConformita = oreCommessa
@@ -2973,7 +3109,7 @@ calcolaStatisticheCommessa(commessa, tutteLeOre) {
         // CALCOLI ECONOMICI - SEMPRE calcolati, anche con preventivo 0
         const costoOreConformi = oreConformi * TARIFFA_ORARIA;
         const costoOreNonConformi = oreNonConformita * COSTO_ORARIO_NON_CONFORMITA;
-        const costoOreTotale = costoOreConformi + costoOreNonConformi;
+         const costoOreTotale = costoOreConformi + costoOreNonConformi + costoOreIntegrazione;
         
         let margineEuro = 0;
         let marginePercentuale = 0;
@@ -2982,18 +3118,24 @@ calcolaStatisticheCommessa(commessa, tutteLeOre) {
             margineEuro = valorePreventivo - costoOreTotale;
             marginePercentuale = (margineEuro / valorePreventivo) * 100;
         }
+         // ORE EFFETTIVE PER IL CONFRONTO (lavorate vs previste+integrazione)
+        const oreEffettiveDisponibili = oreTotaliPrevisteConIntegrazione;
 
         return {
             oreLavorateTotali: parseFloat(oreLavorateTotali.toFixed(2)),
             oreNonConformita: parseFloat(oreNonConformita.toFixed(2)),
             oreConformi: parseFloat(oreConformi.toFixed(2)),
+            oreIntegrazione: oreIntegrazione,                          // NUOVO
+            costoOreIntegrazione: parseFloat(costoOreIntegrazione.toFixed(2)), // NUOVO
             costoOreTotale: parseFloat(costoOreTotale.toFixed(2)),
             margineEuro: parseFloat(margineEuro.toFixed(2)),
             marginePercentuale: parseFloat(marginePercentuale.toFixed(1)),
             valorePreventivo: valorePreventivo,
+            oreTotaliPrevisteConIntegrazione: oreEffettiveDisponibili, // NUOVO
             oreTotaliPreviste: oreTotaliPreviste,
             datiCompleti: valorePreventivo > 0, // Solo se ha preventivo
-            numeroRecord: oreCommessa.length
+            numeroRecord: oreCommessa.length,
+            hasIntegrazione: oreIntegrazione > 0                       // NUOVO
         };
 
     } catch (error) {
@@ -3385,6 +3527,163 @@ creaRigaMonitorCommessa(commessa, statistiche) {
     `;
     
     return row;
+    // Determina se ha integrazione
+    const hasIntegrazione = statistiche.hasIntegrazione;
+    const oreIntegrazione = statistiche.oreIntegrazione;
+    const costoIntegrazione = statistiche.costoOreIntegrazione;
+    const oreIntegrazioneFormattate = Utils.formattaOreDecimali(oreIntegrazione);
+    
+    // Calcola se le ore lavorate superano quelle previste (considerando integrazione)
+    const oreTotaliDisponibili = statistiche.oreTotaliPrevisteConIntegrazione;
+    const superamentoOre = statistiche.oreLavorateTotali > oreTotaliDisponibili;
+    
+    row.innerHTML = `
+        <td>
+            <div class="d-flex flex-column">
+                <strong>${commessa.nomeCommessa}</strong>
+                <small class="text-muted">${commessa.cliente || 'Cliente non specificato'}</small>
+                <small class="text-info">
+                    <i class="fas fa-clock"></i> 
+                    ${Utils.formattaOreDecimali(statistiche.oreTotaliPreviste)} ore previste
+                    ${hasIntegrazione ? `<br><span class="text-warning">➕ +${oreIntegrazioneFormattate} ore integrazione</span>` : ''}
+                </small>
+            </div>
+        </td>
+        <td class="text-center">
+            <strong>€ ${statistiche.valorePreventivo.toFixed(2)}</strong>
+        </td>
+        <td class="text-center">
+            <div class="d-flex flex-column align-items-center">
+                <strong class="${superamentoOre ? 'text-danger' : ''}">
+                    ${Utils.formattaOreDecimali(statistiche.oreLavorateTotali)}
+                </strong>
+                <small>ore</small>
+                ${superamentoOre ? '<span class="badge badge-danger badge-sm">⚠️ Oltre</span>' : ''}
+                ${hasIntegrazione ? `<small class="text-warning">su ${Utils.formattaOreDecimali(oreTotaliDisponibili)} totali</small>` : ''}
+            </div>
+        </td>
+        <td class="text-center ${statistiche.oreNonConformita > 0 ? 'text-warning' : ''}">
+            <div class="d-flex flex-column align-items-center">
+                <strong>${Utils.formattaOreDecimali(statistiche.oreNonConformita)}</strong>
+                <small>ore NC</small>
+            </div>
+        </td>
+        
+        <!-- NUOVA COLONNA ORE INTEGRAZIONE -->
+        <td class="text-center ${hasIntegrazione ? 'table-warning' : ''}">
+            <div class="d-flex flex-column align-items-center">
+                ${hasIntegrazione ? `
+                    <strong class="text-warning">+${oreIntegrazioneFormattate}</strong>
+                    <small class="text-muted">(+€ ${costoIntegrazione.toFixed(2)})</small>
+                    <button class="btn btn-sm btn-outline-warning mt-1" 
+                            onclick="app.modificaOreIntegrazione('${commessa.id}', ${oreIntegrazione})">
+                        <i class="fas fa-edit"></i> Modifica
+                    </button>
+                ` : `
+                    <button class="btn btn-sm btn-outline-success mt-1" 
+                            onclick="app.aggiungiOreIntegrazione('${commessa.id}')">
+                        <i class="fas fa-plus-circle"></i> Aggiungi
+                    </button>
+                `}
+            </div>
+        </td>
+        
+        <td class="text-center">
+            <strong>€ ${statistiche.costoOreTotale.toFixed(2)}</strong>
+            ${hasIntegrazione ? `<br><small class="text-warning">(incl. +€${costoIntegrazione.toFixed(2)})</small>` : ''}
+        </td>
+        
+        <!-- Margine € e % come già presenti -->
+        <td class="text-center ${statoMargine.classeTesto}">
+            <strong>€ ${statistiche.margineEuro >= 0 ? '+' : ''}${statistiche.margineEuro.toFixed(2)}</strong>
+        </td>
+        <td class="text-center ${statoMargine.classeTesto}">
+            <strong>${statistiche.marginePercentuale >= 0 ? '+' : ''}${statistiche.marginePercentuale.toFixed(1)}%</strong>
+        </td>
+        <td class="text-center">
+            <!-- stato come già presente -->
+        </td>
+    `;
+    
+    return row;
+
+}
+// Metodo per aggiungere/modificare ore integrazione
+async aggiungiOreIntegrazione(commessaId) {
+    try {
+        const oreAttuali = prompt("Inserisci le ore di integrazione per questa commessa (es: 10.5 per 10 ore e 30 minuti):", "0");
+        
+        if (oreAttuali === null) return; // Annulla
+        
+        let oreIntegrazione = parseFloat(oreAttuali.replace(',', '.'));
+        
+        if (isNaN(oreIntegrazione) || oreIntegrazione < 0) {
+            ErrorHandler.showNotification("Inserisci un numero valido di ore", 'error');
+            return;
+        }
+        
+        // Arrotonda a 2 decimali
+        oreIntegrazione = Math.round(oreIntegrazione * 100) / 100;
+        
+        await this.firebaseService.updateDocument("commesse", commessaId, {
+            oreIntegrazione: oreIntegrazione,
+            dataUltimaModifica: new Date().toISOString()
+        });
+        
+        ErrorHandler.showNotification(
+            oreIntegrazione > 0 
+                ? `✅ Ore integrazione: +${Utils.formattaOreDecimali(oreIntegrazione)} aggiunte` 
+                : `🗑️ Ore integrazione rimosse`,
+            'success'
+        );
+        
+        // Aggiorna tutte le viste
+        await this.aggiornaMonitorCommesse();
+        await this.aggiornaTabellaCommesse();
+        
+    } catch (error) {
+        ErrorHandler.handleError(error, 'aggiunta ore integrazione');
+    }
+}
+
+// Metodo per modificare ore integrazione esistenti
+async modificaOreIntegrazione(commessaId, oreCorrenti) {
+    try {
+        const nuoveOre = prompt(
+            `Ore integrazione correnti: ${Utils.formattaOreDecimali(oreCorrenti)}\n\n` +
+            `Inserisci il nuovo valore (0 per rimuovere):`, 
+            oreCorrenti.toString().replace('.', ',')
+        );
+        
+        if (nuoveOre === null) return;
+        
+        let oreIntegrazione = parseFloat(nuoveOre.replace(',', '.'));
+        
+        if (isNaN(oreIntegrazione) || oreIntegrazione < 0) {
+            ErrorHandler.showNotification("Inserisci un numero valido di ore", 'error');
+            return;
+        }
+        
+        oreIntegrazione = Math.round(oreIntegrazione * 100) / 100;
+        
+        await this.firebaseService.updateDocument("commesse", commessaId, {
+            oreIntegrazione: oreIntegrazione,
+            dataUltimaModifica: new Date().toISOString()
+        });
+        
+        ErrorHandler.showNotification(
+            oreIntegrazione > 0 
+                ? `✅ Ore integrazione aggiornate: +${Utils.formattaOreDecimali(oreIntegrazione)}` 
+                : `🗑️ Ore integrazione rimosse`,
+            'success'
+        );
+        
+        await this.aggiornaMonitorCommesse();
+        await this.aggiornaTabellaCommesse();
+        
+    } catch (error) {
+        ErrorHandler.handleError(error, 'modifica ore integrazione');
+    }
 }
       // NUOVO METODO: Cambia stato commessa
    async cambiaStatoCommessa(commessaId, statoAttuale) {
