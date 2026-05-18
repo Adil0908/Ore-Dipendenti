@@ -30,6 +30,10 @@ const CONSTANTS = {
     MESI: ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
            "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
 };
+// Costanti per fornitori
+const COSTANTI_FORNITORI = {
+    RIGHE_PER_PAGINA: 5
+};
 
 const ADMIN_CREDENTIALS = {
     email: 'eliraoui.a@union14.it',
@@ -39,6 +43,12 @@ const ADMIN_CREDENTIALS = {
 const TARIFFA_ORARIA = 28.50;
 const COSTO_ORARIO_NON_CONFORMITA = 28.50; 
 const TARIFFA_ORARIA_INTEGRAZIONE = 28.50;
+// Poi rendile disponibili globalmente
+window.TARIFFA_ORARIA = TARIFFA_ORARIA;
+window.COSTO_ORARIO_NON_CONFORMITA = COSTO_ORARIO_NON_CONFORMITA;
+window.TARIFFA_ORARIA_INTEGRAZIONE = TARIFFA_ORARIA_INTEGRAZIONE;
+
+
 // state-manager.js
 class StateManager {
     constructor() {
@@ -101,24 +111,75 @@ if (window.jspdf && window.jspdf.jsPDF) {
 // utils.js
 class Utils {
     static calcolaOreLavorate(oraInizio, oraFine) {
-        if (!this.isValidTimeFormat(oraInizio) || !this.isValidTimeFormat(oraFine)) {
-            console.error("Formato orario non valido. Usare 'HH:mm'");
-            return 0;
-        }
-
-        const toMinutes = (time) => {
-            const [ore, minuti] = time.split(':').map(Number);
-            return ore * 60 + minuti;
-        };
-
-        const minutiInizio = toMinutes(oraInizio);
-        const minutiFine = toMinutes(oraFine);
-        let differenzaMinuti = minutiFine - minutiInizio;
-
-        if (differenzaMinuti < 0) differenzaMinuti += 24 * 60;
-        
-        return differenzaMinuti / 60;
+    // Controlli di sicurezza
+    if (!oraInizio || !oraFine) {
+        console.warn("Orari mancanti:", { oraInizio, oraFine });
+        return 0;
     }
+    
+    // Funzione per normalizzare l'orario
+    const normalizzaOra = (ora) => {
+        if (!ora || typeof ora !== 'string') return null;
+        
+        // Rimuovi spazi
+        ora = ora.trim();
+        
+        // Se è vuoto
+        if (ora === '') return null;
+        
+        // CORREZIONE: "24:00" -> "23:59"
+        if (ora === "24:00" || ora === "24:00:00") {
+            return "23:59";
+        }
+        
+        // Pattern per HH:MM
+        const patternCompleto = /^([0-1][0-9]|2[0-3]):([0-5][0-9])$/;
+        if (patternCompleto.test(ora)) {
+            return ora;
+        }
+        
+        // Pattern per H:MM (es: "8:30")
+        const patternCorto = /^([0-9]):([0-5][0-9])$/;
+        if (patternCorto.test(ora)) {
+            return '0' + ora;
+        }
+        
+        // Pattern per HH (es: "8")
+        const patternOraSola = /^([0-9]|1[0-9]|2[0-3])$/;
+        if (patternOraSola.test(ora)) {
+            return `${ora.padStart(2, '0')}:00`;
+        }
+        
+        // Se non corrisponde a nessun pattern
+        console.warn(`Formato orario non riconosciuto: "${ora}"`);
+        return null;
+    };
+    
+    const inizioNormalizzato = normalizzaOra(oraInizio);
+    const fineNormalizzato = normalizzaOra(oraFine);
+    
+    if (!inizioNormalizzato || !fineNormalizzato) {
+        console.error("Formato orario non valido:", { 
+            originale: { inizio: oraInizio, fine: oraFine },
+            corretto: { inizio: inizioNormalizzato, fine: fineNormalizzato }
+        });
+        return 0;
+    }
+
+    const toMinutes = (time) => {
+        const [ore, minuti] = time.split(':').map(Number);
+        return ore * 60 + minuti;
+    };
+
+    const minutiInizio = toMinutes(inizioNormalizzato);
+    const minutiFine = toMinutes(fineNormalizzato);
+    let differenzaMinuti = minutiFine - minutiInizio;
+
+    if (differenzaMinuti < 0) differenzaMinuti += 24 * 60;
+    
+    // Arrotonda a 2 decimali
+    return Math.round((differenzaMinuti / 60) * 100) / 100;
+}
 
     static formattaOreDecimali(oreDecimali) {
         const ore = Math.floor(oreDecimali);
@@ -127,8 +188,10 @@ class Utils {
     }
 
     static isValidTimeFormat(time) {
-        return time && /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time);
-    }
+    if (!time || typeof time !== 'string') return false;
+    // Formato HH:MM
+    return /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(time);
+}
 
     static arrotondaAlQuartoDora(ora) {
         if (!this.isValidTimeFormat(ora)) return ora;
@@ -313,9 +376,7 @@ class FirebaseService {
     }
 }
 
-// pagination-manager.js
-// CORREZIONE PAGINATION MANAGER
-// CORREZIONE DEFINITIVA PAGINATION MANAGER
+
 class PaginationManager {
     constructor(containerId, righePerPagina) {
         this.container = document.getElementById(containerId);
@@ -333,28 +394,26 @@ class PaginationManager {
         
         const numeroPagine = Math.ceil(this.datiTotali.length / this.righePerPagina);
         
-        // Se non ci sono pagine, nascondi la paginazione
         if (numeroPagine <= 1) {
             this.container.innerHTML = '';
             return;
         }
         
         this.container.innerHTML = `
-            <div class="pagination-controls">
-                <button id="btnPrecedente" class="btn btn-outline-primary btn-sm" ${this.paginaCorrente === 1 ? 'disabled' : ''}>
+            <div class="pagination-controls d-flex justify-content-center align-items-center gap-2 flex-wrap">
+                <button id="btnPrecedenteCommesse" class="btn btn-outline-primary btn-sm" ${this.paginaCorrente === 1 ? 'disabled' : ''}>
                     ‹ Precedente
                 </button>
-                <div id="numeriPagina" class="pagination-numbers"></div>
-                <button id="btnSuccessiva" class="btn btn-outline-primary btn-sm" ${this.paginaCorrente === numeroPagine ? 'disabled' : ''}>
+                <div id="numeriPaginaCommesse" class="d-flex gap-1"></div>
+                <button id="btnSuccessivaCommesse" class="btn btn-outline-primary btn-sm" ${this.paginaCorrente === numeroPagine ? 'disabled' : ''}>
                     Successiva ›
                 </button>
-                <span class="pagination-info">Pagina ${this.paginaCorrente} di ${numeroPagine} (${this.datiTotali.length} record)</span>
+                <span class="ms-2 text-muted small">Pagina ${this.paginaCorrente} di ${numeroPagine} (${this.datiTotali.length} record)</span>
             </div>
         `;
 
-        const numeriPagina = this.container.querySelector('#numeriPagina');
+        const numeriPagina = this.container.querySelector('#numeriPaginaCommesse');
         
-        // Mostra massimo 7 numeri di pagina
         let startPage = Math.max(1, this.paginaCorrente - 3);
         let endPage = Math.min(numeroPagine, startPage + 6);
         
@@ -362,7 +421,6 @@ class PaginationManager {
             startPage = Math.max(1, endPage - 6);
         }
 
-        // Pulsante prima pagina
         if (startPage > 1) {
             const btnFirst = document.createElement('button');
             btnFirst.textContent = '1';
@@ -376,12 +434,11 @@ class PaginationManager {
             if (startPage > 2) {
                 const ellipsis = document.createElement('span');
                 ellipsis.textContent = '...';
-                ellipsis.className = 'pagination-ellipsis';
+                ellipsis.className = 'px-1';
                 numeriPagina.appendChild(ellipsis);
             }
         }
 
-        // Numeri di pagina
         for (let i = startPage; i <= endPage; i++) {
             const btn = document.createElement('button');
             btn.textContent = i;
@@ -393,12 +450,11 @@ class PaginationManager {
             numeriPagina.appendChild(btn);
         }
 
-        // Pulsante ultima pagina
         if (endPage < numeroPagine) {
             if (endPage < numeroPagine - 1) {
                 const ellipsis = document.createElement('span');
                 ellipsis.textContent = '...';
-                ellipsis.className = 'pagination-ellipsis';
+                ellipsis.className = 'px-1';
                 numeriPagina.appendChild(ellipsis);
             }
             
@@ -412,15 +468,14 @@ class PaginationManager {
             numeriPagina.appendChild(btnLast);
         }
 
-        // Gestione pulsanti precedente/successiva
-        this.container.querySelector('#btnPrecedente').addEventListener('click', () => {
+        this.container.querySelector('#btnPrecedenteCommesse')?.addEventListener('click', () => {
             if (this.paginaCorrente > 1) {
                 this.paginaCorrente--;
                 this.aggiornaPaginazione();
             }
         });
 
-        this.container.querySelector('#btnSuccessiva').addEventListener('click', () => {
+        this.container.querySelector('#btnSuccessivaCommesse')?.addEventListener('click', () => {
             if (this.paginaCorrente < numeroPagine) {
                 this.paginaCorrente++;
                 this.aggiornaPaginazione();
@@ -429,7 +484,7 @@ class PaginationManager {
     }
 
     aggiornaPaginazione() {
-        if (this.callbackAggiornaTabella && this.datiTotali) {
+        if (this.callbackAggiornaTabella) {
             this.callbackAggiornaTabella();
         }
     }
@@ -447,10 +502,9 @@ class PaginationManager {
         this.paginaCorrente = 1;
     }
 
-    // Metodo per aggiornare i dati senza ricreare la paginazione
     aggiornaDati(nuoviDati) {
         this.datiTotali = nuoviDati || [];
-        this.paginaCorrente = 1; // Reset alla prima pagina
+        this.paginaCorrente = 1;
     }
 }
 
@@ -466,10 +520,19 @@ class OreLavorateApp {
         this.datiTotaliOre = [];
         this.datiTotaliDipendenti = [];
         this.datiTotaliCommesse = [];
+        // Proprietà per paginazione grafici
+        this.paginaMarginiCorrente = 1;
+        this.paginaOreCorrente = 1;
+        this.elementiPerPagina = 15; // Numero di elementi per pagina
+        this.tuttiMargini = [];
+        this.tutteOreDipendenti = [];
+          // Proprietà per filtri grafici
+        this.filtroMargini = { anno: '', mese: '' };
+        this.filtroOreDipendenti = { anno: '', mese: '' };
         
         // NUOVA PROPRIETÀ: controllo aggiornamenti duplicati
         this.aggiornamentoInCorso = false;
-        
+         this.datiTotaliFornitori = [];  // AGGIUNGI QUESTA
         // PROPRIETÀ PER DEBOUNCE FILTRI
         this.filtroTimeout = null;
         
@@ -477,7 +540,27 @@ class OreLavorateApp {
     }
     
 
-    
+// Verifica che Chart.js sia caricato
+verificaChartJS() {
+    if (typeof Chart === 'undefined') {
+        console.warn('⚠️ Chart.js non caricato, provo a caricarlo...');
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+        script.onload = () => {
+            console.log('✅ Chart.js caricato con successo');
+            if (stateManager.currentUser?.ruolo === 'admin') {
+                setTimeout(() => this.creaGraficiDashboard(), 500);
+            }
+        };
+        script.onerror = () => {
+            console.error('❌ Errore nel caricamento di Chart.js');
+            ErrorHandler.showNotification('Errore nel caricamento dei grafici', 'error');
+        };
+        document.head.appendChild(script);
+        return false;
+    }
+    return true;
+}
 
     
 
@@ -498,6 +581,13 @@ class OreLavorateApp {
         this.paginazioneCommesse = new PaginationManager('paginationCommesse', CONSTANTS.RIGHE_PER_PAGINA);
 
         this.setupEventListeners();
+        // Dopo le altre inizializzazioni
+await this.caricaFornitori();
+await this.popolaSelectCommessePerFornitore();
+// Aggiungi listener per resize della finestra
+window.addEventListener('resize', () => {
+    setTimeout(() => this.resizeGrafici(), 200);
+});
         
         // INIZIALIZZA LA VISUALIZZAZIONE DELLE FASCE
         this.setupVisualizzazioneFasce();
@@ -513,6 +603,9 @@ class OreLavorateApp {
                 await this.aggiornaMonitorCommesse(); // Aggiorna la visualizzazione
             }, 3000);
         }
+
+       
+
         
     
        // TEST SICUREZZA: verifica integrità dati
@@ -548,7 +641,8 @@ class OreLavorateApp {
         document.getElementById('oreForm')?.addEventListener('submit', (e) => this.handleOreForm(e));
         document.getElementById('commessaForm')?.addEventListener('submit', (e) => this.handleCommessaForm(e));
         document.getElementById('dipendentiForm')?.addEventListener('submit', (e) => this.handleDipendentiForm(e));
-        
+        // Form fornitore
+        document.getElementById('fornitoreForm')?.addEventListener('submit', (e) => this.aggiungiLavorazioneFornitore(e));
         // Filtri
         document.getElementById('filtraOreLavorate')?.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -560,8 +654,8 @@ class OreLavorateApp {
             e.preventDefault();
             this.generaPDFFiltrato();
         });
-  // Aggiungi pulsante diagnostica (solo admin)
-    if (stateManager.currentUser?.ruolo === 'admin') {
+          // Aggiungi pulsante diagnostica (solo admin)
+        if (stateManager.currentUser?.ruolo === 'admin') {
         const diagnosticaBtn = document.createElement('button');
         diagnosticaBtn.className = 'btn btn-sm btn-outline-info';
         diagnosticaBtn.innerHTML = '🔍 Diagnostica Commesse';
@@ -598,6 +692,23 @@ class OreLavorateApp {
             this.paginazioneCommesse.reset();
             this.aggiornaTabellaCommesse();
         });
+        // Pulsanti grafici
+document.getElementById('btnAggiornaGrafici')?.addEventListener('click', () => {
+    this.creaGraficiDashboard();
+});
+
+document.getElementById('btnEsportaGrafici')?.addEventListener('click', () => {
+    this.esportaGraficiPNG();
+});
+
+// Pulsanti backup
+document.getElementById('btnBackupDati')?.addEventListener('click', () => {
+    this.eseguiBackupDati();
+});
+
+document.getElementById('btnRipristinoDati')?.addEventListener('click', () => {
+    this.mostraSelettoreBackup();
+});
 
         // Gestione date
         document.getElementById('filtroAnno')?.addEventListener('change', this.aggiornaGiorni.bind(this));
@@ -634,6 +745,28 @@ class OreLavorateApp {
         document.addEventListener('oreAggiornate', () => {
             this.aggiornaMonitorCommesse();
         });
+        // Pulsante PDF rubrica dipendenti
+document.getElementById('btnScaricaPDFDipendenti')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    console.log('🎯 Cliccato btnScaricaPDFDipendenti');
+    this.generaPDFRubricaDipendenti();
+});
+        // Listener per i nuovi filtri Anno e Mese nel monitoraggio
+document.getElementById('filtroAnnoMonitor')?.addEventListener('change', (e) => {
+    const filtroStato = document.getElementById('filtroCommessaMonitor')?.value || '';
+    const filtroNome = document.getElementById('filtroNomeCommessa')?.value || '';
+    const filtroAnno = e.target.value || '';
+    const filtroMese = document.getElementById('filtroMeseMonitor')?.value || '';
+    this.aggiornaMonitorCommesse(filtroStato, filtroNome, filtroAnno, filtroMese);
+});
+
+document.getElementById('filtroMeseMonitor')?.addEventListener('change', (e) => {
+    const filtroStato = document.getElementById('filtroCommessaMonitor')?.value || '';
+    const filtroNome = document.getElementById('filtroNomeCommessa')?.value || '';
+    const filtroAnno = document.getElementById('filtroAnnoMonitor')?.value || '';
+    const filtroMese = e.target.value || '';
+    this.aggiornaMonitorCommesse(filtroStato, filtroNome, filtroAnno, filtroMese);
+});
 
 
         
@@ -670,16 +803,18 @@ class OreLavorateApp {
     });
     
     // PULSANTE RESET FILTRI
-    document.getElementById('btnResetFiltriMonitor')?.addEventListener('click', () => {
-        this.resetFiltriMonitor();
-    });
+   document.getElementById('btnResetFiltriMonitor')?.addEventListener('click', () => {
+    this.resetFiltriMonitor();
+});
     
     // PULSANTE AGGIORNA
-    document.getElementById('btnAggiornaMonitor')?.addEventListener('click', () => {
-        const filtroStato = document.getElementById('filtroCommessaMonitor').value;
-        const filtroNome = document.getElementById('filtroNomeCommessa').value;
-        this.aggiornaMonitorCommesse(filtroStato, filtroNome);
-    });
+   document.getElementById('btnAggiornaMonitor')?.addEventListener('click', () => {
+    const filtroStato = document.getElementById('filtroCommessaMonitor').value;
+    const filtroNome = document.getElementById('filtroNomeCommessa').value;
+    const filtroAnno = document.getElementById('filtroAnnoMonitor').value;
+    const filtroMese = document.getElementById('filtroMeseMonitor').value;
+    this.aggiornaMonitorCommesse(filtroStato, filtroNome, filtroAnno, filtroMese);
+});
     // Pulsante test per admin
     if (stateManager.currentUser?.ruolo === 'admin') {
         const testBtn = document.createElement('button');
@@ -761,12 +896,31 @@ class OreLavorateApp {
         await this.generaPDFMonitoraggio();
     });
 }
+// POPOLA GLI ANNI NEL SELECT DEL MONITORAGGIO
+popolaAnniMonitor() {
+    const annoSelect = document.getElementById('filtroAnnoMonitor');
+    if (!annoSelect) return;
+    
+    const annoCorrente = new Date().getFullYear();
+    annoSelect.innerHTML = '<option value="">Tutti gli anni</option>';
+    
+    // Popola gli ultimi 5 anni e i prossimi 2
+    for (let i = annoCorrente - 5; i <= annoCorrente + 2; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = i;
+        if (i === annoCorrente) {
+            option.selected = true;
+        }
+        annoSelect.appendChild(option);
+    }
+}
 
-// NUOVO METODO: Reset filtri monitoraggio
-// MODIFICA il metodo resetFiltriMonitor per non caricare automaticamente
 resetFiltriMonitor() {
     document.getElementById('filtroNomeCommessa').value = '';
     document.getElementById('filtroCommessaMonitor').value = '';
+    document.getElementById('filtroAnnoMonitor').value = '';
+    document.getElementById('filtroMeseMonitor').value = '';
     
     // Rimuovi info filtri
     const existingInfo = document.getElementById('infoFiltriMonitor');
@@ -774,13 +928,10 @@ resetFiltriMonitor() {
         existingInfo.remove();
     }
     
-    // SOLO se la tabella è visibile, aggiorna
-    const tabellaVisibile = document.getElementById('monitorCommesseTable')?.style.display !== 'none';
-    if (tabellaVisibile) {
-        this.aggiornaMonitorCommesse('', '');
-    } else {
-        ErrorHandler.showNotification('Filtri resettati', 'info');
-    }
+    // Aggiorna con filtri vuoti
+    this.aggiornaMonitorCommesse('', '', '', '');
+    
+    ErrorHandler.showNotification('Filtri resettati', 'info');
 }
        
        
@@ -879,7 +1030,7 @@ async mostraApplicazione() {
         document.querySelectorAll('.admin-only').forEach(el => {
             el.style.display = 'block';
         });
-        
+         this.popolaAnniMonitor();
         // NASCONDI la tabella monitoraggio all'inizio
         const monitorCommesseTable = document.getElementById('monitorCommesseTable');
         if (monitorCommesseTable) {
@@ -888,9 +1039,21 @@ async mostraApplicazione() {
         
         // Mostra un messaggio invece della tabella
         this.mostraMessaggioMonitoraggioIniziale();
+        // Nel metodo init(), dopo le altre inizializzazioni
+        this.inizializzaDarkMode();
     }
 
     document.getElementById('tabelleMensili').style.display = 'none';
+    // Dopo aver mostrato le sezioni admin
+if (stateManager.currentUser?.ruolo === 'admin') {
+    setTimeout(() => {
+        if (this.verificaChartJS()) {
+            this.creaGraficiDashboard();
+        }
+        this.aggiornaInfoUltimoBackup();
+    }, 1000);
+}
+
 
     // Imposta filtri predefiniti per admin
     if (stateManager.currentUser?.ruolo === 'admin') {
@@ -907,6 +1070,7 @@ async mostraApplicazione() {
         setTimeout(() => {
             document.getElementById('filtroGiorno').value = giornoCorrente;
         }, 100);
+       
     }
 
     await this.aggiornaMenuCommesse();
@@ -1027,6 +1191,7 @@ mostraTabellaMonitoraggio() {
         messaggio.style.display = 'none';
     }
 }
+
     async handleOreForm(e) {
     e.preventDefault();
     
@@ -1163,6 +1328,7 @@ async handleCommessaForm(e) {
         const valorePreventivoInput = document.getElementById('valorePreventivo').value;
         const valorePreventivo = parseFloat(valorePreventivoInput);
         const statoCommessa = document.getElementById('statoCommessa').value;
+        const dataCommessa = document.getElementById('dataCommessa').value; // NUOVO
 
         // VALIDAZIONE MIGLIORATA
         if (!nomeCommessa || !cliente) {
@@ -1172,6 +1338,12 @@ async handleCommessaForm(e) {
 
         if (!valorePreventivoInput || isNaN(valorePreventivo) || valorePreventivo <= 0) {
             ErrorHandler.showNotification("Inserisci un valore preventivo valido", 'error');
+            return;
+        }
+
+        // VALIDAZIONE DATA
+        if (!dataCommessa) {
+            ErrorHandler.showNotification("Seleziona una data inizio per la commessa", 'error');
             return;
         }
 
@@ -1185,6 +1357,7 @@ async handleCommessaForm(e) {
             oreTotaliPreviste: oreTotaliCommessa,
             oreIntegrazione: 0,
             stato: statoCommessa,
+            dataInizio: dataCommessa,  // NUOVO: salva la data
             dataCreazione: new Date().toISOString(),
             dataUltimaModifica: new Date().toISOString()
         };
@@ -1206,6 +1379,9 @@ async handleCommessaForm(e) {
         ]);
 
         e.target.reset();
+        
+        // Imposta data di default per il prossimo inserimento
+        document.getElementById('dataCommessa').value = new Date().toISOString().split('T')[0];
 
     } catch (error) {
         ErrorHandler.handleError(error, 'aggiunta commessa');
@@ -1574,68 +1750,152 @@ async aggiornaTabellaCommesse(filtro = '') {
     const tbody = document.querySelector('#commesseTable tbody');
     if (!tbody) return;
 
-    tbody.innerHTML = '';
-
     try {
-        if (this.datiTotaliCommesse.length === 0 || filtro) {
-            this.datiTotaliCommesse = await this.firebaseService.getCollection("commesse");
-            
-            if (filtro) {
-                const filtroLowerCase = filtro.toLowerCase();
-                this.datiTotaliCommesse = this.datiTotaliCommesse.filter(commessa => 
-                    commessa.nomeCommessa.toLowerCase().includes(filtroLowerCase) ||
-                    commessa.cliente.toLowerCase().includes(filtroLowerCase)
-                );
-            }
-            this.paginazioneCommesse.aggiornaDati(this.datiTotaliCommesse);
+        // Mostra loading
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Caricamento...</td></tr>';
+        
+        // Recupera tutte le commesse
+        let tutteLeCommesse = await this.firebaseService.getCollection("commesse");
+        
+        // Filtra se necessario
+        if (filtro && filtro.trim() !== '') {
+            const filtroLowerCase = filtro.toLowerCase();
+            tutteLeCommesse = tutteLeCommesse.filter(commessa => 
+                commessa.nomeCommessa.toLowerCase().includes(filtroLowerCase) ||
+                (commessa.cliente && commessa.cliente.toLowerCase().includes(filtroLowerCase))
+            );
         }
-
-        const datiPagina = this.paginazioneCommesse.getDatiPagina();
-
-        if (datiPagina.length === 0) {
-            const row = document.createElement('tr');
-            row.innerHTML = `<td colspan="6" class="text-center">Nessuna commessa trovata</td>`;
-            tbody.appendChild(row);
-        } else {
-            datiPagina.forEach(commessa => {
-                const row = document.createElement('tr');
-                const statoCorrente = commessa.stato || 'attiva';
-                
-                if (statoCorrente === 'conclusa') {
-                    row.classList.add('commessa-conclusa');
-                }
-                
-                row.innerHTML = `
-                    <td>${commessa.nomeCommessa}</td>
-                    <td>${commessa.cliente}</td>
-                    <td>€ ${commessa.valorePreventivo?.toFixed(2) || '0.00'}</td>
-                    <td>${Utils.formattaOreDecimali(commessa.oreTotaliPreviste || 0)} ore</td>
-                    <td>
-                        <span class="badge ${statoCorrente === 'attiva' ? 'badge-attiva' : 'badge-conclusa'}">
-                            ${statoCorrente === 'attiva' ? 'ATTIVA' : 'CONCLUSA'}
-                        </span>
-                    </td>
-                    <td>
-                        <button class="btn btn-sm btn-warning btnModificaCommessa" data-id="${commessa.id}">Modifica</button>
-                        <button class="btn btn-sm btn-secondary" onclick="app.cambiaStatoCommessa('${commessa.id}', '${statoCorrente}')">
-                            ${statoCorrente === 'attiva' ? 'Concludi' : 'Riattiva'}
-                        </button>
-                        <button class="btn btn-sm btn-danger btnEliminaCommessa" data-id="${commessa.id}">Elimina</button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-
-                row.querySelector('.btnModificaCommessa').addEventListener('click', () => this.modificaCommessa(commessa.id));
-                row.querySelector('.btnEliminaCommessa').addEventListener('click', () => this.eliminaCommessa(commessa.id));
-            });
+        
+        // Ordina le commesse (attive prima, poi per nome)
+        tutteLeCommesse.sort((a, b) => {
+            const statoA = a.stato === 'attiva' ? 0 : 1;
+            const statoB = b.stato === 'attiva' ? 0 : 1;
+            if (statoA !== statoB) return statoA - statoB;
+            return (a.nomeCommessa || '').localeCompare(b.nomeCommessa || '');
+        });
+        
+        // Salva i dati totali
+        this.datiTotaliCommesse = tutteLeCommesse;
+        
+        // Inizializza la paginazione se non esiste
+        if (!this.paginazioneCommesse) {
+            this.paginazioneCommesse = new PaginationManager('paginationCommesse', CONSTANTS.RIGHE_PER_PAGINA);
         }
-
-        this.paginazioneCommesse.render(this.datiTotaliCommesse, () => this.aggiornaTabellaCommesse(filtro));
-
+        
+        // Aggiorna i dati nella paginazione
+        this.paginazioneCommesse.aggiornaDati(tutteLeCommesse);
+        
+        // Renderizza la tabella
+        this.renderizzaTabellaCommesse();
+        
     } catch (error) {
         console.error('Errore nel caricamento tabella commesse:', error);
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Errore nel caricamento dei dati</td></tr>`;
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Errore nel caricamento dei dati</td></tr>';
     }
+}
+
+// NUOVO METODO: Renderizza la tabella con i dati della pagina corrente
+renderizzaTabellaCommesse() {
+    const tbody = document.querySelector('#commesseTable tbody');
+    if (!tbody) return;
+    
+    // Verifica che la paginazione esista
+    if (!this.paginazioneCommesse) {
+        console.error('Paginazione non inizializzata');
+        return;
+    }
+    
+    // Ottieni i dati della pagina corrente
+    const datiPagina = this.paginazioneCommesse.getDatiPagina();
+    
+    if (!datiPagina || datiPagina.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Nessuna commessa trovata</td></tr>';
+        // Renderizza comunque la paginazione (vuota)
+        this.paginazioneCommesse.render(this.datiTotaliCommesse, () => this.renderizzaTabellaCommesse());
+        return;
+    }
+    
+    // Pulisci il tbody
+    tbody.innerHTML = '';
+    
+    // Popola la tabella
+    datiPagina.forEach(commessa => {
+        const row = this.creaRigaTabellaCommesse(commessa);
+        tbody.appendChild(row);
+    });
+    
+    // Renderizza la paginazione
+    this.paginazioneCommesse.render(this.datiTotaliCommesse, () => this.renderizzaTabellaCommesse());
+}
+
+creaRigaTabellaCommesse(commessa) {
+    const row = document.createElement('tr');
+    const statoCorrente = commessa.stato || 'attiva';
+    
+    if (statoCorrente === 'conclusa') {
+        row.classList.add('commessa-conclusa', 'table-secondary');
+    }
+    
+    // Formatta la data
+    const dataInizio = commessa.dataInizio || (commessa.dataCreazione ? commessa.dataCreazione.split('T')[0] : '');
+    const dataFormattata = dataInizio ? this.formattaDataItaliana(dataInizio) : 'N/D';
+    
+    // Crea il contenuto HTML della riga - SENZA pulsante Data
+    row.innerHTML = `
+        <td style="min-width: 160px;">
+            <strong>${this.escapeHtml(commessa.nomeCommessa)}</strong>
+            <br><small class="text-muted">${this.escapeHtml(commessa.cliente || 'N/D')}</small>
+          </td>
+        <td class="text-end">€ ${(commessa.valorePreventivo || 0).toFixed(2)}</td>
+        <td class="text-center">${Utils.formattaOreDecimali(commessa.oreTotaliPreviste || 0)} ore</td>
+        <td class="text-center">${dataFormattata}</td>
+        <td class="text-center">
+            <span class="badge ${statoCorrente === 'attiva' ? 'bg-success' : 'bg-secondary'}">
+                ${statoCorrente === 'attiva' ? 'ATTIVA' : 'CONCLUSA'}
+            </span>
+        </td>
+       <td class="text-center">
+    <div class="btn-group btn-group-sm" role="group">
+        <button class="btn btn-sm btn-warning btn-modifica-commessa" data-id="${commessa.id}">
+            <i class="fas fa-edit"></i>
+        </button>
+        <button class="btn btn-sm btn-secondary btn-cambia-stato-commessa" data-id="${commessa.id}" data-stato="${statoCorrente}">
+            ${statoCorrente === 'attiva' ? '🔒' : '↩️'}
+        </button>
+        <button class="btn btn-sm btn-danger btn-elimina-commessa" data-id="${commessa.id}">
+            <i class="fas fa-trash"></i>
+        </button>
+    </div>
+</td>
+    `;
+    
+    // Aggiungi event listeners (SOLO 3 pulsanti ora)
+    const modificaBtn = row.querySelector('.btn-modifica-commessa');
+    const cambiaStatoBtn = row.querySelector('.btn-cambia-stato-commessa');
+    const eliminaBtn = row.querySelector('.btn-elimina-commessa');
+    
+    if (modificaBtn) {
+        modificaBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.modificaCommessa(commessa.id);
+        });
+    }
+    
+    if (cambiaStatoBtn) {
+        cambiaStatoBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.cambiaStatoCommessa(commessa.id, statoCorrente);
+        });
+    }
+    
+    if (eliminaBtn) {
+        eliminaBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.eliminaCommessa(commessa.id);
+        });
+    }
+    
+    return row;
 }
 
 // Aggiungi queste proprietà al costruttore della classe OreLavorateApp
@@ -1726,45 +1986,106 @@ async aggiornaTabellaCommesse(filtro = '') {
         }
     }
 
-      async modificaCommessa(id) {
-        try {
-            const docRef = doc(this.firebaseService.db, "commesse", id);
-            const docSnap = await getDoc(docRef);
-            
-            if (!docSnap.exists()) {
-                ErrorHandler.showNotification("Commessa non trovata", 'error');
+     async modificaCommessa(id) {
+    try {
+        const docRef = doc(this.firebaseService.db, "commesse", id);
+        const docSnap = await getDoc(docRef);
+        
+        if (!docSnap.exists()) {
+            ErrorHandler.showNotification("Commessa non trovata", 'error');
+            return;
+        }
+        
+        const commessa = docSnap.data();
+
+        // Prepara valori correnti per i prompt
+        const nomeCorrente = commessa.nomeCommessa || '';
+        const clienteCorrente = commessa.cliente || '';
+        const valoreCorrente = commessa.valorePreventivo || 0;
+        const dataCorrente = commessa.dataInizio || commessa.dataCreazione?.split('T')[0] || '';
+        const statoCorrente = commessa.stato === 'attiva';
+        
+        // Prompt per i vari campi
+        const nuovoNomeCommessa = prompt("Inserisci il nuovo nome della commessa:", nomeCorrente);
+        if (!nuovoNomeCommessa) return;
+        
+        const nuovoCliente = prompt("Inserisci il nuovo cliente:", clienteCorrente);
+        if (!nuovoCliente) return;
+        
+        const nuovoValorePreventivo = parseFloat(prompt("Inserisci il nuovo valore preventivo (€):", valoreCorrente));
+        if (isNaN(nuovoValorePreventivo) || nuovoValorePreventivo <= 0) {
+            ErrorHandler.showNotification("Valore preventivo non valido", 'error');
+            return;
+        }
+        
+        // NUOVO: Prompt per la data
+        let nuovaData = prompt(
+            "Inserisci la data di inizio commessa (YYYY-MM-DD):\n\n" +
+            "Esempio: 2025-01-15", 
+            dataCorrente
+        );
+        
+        // Valida la data
+        if (nuovaData) {
+            const regexData = /^\d{4}-\d{2}-\d{2}$/;
+            if (!regexData.test(nuovaData)) {
+                ErrorHandler.showNotification("Formato data non valido. Usa YYYY-MM-DD", 'error');
                 return;
             }
             
-            const commessa = docSnap.data();
-
-            const nuovoNomeCommessa = prompt("Inserisci il nuovo nome della commessa:", commessa.nomeCommessa);
-            const nuovoCliente = prompt("Inserisci il nuovo cliente:", commessa.cliente);
-            const nuovoValorePreventivo = parseFloat(prompt("Inserisci il nuovo valore preventivo (€):", commessa.valorePreventivo));
-            const nuovoStato = confirm("La commessa è attiva? (OK per Attiva, Annulla per Conclusa)") ? 'attiva' : 'conclusa';
-            const oreIntegrazioneEsistenti = commessa.oreIntegrazione || 0;
-            if (nuovoNomeCommessa && nuovoCliente && !isNaN(nuovoValorePreventivo)) {
-                const nuoveOreTotali = this.calcolaOreDaPreventivo(nuovoValorePreventivo);
-                
-                await this.firebaseService.updateDocument("commesse", id, {
-                    nomeCommessa: nuovoNomeCommessa,
-                    cliente: nuovoCliente,
-                    valorePreventivo: nuovoValorePreventivo,
-                    oreTotaliPreviste: nuoveOreTotali,
-                    oreIntegrazione: oreIntegrazioneEsistenti,
-                    stato: nuovoStato,
-                    dataUltimaModifica: new Date().toISOString()
-                });
-                
-                ErrorHandler.showNotification("Commessa modificata con successo!", 'success');
-                await this.aggiornaTabellaCommesse();
-                await this.aggiornaMenuCommesse(); // Importante: aggiorna menu dipendenti
-                await this.aggiornaMonitorCommesse();
+            // Verifica che la data sia valida
+            const dataTest = new Date(nuovaData);
+            if (isNaN(dataTest.getTime())) {
+                ErrorHandler.showNotification("Data non valida", 'error');
+                return;
             }
-        } catch (error) {
-            ErrorHandler.handleError(error, 'modifica commessa');
+        } else {
+            // Se l'utente annulla, mantieni la data esistente
+            nuovaData = dataCorrente;
         }
+        
+        const nuovoStato = confirm("La commessa è attiva? (OK per Attiva, Annulla per Conclusa)") ? 'attiva' : 'conclusa';
+        
+        // Calcola nuove ore totali in base al nuovo preventivo
+        const nuoveOreTotali = this.calcolaOreDaPreventivo(nuovoValorePreventivo);
+        const oreIntegrazioneEsistenti = commessa.oreIntegrazione || 0;
+        
+        // Prepara i dati da aggiornare
+        const updateData = {
+            nomeCommessa: nuovoNomeCommessa,
+            cliente: nuovoCliente,
+            valorePreventivo: nuovoValorePreventivo,
+            oreTotaliPreviste: nuoveOreTotali,
+            oreIntegrazione: oreIntegrazioneEsistenti,
+            stato: nuovoStato,
+            dataUltimaModifica: new Date().toISOString()
+        };
+        
+        // Aggiungi la data solo se è stata fornita
+        if (nuovaData) {
+            updateData.dataInizio = nuovaData;
+        }
+        
+        await this.firebaseService.updateDocument("commesse", id, updateData);
+        
+        const messaggio = `Commessa "${nuovoNomeCommessa}" modificata con successo!\n` +
+                         `Ore totali previste: ${Utils.formattaOreDecimali(nuoveOreTotali)}\n` +
+                         `Data inizio: ${nuovaData || 'Non specificata'}`;
+        
+        ErrorHandler.showNotification(messaggio, 'success');
+        
+        // Aggiorna tutte le viste
+        await Promise.all([
+            this.aggiornaTabellaCommesse(),
+            this.aggiornaMenuCommesse(),
+            this.aggiornaMonitorCommesse()
+        ]);
+        
+    } catch (error) {
+        console.error('Errore in modificaCommessa:', error);
+        ErrorHandler.handleError(error, 'modifica commessa');
     }
+}
 
 
     async eliminaOreLavorate(id) {
@@ -1792,17 +2113,25 @@ async aggiornaTabellaCommesse(filtro = '') {
     }
 
     async eliminaCommessa(id) {
-        if (confirm("Sei sicuro di voler eliminare questa commessa?")) {
-            try {
-                await this.firebaseService.deleteDocument("commesse", id);
-                ErrorHandler.showNotification("Commessa eliminata con successo!", 'success');
-                await this.aggiornaTabellaCommesse();
-                await this.aggiornaMenuCommesse();
-            } catch (error) {
-                ErrorHandler.handleError(error, 'eliminazione commessa');
+    if (confirm("Sei sicuro di voler eliminare questa commessa?\n\nAttenzione: Questa azione è irreversibile!")) {
+        try {
+            await this.firebaseService.deleteDocument("commesse", id);
+            ErrorHandler.showNotification("Commessa eliminata con successo!", 'success');
+            
+            // Ricarica i dati e resetta la paginazione
+            this.datiTotaliCommesse = [];
+            if (this.paginazioneCommesse) {
+                this.paginazioneCommesse.reset();
             }
+            await this.aggiornaTabellaCommesse();
+            await this.aggiornaMenuCommesse();
+            await this.aggiornaMonitorCommesse();
+            
+        } catch (error) {
+            ErrorHandler.handleError(error, 'eliminazione commessa');
         }
     }
+}
 
    async controllaOrariGiornata(data, nuovaOraInizio, nuovaOraFine, idEscluso = null) {
     try {
@@ -2027,6 +2356,390 @@ async generaPDFFiltrato() {
     }
 }
 
+// GENERA PDF RUBRICA DIPENDENTI
+// GENERA PDF RUBRICA DIPENDENTI (versione senza emoji)
+async generaPDFRubricaDipendenti() {
+    try {
+        console.log('📄 Avvio generazione PDF rubrica dipendenti...');
+        
+        // Verifica librerie PDF
+        if (typeof window.jspdf === 'undefined') {
+            await this.caricaLibreriePDFDinamico();
+        }
+        
+        const { jsPDF } = window.jspdf;
+        if (!jsPDF) {
+            throw new Error('jsPDF non disponibile');
+        }
+        
+        // Recupera tutti i dipendenti
+        const dipendenti = await this.firebaseService.getCollection("dipendenti");
+        
+        if (!dipendenti || dipendenti.length === 0) {
+            ErrorHandler.showNotification("Nessun dipendente trovato", 'warning');
+            return;
+        }
+        
+        // Ordina dipendenti per ruolo (admin prima, poi dipendenti) e poi per cognome
+        dipendenti.sort((a, b) => {
+            if (a.ruolo !== b.ruolo) {
+                return a.ruolo === 'admin' ? -1 : 1;
+            }
+            return (a.cognome || '').localeCompare(b.cognome || '');
+        });
+        
+        // Crea PDF in orientamento portrait
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+        
+        // Colori professionali
+        const colors = {
+            primary: [44, 62, 80],      // Blu scuro
+            secondary: [52, 152, 219],   // Blu chiaro
+            accent: [46, 204, 113],      // Verde
+            warning: [243, 156, 18],     // Arancione
+            danger: [231, 76, 60],       // Rosso
+            text: [52, 73, 94],          // Testo scuro
+            light: [236, 240, 241],      // Grigio chiaro
+            background: [248, 249, 250]  // Sfondo
+        };
+        
+        // HEADER
+        this.creaHeaderRubricaPDF(doc, colors, dipendenti.length);
+        
+        // Statistiche rapide
+        let yPos = this.creaStatisticheRubricaPDF(doc, colors, dipendenti, 35);
+        
+        // Tabella dipendenti
+        yPos = this.creaTabellaRubricaPDF(doc, colors, dipendenti, yPos + 5);
+        
+        // Footer (applicato a tutte le pagine)
+        this.creaFooterRubricaPDF(doc, colors);
+        
+        // Salva PDF
+        const dataGenerazione = new Date().toISOString().split('T')[0];
+        const nomeFile = `rubrica_dipendenti_${dataGenerazione}.pdf`;
+        doc.save(nomeFile);
+        
+        console.log('✅ PDF rubrica dipendenti generato con successo!');
+        ErrorHandler.showNotification(`PDF rubrica generato: ${dipendenti.length} dipendenti`, 'success');
+        
+    } catch (error) {
+        console.error('❌ Errore generazione PDF rubrica:', error);
+        ErrorHandler.showNotification('Errore nella generazione PDF: ' + error.message, 'error');
+    }
+}
+
+// HEADER RUBRICA PDF
+creaHeaderRubricaPDF(doc, colors, totaleDipendenti) {
+    // Sfondo header
+    doc.setFillColor(...colors.primary);
+    doc.rect(0, 0, 210, 35, 'F');
+    
+    // Logo/Icona (rettangolo bianco)
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(15, 8, 35, 15, 2, 2, 'F');
+    
+    doc.setTextColor(...colors.primary);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('UNION14', 18, 17);
+    doc.text('SRL', 40, 17);
+    
+    // Titolo principale
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RUBRICA DIPENDENTI', 105, 18, { align: 'center' });
+    
+    // Sottotitolo
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Anagrafica del personale', 105, 26, { align: 'center' });
+    
+    // Data generazione
+    doc.setFontSize(8);
+    const dataGenerazione = new Date().toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
+    doc.text(`Generato: ${dataGenerazione}`, 195, 12, { align: 'right' });
+    doc.text(`Totale: ${totaleDipendenti} dipendenti`, 195, 19, { align: 'right' });
+}
+
+// STATISTICHE RUBRICA PDF (senza icone)
+creaStatisticheRubricaPDF(doc, colors, dipendenti, startY) {
+    // Conta admin e dipendenti
+    const adminCount = dipendenti.filter(d => d.ruolo === 'admin').length;
+    const dipendentiCount = dipendenti.filter(d => d.ruolo === 'dipendente').length;
+    
+    // Container statistiche
+    doc.setFillColor(...colors.background);
+    doc.roundedRect(14, startY, 182, 22, 3, 3, 'F');
+    
+    // Titolo
+    doc.setTextColor(...colors.primary);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RIEPILOGO RUBRICA', 20, startY + 6);
+    
+    // Linea separatrice
+    doc.setDrawColor(...colors.light);
+    doc.line(20, startY + 9, 190, startY + 9);
+    
+    // Valori
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...colors.text);
+    
+    doc.text(`Totale dipendenti: ${dipendenti.length}`, 20, startY + 16);
+    doc.text(`Amministratori: ${adminCount}`, 85, startY + 16);
+    doc.text(`Dipendenti: ${dipendentiCount}`, 155, startY + 16);
+    
+    return startY + 22;
+}
+
+// TABELLA RUBRICA PDF (senza icone)
+creaTabellaRubricaPDF(doc, colors, dipendenti, startY) {
+    if (typeof doc.autoTable !== 'undefined') {
+        
+        // Prepara i dati per la tabella
+        const tableData = dipendenti.map(dip => {
+            const isAdmin = dip.ruolo === 'admin';
+            const ruoloTesto = isAdmin ? 'ADMIN' : 'DIPENDENTE';
+            const ruoloColore = isAdmin ? colors.warning : colors.accent;
+            
+            return [
+                { 
+                    content: `${dip.nome || ''} ${dip.cognome || ''}`,
+                    styles: { fontStyle: 'bold', fontSize: 9 }
+                },
+                { 
+                    content: dip.email || '-',
+                    styles: { fontSize: 8 }
+                },
+                { 
+                    content: dip.password ? '********' : '-',
+                    styles: { fontSize: 8, textColor: [150, 150, 150] }
+                },
+                { 
+                    content: ruoloTesto,
+                    styles: { 
+                        fontSize: 8, 
+                        fontStyle: 'bold',
+                        textColor: ruoloColore,
+                        halign: 'center'
+                    }
+                }
+            ];
+        });
+        
+        // Configurazione colonne
+        const columnStyles = {
+            0: { cellWidth: 55, halign: 'left' },   // Nome
+            1: { cellWidth: 65, halign: 'left' },   // Email
+            2: { cellWidth: 30, halign: 'center' },  // Password
+            3: { cellWidth: 32, halign: 'center' }   // Ruolo
+        };
+        
+        // Intestazioni
+        const headers = [
+            { content: 'NOME COMPLETO', styles: { 
+                fillColor: colors.secondary, 
+                textColor: 255, 
+                fontStyle: 'bold',
+                fontSize: 9,
+                cellPadding: 4
+            }},
+            { content: 'EMAIL', styles: { 
+                fillColor: colors.secondary, 
+                textColor: 255, 
+                fontStyle: 'bold',
+                fontSize: 9,
+                cellPadding: 4
+            }},
+            { content: 'PASSWORD', styles: { 
+                fillColor: colors.secondary, 
+                textColor: 255, 
+                fontStyle: 'bold',
+                fontSize: 9,
+                cellPadding: 4
+            }},
+            { content: 'RUOLO', styles: { 
+                fillColor: colors.secondary, 
+                textColor: 255, 
+                fontStyle: 'bold',
+                fontSize: 9,
+                cellPadding: 4
+            }}
+        ];
+        
+        doc.autoTable({
+            startY: startY,
+            head: [headers],
+            body: tableData,
+            theme: 'grid',
+            styles: { 
+                fontSize: 8,
+                cellPadding: 4,
+                lineColor: [200, 200, 200],
+                lineWidth: 0.1,
+                overflow: 'linebreak',
+                minCellHeight: 8
+            },
+            headStyles: { 
+                fillColor: colors.secondary,
+                textColor: 255,
+                fontStyle: 'bold',
+                fontSize: 9,
+                cellPadding: 5
+            },
+            alternateRowStyles: {
+                fillColor: [248, 248, 250]
+            },
+            columnStyles: columnStyles,
+            margin: { top: startY, right: 14, left: 14, bottom: 20 },
+            tableWidth: 182,
+            pageBreak: 'auto',
+            didDrawPage: (data) => {
+                // Numero pagina
+                doc.setFontSize(8);
+                doc.setTextColor(150, 150, 150);
+                doc.text(
+                    `Pagina ${data.pageNumber} di ${doc.internal.getNumberOfPages()}`, 
+                    105, 
+                    doc.internal.pageSize.height - 10,
+                    { align: 'center' }
+                );
+            }
+        });
+        
+        return doc.lastAutoTable.finalY + 5;
+    } else {
+        return this.creaTabellaRubricaManuale(doc, colors, dipendenti, startY);
+    }
+}
+
+// TABELLA MANUALE (fallback senza icone)
+creaTabellaRubricaManuale(doc, colors, dipendenti, startY) {
+    let y = startY;
+    const pageHeight = doc.internal.pageSize.height;
+    const margins = { left: 14, right: 14 };
+    
+    // Larghezze colonne
+    const colWidths = [55, 65, 30, 32];
+    const totalWidth = colWidths.reduce((sum, w) => sum + w, 0);
+    
+    // Intestazione
+    doc.setFillColor(...colors.secondary);
+    doc.rect(margins.left, y, totalWidth, 7, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    
+    let x = margins.left;
+    const headers = ['NOME COMPLETO', 'EMAIL', 'PASSWORD', 'RUOLO'];
+    headers.forEach((header, index) => {
+        doc.text(header, x + 2, y + 5);
+        x += colWidths[index];
+    });
+    
+    y += 8;
+    
+    // Dati
+    doc.setFont('helvetica', 'normal');
+    
+    dipendenti.forEach((dip, index) => {
+        if (y > pageHeight - 20) {
+            doc.addPage();
+            y = 20;
+            
+            // Ridisegna intestazione
+            doc.setFillColor(...colors.secondary);
+            doc.rect(margins.left, y, totalWidth, 7, 'F');
+            doc.setTextColor(255, 255, 255);
+            
+            x = margins.left;
+            headers.forEach((header, idx) => {
+                doc.text(header, x + 2, y + 5);
+                x += colWidths[idx];
+            });
+            y += 8;
+        }
+        
+        // Sfondo alternato
+        if (index % 2 === 0) {
+            doc.setFillColor(248, 248, 250);
+            doc.rect(margins.left, y, totalWidth, 6, 'F');
+        }
+        
+        doc.setTextColor(...colors.text);
+        x = margins.left;
+        
+        // Nome
+        doc.text(`${dip.nome || ''} ${dip.cognome || ''}`, x + 2, y + 4);
+        x += colWidths[0];
+        
+        // Email - troncata se troppo lunga
+        let email = dip.email || '-';
+        if (email.length > 25) {
+            email = email.substring(0, 22) + '...';
+        }
+        doc.text(email, x + 2, y + 4);
+        x += colWidths[1];
+        
+        // Password
+        doc.text('********', x + (colWidths[2] / 2), y + 4, { align: 'center' });
+        x += colWidths[2];
+        
+        // Ruolo - senza icone
+        const ruoloText = dip.ruolo === 'admin' ? 'ADMIN' : 'DIPENDENTE';
+        const ruoloColor = dip.ruolo === 'admin' ? colors.warning : colors.accent;
+        doc.setTextColor(...ruoloColor);
+        doc.text(ruoloText, x + (colWidths[3] / 2), y + 4, { align: 'center' });
+        
+        // Ripristina colore per la prossima riga
+        doc.setTextColor(...colors.text);
+        
+        y += 6;
+    });
+    
+    return y + 5;
+}
+
+// FOOTER RUBRICA PDF
+// FOOTER RUBRICA PDF
+creaFooterRubricaPDF(doc, colors) {
+    const pageHeight = doc.internal.pageSize.height;
+    const pageCount = doc.internal.getNumberOfPages();
+    
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        
+        // Linea separatrice
+        doc.setDrawColor(...colors.light);
+        doc.line(14, pageHeight - 18, 196, pageHeight - 18);
+        
+        // Testo footer
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(150, 150, 150);
+        
+        doc.text('Union14 srl - Rubrica Dipendenti', 14, pageHeight - 12);
+        doc.text('Documento riservato - Solo uso interno', 105, pageHeight - 12, { align: 'center' });
+        
+        // Numero pagina
+        doc.text(`Pagina ${i} di ${pageCount}`, 196, pageHeight - 12, { align: 'right' });
+    }
+}
 // Aggiungi questi metodi helper per migliorare il PDF
 generaTitoloPDF() {
     const filtri = this.getFiltriAttivi();
@@ -2462,17 +3175,21 @@ async getFasceOccupateGiornata(data) {
 }
 
 formattaDataItaliana(dataString) {
-    const data = new Date(dataString + 'T00:00:00');
-    const giorni = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
-    const mesi = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 
-                  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
-    
-    const giornoSettimana = giorni[data.getDay()];
-    const giorno = data.getDate();
-    const mese = mesi[data.getMonth()];
-    const anno = data.getFullYear();
-    
-    return `${giornoSettimana} ${giorno} ${mese} ${anno}`;
+    if (!dataString) return 'N/D';
+    try {
+        const data = new Date(dataString + 'T00:00:00');
+        if (isNaN(data.getTime())) return 'N/D';
+        const giorni = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+        const mesi = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+        
+        const giorno = data.getDate();
+        const mese = mesi[data.getMonth()];
+        const anno = data.getFullYear();
+        
+        return `${giorno} ${mese} ${anno}`;
+    } catch (e) {
+        return 'N/D';
+    }
 }
 
 creaTimelineGiornata(oreOccupate) {
@@ -2568,10 +3285,9 @@ controllaPausaPranzoTempoReale() {
     return parseFloat(ore.toFixed(2)); // 2 decimali per precisione
 }
 
-// MODIFICA il metodo aggiornaMonitorCommesse per mostrare sempre la tabella quando viene chiamato
-async aggiornaMonitorCommesse(filtroStato = '', filtroNome = '') {
+async aggiornaMonitorCommesse(filtroStato = '', filtroNome = '', filtroAnno = '', filtroMese = '') {
     try {
-        console.log('🔄 Aggiornamento monitor commesse...');
+        console.log('🔄 Aggiornamento monitor commesse con filtri:', {filtroStato, filtroNome, filtroAnno, filtroMese});
         
         const [tutteLeCommesse, tutteLeOre] = await Promise.all([
             this.firebaseService.getCollection("commesse"),
@@ -2583,7 +3299,7 @@ async aggiornaMonitorCommesse(filtroStato = '', filtroNome = '') {
             commessa && typeof commessa === 'object' && commessa.nomeCommessa
         );
         
-        // Applica filtri
+        // FILTRO PER NOME
         if (filtroNome && filtroNome.trim() !== '') {
             const filtroLowerCase = filtroNome.toLowerCase().trim();
             commesseDaMostrare = commesseDaMostrare.filter(commessa => 
@@ -2591,10 +3307,31 @@ async aggiornaMonitorCommesse(filtroStato = '', filtroNome = '') {
             );
         }
         
+        // FILTRO PER STATO
         if (filtroStato === 'attive') {
             commesseDaMostrare = commesseDaMostrare.filter(c => c.stato === 'attiva' || !c.stato);
         } else if (filtroStato === 'concluse') {
             commesseDaMostrare = commesseDaMostrare.filter(c => c.stato === 'conclusa');
+        }
+        
+        // NUOVO: FILTRO PER ANNO E MESE SULLA DATA DELLA COMMESSA (NON SULLE ORE)
+        if (filtroAnno && filtroAnno !== '') {
+            commesseDaMostrare = commesseDaMostrare.filter(commessa => {
+                // Usa dataInizio se esiste, altrimenti dataCreazione, altrimenti non filtrare
+                const dataCommessa = commessa.dataInizio || commessa.dataCreazione;
+                if (!dataCommessa) return true; // Se non ha data, includila
+                const annoCommessa = dataCommessa.split('-')[0];
+                return annoCommessa === filtroAnno;
+            });
+        }
+        
+        if (filtroMese && filtroMese !== '') {
+            commesseDaMostrare = commesseDaMostrare.filter(commessa => {
+                const dataCommessa = commessa.dataInizio || commessa.dataCreazione;
+                if (!dataCommessa) return true; // Se non ha data, includila
+                const meseCommessa = dataCommessa.split('-')[1];
+                return meseCommessa === filtroMese;
+            });
         }
 
         const tbody = document.querySelector('#monitorCommesseTable tbody');
@@ -2603,7 +3340,7 @@ async aggiornaMonitorCommesse(filtroStato = '', filtroNome = '') {
         tbody.innerHTML = '';
 
         if (commesseDaMostrare.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="9" class="text-center">Nessuna commessa trovata</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="11" class="text-center">Nessuna commessa trovata con i filtri applicati</td></tr>`;
             return;
         }
 
@@ -2615,39 +3352,221 @@ async aggiornaMonitorCommesse(filtroStato = '', filtroNome = '') {
             return a.nomeCommessa.localeCompare(b.nomeCommessa);
         });
 
+        // Calcola statistiche per ogni commessa (usa TUTTE le ore, senza filtri data)
         for (const commessa of commesseDaMostrare) {
-            const statistiche = this.calcolaStatisticheConIntegrazione(commessa, tutteLeOre);
+            const statistiche = await this.calcolaStatisticheCommessa(commessa, tutteLeOre);
             const row = this.creaRigaMonitoraggio(commessa, statistiche);
             tbody.appendChild(row);
         }
 
+        // Mostra info sui filtri applicati
+        this.mostraInfoFiltriMonitorAggiornata(commesseDaMostrare.length, tutteLeCommesse.length, filtroNome, filtroStato, filtroAnno, filtroMese);
+        
         this.mostraTabellaMonitoraggio();
-        console.log('✅ Monitoraggio aggiornato');
+        console.log('✅ Monitoraggio aggiornato con filtri su data commessa');
 
     } catch (error) {
         console.error('❌ Errore aggiornamento monitor:', error);
+        ErrorHandler.showNotification('Errore nel caricamento del monitoraggio', 'error');
+    }
+}
+mostraInfoFiltriMonitorAggiornata(commesseFiltrate, commesseTotali, filtroNome, filtroStato, filtroAnno, filtroMese) {
+    // Rimuovi info precedenti
+    const existingInfo = document.getElementById('infoFiltriMonitor');
+    if (existingInfo) {
+        existingInfo.remove();
+    }
+
+    // Crea solo se ci sono filtri attivi
+    if (!filtroNome && !filtroStato && !filtroAnno && !filtroMese) return;
+
+    const infoDiv = document.createElement('div');
+    infoDiv.id = 'infoFiltriMonitor';
+    infoDiv.className = 'alert alert-info py-2 mt-3';
+    
+    let infoText = `<strong>Filtri attivi:</strong> `;
+    const filtriAttivi = [];
+    
+    if (filtroNome && filtroNome.trim() !== '') {
+        filtriAttivi.push(`Commessa: "${filtroNome}"`);
+    }
+    if (filtroStato && filtroStato !== '') {
+        const statoTesto = filtroStato === 'attive' ? 'Attive' : 'Concluse';
+        filtriAttivi.push(`Stato: ${statoTesto}`);
+    }
+    if (filtroAnno && filtroAnno !== '') {
+        filtriAttivi.push(`Anno commessa: ${filtroAnno}`);
+    }
+    if (filtroMese && filtroMese !== '') {
+        const mesi = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 
+                      'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+        const nomeMese = mesi[parseInt(filtroMese) - 1];
+        filtriAttivi.push(`Mese commessa: ${nomeMese}`);
+    }
+    
+    infoText += filtriAttivi.join(' • ');
+    infoText += ` | <strong>Risultati:</strong> ${commesseFiltrate} di ${commesseTotali} commesse`;
+    
+    infoDiv.innerHTML = infoText;
+
+    // Inserisci dopo la tabella
+    const table = document.getElementById('monitorCommesseTable');
+    if (table && table.parentNode) {
+        table.parentNode.insertBefore(infoDiv, table.nextSibling);
+    }
+}
+// NUOVO METODO: Calcola statistiche usando le ore filtrate per data
+async calcolaStatisticheConFiltriData(commessa, oreFiltratePerData) {
+    // VALORI DI DEFAULT
+    let valorePreventivo = 0;
+    let orePrevisteOriginali = 0;
+    let oreIntegrazione = 0;
+    let costiFornitori = 0;
+    let oreLavorateTotali = 0;
+    let oreNonConformita = 0;
+    
+    try {
+        valorePreventivo = parseFloat(commessa.valorePreventivo) || 0;
+        orePrevisteOriginali = parseFloat(commessa.oreTotaliPreviste) || 0;
+        oreIntegrazione = parseFloat(commessa.oreIntegrazione) || 0;
+        
+        // RECUPERA I COSTI DEI FORNITORI
+        try {
+            const tutteLeLavorazioniFornitori = await this.firebaseService.getCollection("fornitoriLavorazioni");
+            costiFornitori = tutteLeLavorazioniFornitori
+                .filter(f => f.commessa === commessa.nomeCommessa)
+                .reduce((tot, f) => tot + (parseFloat(f.costo) || 0), 0);
+        } catch (e) {
+            console.warn('Errore recupero fornitori:', e);
+            costiFornitori = 0;
+        }
+        
+        // Filtra ore per questa commessa
+        const oreCommessa = oreFiltratePerData.filter(ore => 
+            ore.commessa && ore.commessa.toLowerCase().trim() === commessa.nomeCommessa.toLowerCase().trim()
+        );
+        
+        // Calcola ore lavorate
+        oreLavorateTotali = oreCommessa.reduce((tot, ore) => {
+            try {
+                return tot + Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+            } catch (e) {
+                return tot;
+            }
+        }, 0);
+        
+        // Calcola ore non conformità
+        oreNonConformita = oreCommessa
+            .filter(ore => ore.nonConformita === true)
+            .reduce((tot, ore) => {
+                try {
+                    return tot + Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+                } catch (e) {
+                    return tot;
+                }
+            }, 0);
+            
+    } catch (error) {
+        console.error('Errore nel calcolo statistiche per:', commessa?.nomeCommessa, error);
+    }
+    
+    // Calcoli finali (con valori di default sicuri)
+    const costoCostoIntegrazione = oreIntegrazione * (window.TARIFFA_ORARIA || 28.50);
+    const ricavoTotale = valorePreventivo + costoCostoIntegrazione;
+    
+    const costoDipendentiConformi = (oreLavorateTotali - oreNonConformita) * (window.TARIFFA_ORARIA || 28.50);
+    const costoDipendentiNC = oreNonConformita * (window.COSTO_ORARIO_NON_CONFORMITA || 28.50);
+    const costoDipendentiTotali = costoDipendentiConformi + costoDipendentiNC;
+    
+    const costoTotale = costoDipendentiTotali + costiFornitori;
+    const margineEuro = ricavoTotale - costoTotale;
+    const marginePercentuale = ricavoTotale > 0 ? (margineEuro / ricavoTotale) * 100 : 0;
+    
+    return {
+        valorePreventivo: valorePreventivo,
+        orePrevisteOriginali: orePrevisteOriginali,
+        oreIntegrazione: oreIntegrazione,
+        valoreAggiuntivoIntegrazione: costoCostoIntegrazione,
+        ricavoTotale: ricavoTotale,
+        oreLavorateTotali: oreLavorateTotali,
+        oreNonConformita: oreNonConformita,
+        costoDipendentiTotali: costoDipendentiTotali,
+        costiFornitori: costiFornitori,
+        costoTotale: costoTotale,
+        margineEuro: margineEuro,
+        marginePercentuale: marginePercentuale,
+        hasIntegrazione: oreIntegrazione > 0,
+        hasFornitori: costiFornitori > 0,
+        dataInizio: commessa.dataInizio || null
+    };
+}
+// NUOVO METODO: Mostra info filtri monitoraggio
+mostraInfoFiltriMonitor(commesseFiltrate, commesseTotali, filtroNome, filtroStato, filtroAnno, filtroMese) {
+    // Rimuovi info precedenti
+    const existingInfo = document.getElementById('infoFiltriMonitor');
+    if (existingInfo) {
+        existingInfo.remove();
+    }
+
+    // Crea solo se ci sono filtri attivi
+    if (!filtroNome && !filtroStato && !filtroAnno && !filtroMese) return;
+
+    const infoDiv = document.createElement('div');
+    infoDiv.id = 'infoFiltriMonitor';
+    infoDiv.className = 'alert alert-info py-2 mt-3';
+    
+    let infoText = `<strong>Filtri attivi:</strong> `;
+    const filtriAttivi = [];
+    
+    if (filtroNome && filtroNome.trim() !== '') {
+        filtriAttivi.push(`Commessa: "${filtroNome}"`);
+    }
+    if (filtroStato && filtroStato !== '') {
+        const statoTesto = filtroStato === 'attive' ? 'Attive' : 'Concluse';
+        filtriAttivi.push(`Stato: ${statoTesto}`);
+    }
+    if (filtroAnno && filtroAnno !== '') {
+        filtriAttivi.push(`Anno: ${filtroAnno}`);
+    }
+    if (filtroMese && filtroMese !== '') {
+        const mesi = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 
+                      'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+        const nomeMese = mesi[parseInt(filtroMese) - 1];
+        filtriAttivi.push(`Mese: ${nomeMese}`);
+    }
+    
+    infoText += filtriAttivi.join(' • ');
+    infoText += ` | <strong>Risultati:</strong> ${commesseFiltrate} di ${commesseTotali} commesse`;
+    
+    infoDiv.innerHTML = infoText;
+
+    // Inserisci dopo la tabella
+    const table = document.getElementById('monitorCommesseTable');
+    if (table && table.parentNode) {
+        table.parentNode.insertBefore(infoDiv, table.nextSibling);
     }
 }
 // ========== CALCOLO STATISTICHE CON INTEGRAZIONE ==========
-// ========== CALCOLO STATISTICHE CON INTEGRAZIONE (CORRETTO) ==========
-calcolaStatisticheConIntegrazione(commessa, tutteLeOre) {
+// ========== CALCOLO STATISTICHE CON INTEGRAZIONE E FORNITORI ==========
+async calcolaStatisticheConIntegrazione(commessa, tutteLeOre) {
     const valorePreventivo = parseFloat(commessa.valorePreventivo) || 0;
     const orePrevisteOriginali = parseFloat(commessa.oreTotaliPreviste) || 0;
     const oreIntegrazione = parseFloat(commessa.oreIntegrazione) || 0;
-    const oreTotaliDisponibili = orePrevisteOriginali + oreIntegrazione;
-    
-    // Calcolo del costo delle ore di integrazione (che poi diventa RICAVO aggiuntivo)
     const costoCostoIntegrazione = oreIntegrazione * TARIFFA_ORARIA;
-    
-    // RICAVO TOTALE = Preventivo + Costo delle ore di integrazione
     const ricavoTotale = valorePreventivo + costoCostoIntegrazione;
+    
+    // RECUPERA I COSTI DEI FORNITORI PER QUESTA COMMESSA
+        const tutteLeLavorazioniFornitori = await this.firebaseService.getCollection("fornitoriLavorazioni");
+    const costiFornitori = tutteLeLavorazioniFornitori
+        .filter(f => f.commessa === commessa.nomeCommessa)
+        .reduce((tot, f) => tot + f.costo, 0);
     
     // Filtra ore per questa commessa
     const oreCommessa = tutteLeOre.filter(ore => 
         ore.commessa && ore.commessa.toLowerCase().trim() === commessa.nomeCommessa.toLowerCase().trim()
     );
     
-    // Calcola ore lavorate totali
+    // Calcola ore lavorate dai dipendenti interni
     const oreLavorateTotali = oreCommessa.reduce((tot, ore) => {
         return tot + Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
     }, 0);
@@ -2657,133 +3576,312 @@ calcolaStatisticheConIntegrazione(commessa, tutteLeOre) {
         .filter(ore => ore.nonConformita === true)
         .reduce((tot, ore) => tot + Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine), 0);
     
-    // Calcoli COSTI (quello che l'azienda paga ai dipendenti)
-    const costoOreConformi = (oreLavorateTotali - oreNonConformita) * TARIFFA_ORARIA;
-    const costoOreNC = oreNonConformita * COSTO_ORARIO_NON_CONFORMITA;
-    const costoTotaleAzienda = costoOreConformi + costoOreNC;
+    // COSTO DIPENDENTI INTERNI
+    const costoDipendentiConformi = (oreLavorateTotali - oreNonConformita) * TARIFFA_ORARIA;
+    const costoDipendentiNC = oreNonConformita * COSTO_ORARIO_NON_CONFORMITA;
+    const costoDipendentiTotali = costoDipendentiConformi + costoDipendentiNC;
     
-    // MARGINE CORRETTO = Ricavo totale - Costo azienda
-    const margineEuro = ricavoTotale - costoTotaleAzienda;
+    // COSTO TOTALE (Dipendenti + Fornitori)
+    const costoTotale = costoDipendentiTotali + costiFornitori;
+    
+    // MARGINE
+    const margineEuro = ricavoTotale - costoTotale;
     const marginePercentuale = ricavoTotale > 0 ? (margineEuro / ricavoTotale) * 100 : 0;
-    
-    // Per la visualizzazione: valore aggiuntivo dell'integrazione sul fatturato
-    const valoreAggiuntivoIntegrazione = costoCostoIntegrazione; // Quanto fattura in più
     
     return {
         valorePreventivo,
         orePrevisteOriginali,
         oreIntegrazione,
-        valoreAggiuntivoIntegrazione,  // NUOVO: quanto aggiunge al fatturato
-        oreTotaliDisponibili,
+        valoreAggiuntivoIntegrazione: costoCostoIntegrazione,
+        ricavoTotale,
         oreLavorateTotali,
         oreNonConformita,
-        costoTotaleAzienda,
-        ricavoTotale,                   // NUOVO: preventivo + integrazione
+        costoDipendentiTotali,
+        costiFornitori,        // NUOVO: costo totale fornitori
+        costoTotale,           // NUOVO: somma dipendenti + fornitori
         margineEuro,
         marginePercentuale,
-        hasIntegrazione: oreIntegrazione > 0
+        hasIntegrazione: oreIntegrazione > 0,
+        hasFornitori: costiFornitori > 0
     };
 }
-// ========== CREAZIONE RIGA TABELLA ==========
-// ========== CREAZIONE RIGA TABELLA (CON LOGICA CORRETTA) ==========
+
 creaRigaMonitoraggio(commessa, stats) {
     const row = document.createElement('tr');
     const statoCommessa = commessa.stato || 'attiva';
     const isAttiva = statoCommessa === 'attiva';
     
     // Formattazione valori
-    const oreLavFormattate = Utils.formattaOreDecimali(stats.oreLavorateTotali);
-    const orePrevFormattate = Utils.formattaOreDecimali(stats.orePrevisteOriginali);
-    const oreIntegrFormattate = Utils.formattaOreDecimali(stats.oreIntegrazione);
-    const oreNCFormattate = Utils.formattaOreDecimali(stats.oreNonConformita);
+    const valorePreventivo = stats?.valorePreventivo || 0;
+    const valoreOreIntegrate = stats?.valoreOreIntegrate || 0;
+    const ricavoTotale = stats?.ricavoTotale || valorePreventivo;
+    const oreIntegrazione = stats?.oreIntegrazione || 0;
+    const oreLavorateTotali = stats?.oreLavorateTotali || 0;
+    const oreTotaliPreviste = stats?.oreTotaliPreviste || 0;
+    const oreNonConformita = stats?.oreNonConformita || 0;
+    const costoDipendentiTotali = stats?.costoDipendentiTotali || 0;
+    const costiFornitori = stats?.costiFornitori || 0;
+    const costoTotale = stats?.costoTotale || 0;
+    const margineEuro = stats?.margineEuro || 0;
+    const marginePercentuale = stats?.marginePercentuale || 0;
+    const hasIntegrazione = stats?.hasIntegrazione || false;
+    const hasFornitori = stats?.hasFornitori || false;
     
-    // Determina se le ore lavorate superano quelle disponibili
-    const superamento = stats.oreLavorateTotali > stats.oreTotaliDisponibili && stats.oreTotaliDisponibili > 0;
+    // Calcolo dettaglio costi dipendenti
+    const tariffaOraria = 28.50;
+    const oreConformi = oreLavorateTotali - oreNonConformita;
+    const costoOreConformi = oreConformi * tariffaOraria;
+    const costoOreNonConformi = oreNonConformita * tariffaOraria;
     
-    // Colore margine basato sulla percentuale
+    // Formattazione ore
+    const oreLavFormattate = Utils.formattaOreDecimali(oreLavorateTotali);
+    const orePrevFormattate = Utils.formattaOreDecimali(oreTotaliPreviste);
+    const oreIntegrFormattate = Utils.formattaOreDecimali(oreIntegrazione);
+    const oreNCFormattate = Utils.formattaOreDecimali(oreNonConformita);
+    const oreConformiFormattate = Utils.formattaOreDecimali(oreConformi);
+    
+    // Colore margine
     let margineClass = 'text-success';
-    let margineBadge = 'success';
-    if (stats.marginePercentuale < 0) {
+    let badgeClass = 'bg-success';
+    if (marginePercentuale < 0) {
         margineClass = 'text-danger';
-        margineBadge = 'danger';
-    } else if (stats.marginePercentuale < 10) {
+        badgeClass = 'bg-danger';
+    } else if (marginePercentuale < 10) {
         margineClass = 'text-warning';
-        margineBadge = 'warning';
-    } else if (stats.marginePercentuale < 20) {
+        badgeClass = 'bg-warning';
+    } else if (marginePercentuale < 20) {
         margineClass = 'text-info';
-        margineBadge = 'info';
+        badgeClass = 'bg-info';
     }
     
     row.innerHTML = `
-        <td style="min-width: 180px;">
+        <td style="min-width: 160px;">
             <strong>${this.escapeHtml(commessa.nomeCommessa)}</strong>
             <br><small class="text-muted">${this.escapeHtml(commessa.cliente || 'N/D')}</small>
-            ${stats.hasIntegrazione ? '<br><span class="badge bg-warning text-dark mt-1">💰 + Integrazione</span>' : ''}
+            ${hasIntegrazione ? '<br><span class="badge bg-warning text-dark mt-1" style="font-size: 0.7rem;">💰 Integr.</span>' : ''}
+            ${hasFornitori ? '<br><span class="badge bg-info mt-1" style="font-size: 0.7rem;">🏭 Forn.</span>' : ''}
         </td>
-        <td class="text-end">
+        <!-- PREVENTIVO + INTEGRAZIONE -->
+        <td class="text-end" style="font-size: 0.85rem;">
             <div>
-                <strong>€ ${stats.valorePreventivo.toFixed(2)}</strong>
-                ${stats.hasIntegrazione ? `<br><small class="text-success">+€ ${stats.valoreAggiuntivoIntegrazione.toFixed(2)}</small>` : ''}
-                ${stats.hasIntegrazione ? `<br><small class="text-primary fw-bold">= € ${stats.ricavoTotale.toFixed(2)}</small>` : ''}
+                <strong>€ ${valorePreventivo.toFixed(2)}</strong>
+                ${hasIntegrazione ? `<br><small style="font-size: 0.7rem;">+ € ${valoreOreIntegrate.toFixed(2)}</small>` : ''}
+                ${hasIntegrazione ? `<br><strong class="text-primary">€ ${ricavoTotale.toFixed(2)}</strong>` : ''}
             </div>
         </td>
-        <td class="text-center">
+        <!-- ORE LAVORATE / PREVISTE -->
+        <td class="text-center" style="font-size: 0.85rem;">
             <div>
-                <span class="${superamento ? 'text-danger fw-bold' : ''}">${oreLavFormattate}</span>
-                <br><small class="text-muted">/ ${orePrevFormattate}</small>
-                ${stats.hasIntegrazione ? `<br><small class="text-success">+${oreIntegrFormattate} extra</small>` : ''}
+                <strong class="${oreLavorateTotali > oreTotaliPreviste ? 'text-danger' : ''}">
+                    ${oreLavFormattate}
+                </strong>
+                <br><small style="font-size: 0.7rem;">/ ${orePrevFormattate}</small>
+                ${hasIntegrazione ? `<br><small style="font-size: 0.7rem; color: #fd7e14;">+${oreIntegrFormattate}</small>` : ''}
             </div>
         </td>
-        <td class="text-center ${stats.oreNonConformita > 0 ? 'text-warning' : ''}">
+        <!-- ORE NON CONFORMITÀ -->
+        <td class="text-center ${oreNonConformita > 0 ? 'text-warning fw-bold' : ''}" style="font-size: 0.85rem;">
             ${oreNCFormattate}
+            ${oreNonConformita > 0 ? '<br><small style="font-size: 0.65rem;">⚠️ NC</small>' : ''}
         </td>
-        <td class="text-center bg-light">
-            ${stats.hasIntegrazione ? `
+        <!-- ORE INTEGRAZIONE -->
+        <td class="text-center ${hasIntegrazione ? 'bg-warning bg-opacity-25' : ''}" style="font-size: 0.85rem;">
+            ${hasIntegrazione ? `
                 <div>
                     <strong class="text-success">+${oreIntegrFormattate}</strong>
-                    <br><small class="text-muted">€ ${stats.valoreAggiuntivoIntegrazione.toFixed(2)}</small>
-                    <br>
-                    <button class="btn btn-sm btn-outline-warning mt-1" 
-                            onclick="app.modificaIntegrazione('${commessa.id}', ${stats.oreIntegrazione})">
-                        <i class="fas fa-edit"></i>
-                    </button>
+                    <br><small style="font-size: 0.65rem;">€ ${valoreOreIntegrate.toFixed(2)}</small>
                 </div>
-            ` : `
-                <button class="btn btn-sm btn-outline-success" 
-                        onclick="app.aggiungiIntegrazione('${commessa.id}')">
-                    <i class="fas fa-plus"></i> Aggiungi
+            ` : `-`}
+        </td>
+        
+        <!-- COSTO DIPENDENTI (DETTAGLIO ORE CONFORMI + NC) -->
+        <td class="text-end" style="font-size: 0.85rem;">
+            <div>
+                <strong>€ ${costoDipendentiTotali.toFixed(2)}</strong>
+                <br><small style="font-size: 0.65rem;">
+                    ${oreConformiFormattate}h conf. (€ ${costoOreConformi.toFixed(2)})
+                </small>
+                ${oreNonConformita > 0 ? `
+                    <br><small style="font-size: 0.65rem; color: #055f05;">
+                        + ${oreNCFormattate}h NC (€ ${costoOreNonConformi.toFixed(2)})
+                    </small>
+                ` : ''}
+            </div>
+        </td>
+        
+        <!-- COSTO FORNITORI -->
+        <td class="text-end ${hasFornitori ? 'bg-light' : ''}" style="font-size: 0.85rem;">
+            ${hasFornitori ? `
+                <div>
+                    <strong>€ ${costiFornitori.toFixed(2)}</strong>
+                    <br><small style="font-size: 0.65rem;">(fornitori esterni)</small>
+                </div>
+            ` : '-'}
+        </td>
+        
+        <!-- COSTO TOTALE (DIPENDENTI + FORNITORI) -->
+        <td class="text-end fw-bold" style="font-size: 0.85rem; background-color: #f8f9fa;">
+            <div>
+                <strong>€ ${costoTotale.toFixed(2)}</strong>
+                <br><small style="font-size: 0.65rem;">
+                    = dipendenti + fornitori
+                </small>
+            </div>
+        </td>
+        
+        <!-- MARGINE € -->
+        <td class="text-end ${margineClass} fw-bold" style="font-size: 0.85rem;">
+            ${margineEuro >= 0 ? '+' : ''}€ ${margineEuro.toFixed(2)}
+            <br><small style="font-size: 0.65rem;">
+                su ricavo € ${ricavoTotale.toFixed(2)}
+            </small>
+        </td>
+        
+        <!-- MARGINE % -->
+        <td class="text-end ${margineClass} fw-bold" style="font-size: 0.85rem;">
+            ${marginePercentuale >= 0 ? '+' : ''}${marginePercentuale.toFixed(1)}%
+            <div class="progress mt-1" style="height: 3px; width: 50px; margin: 0 auto;">
+                <div class="progress-bar ${badgeClass}" style="width: ${Math.min(100, Math.max(0, 50 + marginePercentuale))}%"></div>
+            </div>
+        </td>
+        
+        <!-- AZIONI -->
+        <td class="text-center" style="min-width: 100px;">
+            <div class="btn-group-vertical btn-group-sm gap-1" role="group" style="gap: 4px;">
+                <span class="badge ${isAttiva ? 'bg-success' : 'bg-secondary'} mb-1" style="font-size: 0.7rem;">
+                    ${isAttiva ? 'ATTIVA' : 'CONCLUSA'}
+                </span>
+                
+                <button class="btn btn-sm btn-outline-secondary btn-cambia-stato" 
+                        data-id="${commessa.id}" 
+                        data-stato="${statoCommessa}"
+                        style="padding: 2px 6px; font-size: 0.7rem;"
+                        title="${isAttiva ? 'Concludi commessa' : 'Riattiva commessa'}">
+                    ${isAttiva ? '🔒' : '↩️'}
                 </button>
-            `}
-        </td>
-        <td class="text-end">
-            <div>
-                € ${stats.costoTotaleAzienda.toFixed(2)}
-                <br><small class="text-muted">(costo azienda)</small>
+                
+                ${hasIntegrazione ? `
+                    <button class="btn btn-sm btn-outline-warning btn-modifica-integrazione" 
+                            data-id="${commessa.id}" 
+                            data-ore="${oreIntegrazione}"
+                            style="padding: 2px 6px; font-size: 0.7rem;"
+                            title="Modifica integrazione (${oreIntegrFormattate} ore)">
+                        ✏️ ${oreIntegrFormattate}
+                    </button>
+                ` : `
+                    <button class="btn btn-sm btn-outline-success btn-aggiungi-integrazione" 
+                            data-id="${commessa.id}"
+                            style="padding: 2px 6px; font-size: 0.7rem;"
+                            title="Aggiungi integrazione">
+                        ➕ Integr.
+                    </button>
+                `}
             </div>
-        </td>
-        <td class="text-end ${margineClass}">
-            <div>
-                <strong>€ ${stats.margineEuro >= 0 ? '+' : ''}${stats.margineEuro.toFixed(2)}</strong>
-                ${stats.hasIntegrazione ? `<br><small class="text-muted">(incl. +€${stats.valoreAggiuntivoIntegrazione.toFixed(2)})</small>` : ''}
-            </div>
-        </td>
-        <td class="text-end ${margineClass}">
-            <strong>${stats.marginePercentuale >= 0 ? '+' : ''}${stats.marginePercentuale.toFixed(1)}%</strong>
-            <br><small class="text-muted">su ricavo totale</small>
-        </td>
-        <td class="text-center">
-            <span class="badge ${isAttiva ? 'bg-success' : 'bg-secondary'}">
-                ${isAttiva ? 'ATTIVA' : 'CONCLUSA'}
-            </span>
-            <br>
-            <button class="btn btn-sm btn-outline-secondary mt-1" 
-                    onclick="app.cambiaStatoCommessa('${commessa.id}', '${statoCommessa}')">
-                ${isAttiva ? '🔒 Concludi' : '↩️ Riattiva'}
-            </button>
         </td>
     `;
     
+    // Event listeners
+    const cambiaStatoBtn = row.querySelector('.btn-cambia-stato');
+    const aggiungiIntegrBtn = row.querySelector('.btn-aggiungi-integrazione');
+    const modificaIntegrBtn = row.querySelector('.btn-modifica-integrazione');
+    
+    if (cambiaStatoBtn) {
+        cambiaStatoBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const id = cambiaStatoBtn.dataset.id;
+            const stato = cambiaStatoBtn.dataset.stato;
+            this.cambiaStatoCommessa(id, stato);
+        });
+    }
+    
+    if (aggiungiIntegrBtn) {
+        aggiungiIntegrBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const id = aggiungiIntegrBtn.dataset.id;
+            this.aggiungiIntegrazione(id);
+        });
+    }
+    
+    if (modificaIntegrBtn) {
+        modificaIntegrBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const id = modificaIntegrBtn.dataset.id;
+            const ore = parseFloat(modificaIntegrBtn.dataset.ore);
+            this.modificaIntegrazione(id, ore);
+        });
+    }
+    
     return row;
+}
+// ========== METODI HELPER FORNITORI ==========
+
+async vediDettaglioFornitori(nomeCommessa) {
+    try {
+        const tutteLeLavorazioni = await this.firebaseService.getCollection("fornitoriLavorazioni");
+        const lavorazioniCommessa = tutteLeLavorazioni.filter(f => f.commessa === nomeCommessa);
+        
+        if (lavorazioniCommessa.length === 0) {
+            ErrorHandler.showNotification("Nessuna lavorazione fornitore per questa commessa", 'info');
+            return;
+        }
+        
+        let dettaglioHtml = `<div class="p-3"><h6>Lavorazioni Fornitori - ${nomeCommessa}</h6><table class="table table-sm">`;
+        dettaglioHtml += `<thead><tr><th>Fornitore</th><th>Costo</th><th>Descrizione</th><th>Data</th></tr></thead><tbody>`;
+        
+        lavorazioniCommessa.forEach(f => {
+            dettaglioHtml += `<tr>
+                <td>${this.escapeHtml(f.nomeFornitore)}</td>
+                <td class="text-end">€ ${f.costo.toFixed(2)}</td>
+                <td>${this.escapeHtml(f.descrizione || '-')}</td>
+                <td>${f.data || '-'}</td>
+            </tr>`;
+        });
+        
+        const costoTotale = lavorazioniCommessa.reduce((tot, f) => tot + f.costo, 0);
+        dettaglioHtml += `<tr class="table-primary"><td colspan="1"><strong>Totale</strong></td>
+                          <td class="text-end"><strong>€ ${costoTotale.toFixed(2)}</strong></td>
+                          <td colspan="2"></td></tr>`;
+        dettaglioHtml += `</tbody></table>
+                          <button class="btn btn-sm btn-secondary" onclick="this.parentElement.parentElement.remove()">Chiudi</button></div>`;
+        
+        // Crea un modal/dialog per mostrare il dettaglio
+        const dialog = document.createElement('div');
+        dialog.className = 'alert alert-info';
+        dialog.style.position = 'fixed';
+        dialog.style.top = '50%';
+        dialog.style.left = '50%';
+        dialog.style.transform = 'translate(-50%, -50%)';
+        dialog.style.zIndex = '10000';
+        dialog.style.minWidth = '500px';
+        dialog.style.maxWidth = '90%';
+        dialog.style.maxHeight = '80vh';
+        dialog.style.overflow = 'auto';
+        dialog.innerHTML = dettaglioHtml;
+        
+        document.body.appendChild(dialog);
+        
+    } catch (error) {
+        ErrorHandler.handleError(error, 'visualizzazione dettaglio fornitori');
+    }
+}
+
+async aggiungiFornitoreDaCommessa(nomeCommessa) {
+    // Apri la sezione fornitori e pre-popola la commessa
+    const fornitoreSection = document.querySelector('#fornitoriSection');
+    if (fornitoreSection) {
+        fornitoreSection.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    const selectCommessa = document.getElementById('fornitoreCommessa');
+    if (selectCommessa) {
+        selectCommessa.value = nomeCommessa;
+        // Trigger change event per eventuali validazioni
+        const event = new Event('change');
+        selectCommessa.dispatchEvent(event);
+    }
+    
+    // Focus sul campo nome fornitore
+    document.getElementById('fornitoreNome').focus();
 }
 
 // ========== METODI PER GESTIRE INTEGRAZIONE ==========
@@ -2861,6 +3959,130 @@ escapeHtml(str) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 }
+// ========== METODI PER GESTIONE FORNITORI ==========
+
+async caricaFornitori() {
+    try {
+        this.datiTotaliFornitori = await this.firebaseService.getCollection("fornitoriLavorazioni");
+        await this.aggiornaTabellaFornitori();
+    } catch (error) {
+        console.error('Errore caricamento fornitori:', error);
+        this.datiTotaliFornitori = [];
+    }
+}
+
+async aggiornaTabellaFornitori() {
+    const tbody = document.querySelector('#fornitoriTable tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    try {
+        const fornitori = await this.firebaseService.getCollection("fornitoriLavorazioni");
+        
+        if (fornitori.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center">Nessuna lavorazione fornitore registrata</td></tr>`;
+            return;
+        }
+        
+        for (const fornitore of fornitori) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${this.escapeHtml(fornitore.nomeFornitore)}</td>
+                <td>${this.escapeHtml(fornitore.commessa)}</td>
+                <td class="text-end">€ ${fornitore.costo.toFixed(2)}</td>
+                <td>${this.escapeHtml(fornitore.descrizione || '-')}</td>
+                <td>${fornitore.data || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-danger btnEliminaFornitore" data-id="${fornitore.id}">
+                        <i class="fas fa-trash"></i> Elimina
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+            
+            row.querySelector('.btnEliminaFornitore').addEventListener('click', () => 
+                this.eliminaLavorazioneFornitore(fornitore.id)
+            );
+        }
+    } catch (error) {
+        console.error('Errore aggiornamento tabella fornitori:', error);
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Errore nel caricamento</td></tr>`;
+    }
+}
+
+async aggiungiLavorazioneFornitore(e) {
+    e.preventDefault();
+    
+    try {
+        const nomeFornitore = document.getElementById('fornitoreNome').value.trim();
+        const commessa = document.getElementById('fornitoreCommessa').value;
+        const costo = parseFloat(document.getElementById('fornitoreCosto').value);
+        const descrizione = document.getElementById('fornitoreDescrizione').value.trim();
+        const data = document.getElementById('fornitoreData').value || new Date().toISOString().split('T')[0];
+        
+        if (!nomeFornitore || !commessa || isNaN(costo) || costo <= 0) {
+            ErrorHandler.showNotification("Compila tutti i campi obbligatori", 'error');
+            return;
+        }
+        
+        await this.firebaseService.addDocument("fornitoriLavorazioni", {
+            nomeFornitore: nomeFornitore,
+            commessa: commessa,
+            costo: costo,
+            descrizione: descrizione,
+            data: data,
+            dataCreazione: new Date().toISOString()
+        });
+        
+        ErrorHandler.showNotification(`Lavorazione fornitore "${nomeFornitore}" aggiunta con successo!`, 'success');
+        
+        // Reset form
+        document.getElementById('fornitoreForm').reset();
+        
+        // Aggiorna visualizzazioni
+        await this.caricaFornitori();
+        await this.aggiornaMonitorCommesse();
+        
+    } catch (error) {
+        ErrorHandler.handleError(error, 'aggiunta lavorazione fornitore');
+    }
+}
+
+async eliminaLavorazioneFornitore(id) {
+    if (confirm("Sei sicuro di voler eliminare questa lavorazione fornitore?")) {
+        try {
+            await this.firebaseService.deleteDocument("fornitoriLavorazioni", id);
+            ErrorHandler.showNotification("Lavorazione fornitore eliminata", 'success');
+            await this.caricaFornitori();
+            await this.aggiornaMonitorCommesse();
+        } catch (error) {
+            ErrorHandler.handleError(error, 'eliminazione lavorazione fornitore');
+        }
+    }
+}
+
+async popolaSelectCommessePerFornitore() {
+    const select = document.getElementById('fornitoreCommessa');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">Seleziona una commessa</option>';
+    
+    try {
+        const commesse = await this.firebaseService.getCollection("commesse");
+        const commesseAttive = commesse.filter(c => c.stato === 'attiva' || !c.stato);
+        
+        commesseAttive.forEach(commessa => {
+            const option = document.createElement('option');
+            option.value = commessa.nomeCommessa;
+            option.textContent = `${commessa.nomeCommessa} - ${commessa.cliente || 'N/D'}`;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Errore caricamento commesse per fornitore:', error);
+    }
+}
+
 // AGGIUNGI questo metodo per pulire tutto e ricominciare
 async resetCompletoMonitoraggio() {
     try {
@@ -3035,137 +4257,7 @@ async pulisciCommesseCorrotte() {
 }
 
 
-// SOSTITUISCI il metodo calcolaStatisticheCommessa nella classe OreLavorateApp
-calcolaStatisticheCommessa(commessa, tutteLeOre) {
-    // DEBUG approfondito
-    console.log('🔍 CALCOLO STATISTICHE - Commessa:', {
-        nome: commessa.nomeCommessa,
-        preventivo: commessa.valorePreventivo,
-        orePreviste: commessa.oreTotaliPreviste
-    });
-    // DEBUG: verifica che la commessa abbia i dati corretti
-    console.log('🔍 Analisi commessa:', {
-        nome: commessa.nomeCommessa,
-        hasPreventivo: !!commessa.valorePreventivo,
-        preventivo: commessa.valorePreventivo,
-        hasOrePreviste: !!commessa.oreTotaliPreviste,
-        orePreviste: commessa.oreTotaliPreviste
-    });
 
-    // Controllo di sicurezza sui dati della commessa
-    if (!commessa || typeof commessa !== 'object') {
-        console.error('❌ Commessa non valida:', commessa);
-        return this.creaStatisticheVuote();
-    }
-
-    const valorePreventivo = parseFloat(commessa.valorePreventivo) || 0;
-    const oreTotaliPreviste = parseFloat(commessa.oreTotaliPreviste) || 0;
-
-    try {
-        // Filtra ore per questa commessa - CONTROLLO RINFORZATO
-        const oreCommessa = tutteLeOre.filter(ore => {
-            if (!ore || !ore.commessa) return false;
-            
-            // Confronto case-insensitive e con trim
-            const nomeCommessaOre = ore.commessa.trim().toLowerCase();
-            const nomeCommessaCorrente = commessa.nomeCommessa.trim().toLowerCase();
-            
-            return nomeCommessaOre === nomeCommessaCorrente;
-        });
-
-        console.log(`📊 Commessa "${commessa.nomeCommessa}":`, {
-            oreTrovate: oreCommessa.length,
-            preventivo: valorePreventivo,
-            orePreviste: oreTotaliPreviste
-        });
-        // LEGGI LE ORE DI INTEGRAZIONE DALLA COMMESSA
-        const oreIntegrazione = parseFloat(commessa.oreIntegrazione) || 0;
-        const costoOreIntegrazione = oreIntegrazione * TARIFFA_ORARIA_INTEGRAZIONE;
-        // MODIFICA: le ore totali previste diventano: ore originali + integrazione
-        const oreTotaliPrevisteOriginali = parseFloat(commessa.oreTotaliPreviste) || 0;
-        const oreTotaliPrevisteConIntegrazione = oreTotaliPrevisteOriginali + oreIntegrazione;
-
-        // Calcola ore lavorate totali
-        const oreLavorateTotali = oreCommessa.reduce((totale, ore) => {
-            if (!ore.oraInizio || !ore.oraFine) return totale;
-            
-            const oreGiornata = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-            return totale + (oreGiornata || 0);
-        }, 0);
-        
-
-        // Calcola ore non conformità
-        const oreNonConformita = oreCommessa
-            .filter(ore => ore.nonConformita === true)
-            .reduce((totale, ore) => {
-                if (!ore.oraInizio || !ore.oraFine) return totale;
-                
-                const oreGiornata = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-                return totale + (oreGiornata || 0);
-            }, 0);
-
-        const oreConformi = oreLavorateTotali - oreNonConformita;
-
-        // CALCOLI ECONOMICI - SEMPRE calcolati, anche con preventivo 0
-        const costoOreConformi = oreConformi * TARIFFA_ORARIA;
-        const costoOreNonConformi = oreNonConformita * COSTO_ORARIO_NON_CONFORMITA;
-         const costoOreTotale = costoOreConformi + costoOreNonConformi + costoOreIntegrazione;
-        
-        let margineEuro = 0;
-        let marginePercentuale = 0;
-
-        if (valorePreventivo > 0) {
-            margineEuro = valorePreventivo - costoOreTotale;
-            marginePercentuale = (margineEuro / valorePreventivo) * 100;
-        }
-         // ORE EFFETTIVE PER IL CONFRONTO (lavorate vs previste+integrazione)
-        const oreEffettiveDisponibili = oreTotaliPrevisteConIntegrazione;
-
-        return {
-            oreLavorateTotali: parseFloat(oreLavorateTotali.toFixed(2)),
-            oreNonConformita: parseFloat(oreNonConformita.toFixed(2)),
-            oreConformi: parseFloat(oreConformi.toFixed(2)),
-            oreIntegrazione: oreIntegrazione,                          // NUOVO
-            costoOreIntegrazione: parseFloat(costoOreIntegrazione.toFixed(2)), // NUOVO
-            costoOreTotale: parseFloat(costoOreTotale.toFixed(2)),
-            margineEuro: parseFloat(margineEuro.toFixed(2)),
-            marginePercentuale: parseFloat(marginePercentuale.toFixed(1)),
-            valorePreventivo: valorePreventivo,
-            oreTotaliPrevisteConIntegrazione: oreEffettiveDisponibili, // NUOVO
-            oreTotaliPreviste: oreTotaliPreviste,
-            datiCompleti: valorePreventivo > 0, // Solo se ha preventivo
-            numeroRecord: oreCommessa.length,
-            hasIntegrazione: oreIntegrazione > 0                       // NUOVO
-        };
-
-    } catch (error) {
-        console.error('❌ Errore nel calcolo statistiche per:', commessa.nomeCommessa, error);
-        return this.creaStatisticheVuote(commessa);
-    }
-     // DEBUG dopo il calcolo
-    console.log('📈 RISULTATO CALCOLO - Commessa:', commessa.nomeCommessa, {
-        oreLavorateTotali: oreLavorateTotali,
-        oreNonConformita: oreNonConformita,
-        costoOreTotale: costoOreTotale,
-        margineEuro: margineEuro,
-        marginePercentuale: marginePercentuale,
-        datiCompleti: valorePreventivo > 0
-    });
-
-    return {
-        oreLavorateTotali: parseFloat(oreLavorateTotali.toFixed(2)),
-        oreNonConformita: parseFloat(oreNonConformita.toFixed(2)),
-        oreConformi: parseFloat(oreConformi.toFixed(2)),
-        costoOreTotale: parseFloat(costoOreTotale.toFixed(2)),
-        margineEuro: parseFloat(margineEuro.toFixed(2)),
-        marginePercentuale: parseFloat(marginePercentuale.toFixed(1)),
-        valorePreventivo: valorePreventivo,
-        oreTotaliPreviste: oreTotaliPreviste,
-        datiCompleti: valorePreventivo > 0,
-        numeroRecord: oreCommessa.length
-    };
-
-}
 // AGGIUNGI questo metodo per testare il calcolo
 testCalcoloMargine() {
     const testCommessa = {
@@ -3686,15 +4778,12 @@ async modificaOreIntegrazione(commessaId, oreCorrenti) {
     }
 }
       // NUOVO METODO: Cambia stato commessa
-   async cambiaStatoCommessa(commessaId, statoAttuale) {
+  async cambiaStatoCommessa(commessaId, statoAttuale) {
     try {
-        // CONTROLLO SICUREZZA: verifica che i parametri siano validi
         if (!commessaId) {
             ErrorHandler.showNotification("ID commessa non valido", 'error');
             return;
         }
-
-        console.log('Cambio stato commessa:', commessaId, 'Stato attuale:', statoAttuale);
 
         const nuovoStato = statoAttuale === 'attiva' ? 'conclusa' : 'attiva';
         const azioneTesto = nuovoStato === 'conclusa' ? 'concludere' : 'riattivare';
@@ -3711,16 +4800,23 @@ async modificaOreIntegrazione(commessaId, oreCorrenti) {
             dataUltimaModifica: new Date().toISOString()
         });
 
-        const messaggioSuccesso = nuovoStato === 'conclusa' ? 
-            'Commessa conclusa con successo! Non sarà più visibile ai dipendenti.' :
-            'Commessa riattivata con successo! Ora è visibile ai dipendenti.';
-
-        ErrorHandler.showNotification(messaggioSuccesso, 'success');
-             // Aggiorna tutte le viste con un piccolo delay per permettere a Firebase di aggiornarsi
+        ErrorHandler.showNotification(
+            nuovoStato === 'conclusa' ? 
+            'Commessa conclusa con successo!' : 
+            'Commessa riattivata con successo!',
+            'success'
+        );
+        
+        // Ricarica i dati e resetta la paginazione per mostrare i dati aggiornati
+        this.datiTotaliCommesse = [];
+        if (this.paginazioneCommesse) {
+            this.paginazioneCommesse.reset();
+        }
+        
         setTimeout(async () => {
-            await this.aggiornaMonitorCommesse();
             await this.aggiornaTabellaCommesse();
-            await this.aggiornaMenuCommesse(); // Importante: aggiorna la lista per i dipendenti
+            await this.aggiornaMenuCommesse();
+            await this.aggiornaMonitorCommesse();
         }, 500);
 
     } catch (error) {
@@ -3850,105 +4946,144 @@ async popolaFiltroCommesseMonitor(commesse) {
         select.value = valoreCorrente;
     }
 }
-// SOSTITUISCI COMPLETAMENTE il metodo calcolaStatisticheCommessa
 calcolaStatisticheCommessa(commessa, tutteLeOre) {
     try {
-        // DEBUG: verifica che la commessa abbia i dati corretti
-        console.log('🔍 Analisi commessa:', {
-            nome: commessa.nomeCommessa,
-            hasPreventivo: !!commessa.valorePreventivo,
-            preventivo: commessa.valorePreventivo,
-            hasOrePreviste: !!commessa.oreTotaliPreviste,
-            orePreviste: commessa.oreTotaliPreviste,
-            id: commessa.id
-        });
-
-        // Controllo di sicurezza sui dati della commessa
-        if (!commessa || typeof commessa !== 'object') {
-            console.error('❌ Commessa non valida:', commessa);
-            return this.creaStatisticheVuote(commessa);
+        // 1. RECUPERA VALORI BASE DALLA COMMESSA
+        let valorePreventivo = parseFloat(commessa.valorePreventivo) || 0;
+        let oreTotaliPreviste = parseFloat(commessa.oreTotaliPreviste) || 0;
+        let oreIntegrazione = parseFloat(commessa.oreIntegrazione) || 0;
+        
+        // 1b. RECUPERA COSTI FORNITORI
+        let costiFornitori = 0;
+        if (this.datiTotaliFornitori) {
+            costiFornitori = this.datiTotaliFornitori
+                .filter(f => f.commessa === commessa.nomeCommessa)
+                .reduce((tot, f) => tot + (parseFloat(f.costo) || 0), 0);
         }
-
-        // CORREZIONE: usa valori di default sicuri
-        const valorePreventivo = parseFloat(commessa.valorePreventivo) || 0;
-        const oreTotaliPreviste = parseFloat(commessa.oreTotaliPreviste) || 0;
-
-        // Filtra ore per questa commessa - CONTROLLO RINFORZATO
+        
+        // 2. CALCOLA IL VALORE DELLE ORE INTEGRATE (in euro)
+        const tariffaOraria = 28.50;
+        const valoreOreIntegrate = oreIntegrazione * tariffaOraria;
+        
+        // 3. RICAVO TOTALE = PREVENTIVO + VALORE ORE INTEGRATE
+        const ricavoTotale = valorePreventivo + valoreOreIntegrate;
+        
+        console.log(`📊 ${commessa.nomeCommessa}:`, {
+            preventivo: valorePreventivo,
+            oreIntegrazione: oreIntegrazione,
+            valoreOreIntegrate: valoreOreIntegrate,
+            ricavoTotale: ricavoTotale
+        });
+        
+        // 4. FILTRA ORE LAVORATE PER QUESTA COMMESSA
         const oreCommessa = tutteLeOre.filter(ore => {
             if (!ore || !ore.commessa) return false;
-            
-            // Confronto case-insensitive e con trim
-            const nomeCommessaOre = ore.commessa.trim().toLowerCase();
-            const nomeCommessaCorrente = commessa.nomeCommessa.trim().toLowerCase();
-            
-            return nomeCommessaOre === nomeCommessaCorrente;
+            const nomeOre = ore.commessa.trim().toLowerCase();
+            const nomeComm = commessa.nomeCommessa.trim().toLowerCase();
+            return nomeOre === nomeComm;
         });
-
-        console.log(`📊 Commessa "${commessa.nomeCommessa}":`, {
-            oreTrovate: oreCommessa.length,
-            preventivo: valorePreventivo,
-            orePreviste: oreTotaliPreviste
-        });
-
-        // Calcola ore lavorate totali
-        const oreLavorateTotali = oreCommessa.reduce((totale, ore) => {
-            if (!ore.oraInizio || !ore.oraFine) return totale;
-            
-            const oreGiornata = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-            return totale + (oreGiornata || 0);
-        }, 0);
-
-        // Calcola ore non conformità
-        const oreNonConformita = oreCommessa
-            .filter(ore => ore.nonConformita === true)
-            .reduce((totale, ore) => {
-                if (!ore.oraInizio || !ore.oraFine) return totale;
-                
-                const oreGiornata = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-                return totale + (oreGiornata || 0);
-            }, 0);
-
-        const oreConformi = oreLavorateTotali - oreNonConformita;
-
-        // CALCOLI ECONOMICI - SEMPRE calcolati, anche con preventivo 0
-        const costoOreConformi = oreConformi * TARIFFA_ORARIA;
-        const costoOreNonConformi = oreNonConformita * COSTO_ORARIO_NON_CONFORMITA;
-        const costoOreTotale = costoOreConformi + costoOreNonConformi;
         
-        let margineEuro = 0;
-        let marginePercentuale = 0;
-
-        if (valorePreventivo > 0) {
-            margineEuro = valorePreventivo - costoOreTotale;
-            marginePercentuale = (margineEuro / valorePreventivo) * 100;
-        }
-
-        // DEBUG dopo il calcolo
-        console.log('📈 RISULTATO CALCOLO - Commessa:', commessa.nomeCommessa, {
-            oreLavorateTotali: oreLavorateTotali,
-            oreNonConformita: oreNonConformita,
-            costoOreTotale: costoOreTotale,
-            margineEuro: margineEuro,
-            marginePercentuale: marginePercentuale,
-            datiCompleti: valorePreventivo > 0
+        // 5. CALCOLA ORE LAVORATE TOTALI E NON CONFORMITÀ
+        let oreLavorateTotali = 0;
+        let oreNonConformita = 0;
+        
+        oreCommessa.forEach(ore => {
+            if (ore.oraInizio && ore.oraFine) {
+                try {
+                    let oraInizio = ore.oraInizio;
+                    let oraFine = ore.oraFine;
+                    
+                    // Correggi formato orario se necessario
+                    if (oraInizio && oraInizio.match(/^\d{1,2}:\d{2}$/) && oraInizio.length === 4) {
+                        oraInizio = '0' + oraInizio;
+                    }
+                    if (oraFine && oraFine.match(/^\d{1,2}:\d{2}$/) && oraFine.length === 4) {
+                        oraFine = '0' + oraFine;
+                    }
+                    
+                    const oreCalc = Utils.calcolaOreLavorate(oraInizio, oraFine);
+                    if (!isNaN(oreCalc) && oreCalc > 0) {
+                        oreLavorateTotali += oreCalc;
+                        if (ore.nonConformita === true) {
+                            oreNonConformita += oreCalc;
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`Errore calcolo ore per ${ore.id}:`, e);
+                }
+            }
         });
-
-        return {
+        
+        // 6. CALCOLA COSTI DIPENDENTI
+        const oreConformi = oreLavorateTotali - oreNonConformita;
+        const costoOreConformi = oreConformi * tariffaOraria;
+        const costoOreNonConformi = oreNonConformita * tariffaOraria;
+        const costoDipendentiTotali = costoOreConformi + costoOreNonConformi;
+        
+        // 7. COSTO TOTALE (DIPENDENTI + FORNITORI)
+        const costoTotale = costoDipendentiTotali + costiFornitori;
+        
+        // 8. CALCOLA MARGINI (sul RICAVO TOTALE, non solo sul preventivo)
+        let margineEuro = ricavoTotale - costoTotale;
+        let marginePercentuale = 0;
+        
+        if (ricavoTotale > 0) {
+            marginePercentuale = (margineEuro / ricavoTotale) * 100;
+        }
+        
+        // 9. RISULTATO FINALE
+        const risultato = {
+            // Valori base
+            valorePreventivo: valorePreventivo,
+            oreTotaliPreviste: oreTotaliPreviste,
+            oreIntegrazione: oreIntegrazione,
+            valoreOreIntegrate: valoreOreIntegrate,
+            ricavoTotale: ricavoTotale,
+            
+            // Ore lavorate
             oreLavorateTotali: parseFloat(oreLavorateTotali.toFixed(2)),
             oreNonConformita: parseFloat(oreNonConformita.toFixed(2)),
             oreConformi: parseFloat(oreConformi.toFixed(2)),
-            costoOreTotale: parseFloat(costoOreTotale.toFixed(2)),
+            
+            // Costi
+            costoDipendentiTotali: parseFloat(costoDipendentiTotali.toFixed(2)),
+            costiFornitori: parseFloat(costiFornitori.toFixed(2)),
+            costoTotale: parseFloat(costoTotale.toFixed(2)),
+            
+            // Margini
             margineEuro: parseFloat(margineEuro.toFixed(2)),
             marginePercentuale: parseFloat(marginePercentuale.toFixed(1)),
-            valorePreventivo: valorePreventivo,
-            oreTotaliPreviste: oreTotaliPreviste, // CORRETTO: ora è definito
-            datiCompleti: valorePreventivo > 0,
-            numeroRecord: oreCommessa.length
+            
+            // Flag
+            hasIntegrazione: oreIntegrazione > 0,
+            hasFornitori: costiFornitori > 0,
+            datiCompleti: valorePreventivo > 0
         };
-
+        
+        console.log(`✅ Risultato ${commessa.nomeCommessa}:`, risultato);
+        
+        return risultato;
+        
     } catch (error) {
-        console.error('❌ Errore nel calcolo statistiche per:', commessa?.nomeCommessa, error);
-        return this.creaStatisticheVuote(commessa);
+        console.error(`❌ Errore calcolo per ${commessa?.nomeCommessa}:`, error);
+        return {
+            valorePreventivo: 0,
+            oreTotaliPreviste: 0,
+            oreIntegrazione: 0,
+            valoreOreIntegrate: 0,
+            ricavoTotale: 0,
+            oreLavorateTotali: 0,
+            oreNonConformita: 0,
+            oreConformi: 0,
+            costoDipendentiTotali: 0,
+            costiFornitori: 0,
+            costoTotale: 0,
+            margineEuro: 0,
+            marginePercentuale: 0,
+            hasIntegrazione: false,
+            hasFornitori: false,
+            datiCompleti: false
+        };
     }
 }
 
@@ -5415,10 +6550,1879 @@ generaNomeFileMonitoraggio(filtroNome, filtroStato) {
     return `${nomeFile}.pdf`;
 }
 
+async testStatisticheCommesse() {
+    console.log('=== TEST STATISTICHE COMMESSE ===');
+    
+    const [commesse, tutteLeOre] = await Promise.all([
+        this.firebaseService.getCollection("commesse"),
+        this.firebaseService.getCollection("oreLavorate")
+    ]);
+    
+    console.log('📊 Commesse trovate:', commesse.length);
+    console.log('📊 Ore lavorate trovate:', tutteLeOre.length);
+    
+    // Prendi la prima commessa per test
+    const primaCommessa = commesse[0];
+    console.log('🔍 Test con commessa:', primaCommessa.nomeCommessa);
+    console.log('   - Preventivo:', primaCommessa.valorePreventivo);
+    console.log('   - Ore previste:', primaCommessa.oreTotaliPreviste);
+    console.log('   - Stato:', primaCommessa.stato);
+    
+    // Filtra ore per questa commessa
+    const oreCommessa = tutteLeOre.filter(ore => 
+        ore.commessa && ore.commessa.toLowerCase().trim() === primaCommessa.nomeCommessa.toLowerCase().trim()
+    );
+    console.log('   - Ore collegate:', oreCommessa.length);
+    
+    // Calcola statistiche
+    const stats = this.calcolaStatisticheCommessa(primaCommessa, tutteLeOre);
+    console.log('📈 Statistiche calcolate:', stats);
+    
+    return stats;
+}
+async pulisciRecordOreInvalidi() {
+    console.log('🔧 Inizio pulizia record con orari non validi...');
+    
+    try {
+        const tutteLeOre = await this.firebaseService.getCollection("oreLavorate");
+        let recordInvalidi = 0;
+        let recordCorretti = 0;
+        
+        for (const ore of tutteLeOre) {
+            let needsUpdate = false;
+            let nuovoInizio = ore.oraInizio;
+            let nuovaFine = ore.oraFine;
+            
+            const correggiOra = (ora) => {
+                if (!ora) return null;
+                ora = ora.toString().trim();
+                if (/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(ora)) return ora;
+                if (/^[0-9]:[0-5][0-9]$/.test(ora)) return '0' + ora;
+                if (/^([0-9]|1[0-9]|2[0-3])$/.test(ora)) return `${ora.padStart(2, '0')}:00`;
+                return null;
+            };
+            
+            const inizioCorretto = correggiOra(ore.oraInizio);
+            const fineCorretto = correggiOra(ore.oraFine);
+            
+            if (inizioCorretto && inizioCorretto !== ore.oraInizio) {
+                nuovoInizio = inizioCorretto;
+                needsUpdate = true;
+            }
+            
+            if (fineCorretto && fineCorretto !== ore.oraFine) {
+                nuovaFine = fineCorretto;
+                needsUpdate = true;
+            }
+            
+            if (needsUpdate) {
+                console.log(`📝 Correzione record ${ore.id}: ${ore.oraInizio}->${nuovoInizio}, ${ore.oraFine}->${nuovaFine}`);
+                await this.firebaseService.updateDocument("oreLavorate", ore.id, {
+                    oraInizio: nuovoInizio,
+                    oraFine: nuovaFine
+                });
+                recordCorretti++;
+            }
+            
+            if (!inizioCorretto || !fineCorretto) {
+                recordInvalidi++;
+            }
+        }
+        
+        console.log(`📊 Risultato: ${recordCorretti} corretti, ${recordInvalidi} non correggibili`);
+        
+        if (recordCorretti > 0) {
+            ErrorHandler.showNotification(`Corretti ${recordCorretti} record con orari non validi`, 'success');
+            await this.aggiornaMonitorCommesse();
+            await this.creaGraficiDashboard();
+        }
+        
+        return { recordCorretti, recordInvalidi };
+        
+    } catch (error) {
+        console.error('Errore nella pulizia:', error);
+        return { recordCorretti: 0, recordInvalidi: 0 };
+    }
+}
 
 
+// ========== GRAFICI CON PAGINAZIONE ==========
 
+async creaGraficiDashboard() {
+    try {
+        console.log('📊 Creazione grafici dashboard...');
+        
+        const [commesse, tutteLeOre, dipendenti] = await Promise.all([
+            this.firebaseService.getCollection("commesse"),
+            this.firebaseService.getCollection("oreLavorate"),
+            this.firebaseService.getCollection("dipendenti")
+        ]);
+        
+        // Popola i select degli anni usando le date delle commesse
+        this.popolaAnniFiltriGrafici(tutteLeOre, commesse);
+        
+        // Inizializza filtri se non esistono
+        if (!this.filtroMargini) this.filtroMargini = { anno: '', mese: '' };
+        if (!this.filtroOreDipendenti) this.filtroOreDipendenti = { anno: '', mese: '' };
+        
+        // GRAFICO MARGINI COMMESSE (USA LO STESSO FILTRO DELLA TABELLA)
+        await this.aggiornaGraficoMargini(commesse, tutteLeOre);
+        
+        // GRAFICO STATO COMMESSE
+        this.creaGraficoStatoCommesse(commesse);
+        
+        // GRAFICO ORE DIPENDENTI
+        await this.aggiornaGraficoOreDipendenti(tutteLeOre, dipendenti);
+        
+        // GRAFICO ANDAMENTO MENSILE
+        this.creaGraficoAndamentoMensile(tutteLeOre);
+        
+        // Listener per filtri
+        this.aggiungiListenerFiltriGrafici();
+        
+        console.log('✅ Tutti i grafici creati con successo');
+        
+    } catch (error) {
+        console.error('❌ Errore creazione grafici:', error);
+    }
+}
+// Popola i select degli anni per i filtri
+popolaAnniFiltriGrafici(tutteLeOre) {
+    // Estrai anni unici dalle ore lavorate
+    const anni = new Set();
+    tutteLeOre.forEach(ore => {
+        if (ore.data) {
+            const anno = ore.data.split('-')[0];
+            if (anno) anni.add(anno);
+        }
+    });
+    
+    // Aggiungi anche anni da commesse se necessario
+    const anniArray = Array.from(anni).sort().reverse();
+    
+    // Popola select per margini
+    const selectMargini = document.getElementById('filtroAnnoMargini');
+    if (selectMargini) {
+        selectMargini.innerHTML = '<option value="">Tutti gli anni</option>';
+        anniArray.forEach(anno => {
+            const option = document.createElement('option');
+            option.value = anno;
+            option.textContent = anno;
+            selectMargini.appendChild(option);
+        });
+    }
+    
+    // Popola select per ore dipendenti
+    const selectOre = document.getElementById('filtroAnnoOreDipendenti');
+    if (selectOre) {
+        selectOre.innerHTML = '<option value="">Tutti gli anni</option>';
+        anniArray.forEach(anno => {
+            const option = document.createElement('option');
+            option.value = anno;
+            option.textContent = anno;
+            selectOre.appendChild(option);
+        });
+    }
+}
 
+async aggiornaGraficoMargini(commesse, tutteLeOre) {
+    console.log('📊 Aggiornamento grafico margini - usando filtro come tabella monitoraggio...');
+    console.log('Filtri attivi:', this.filtroMargini);
+    
+    // 1. APPLICA FILTRI ALLE COMMESSE (COME FA LA TABELLA MONITORAGGIO)
+    let commesseFiltrate = [...commesse];
+    
+    // Filtra per anno sulla data della commessa (come nella tabella)
+    if (this.filtroMargini.anno && this.filtroMargini.anno !== '') {
+        commesseFiltrate = commesseFiltrate.filter(commessa => {
+            const dataCommessa = commessa.dataInizio || commessa.dataCreazione;
+            if (!dataCommessa) return true;
+            const annoCommessa = dataCommessa.split('-')[0];
+            return annoCommessa === this.filtroMargini.anno;
+        });
+        console.log(`📅 Filtro anno ${this.filtroMargini.anno}: ${commesseFiltrate.length} commesse rimaste`);
+    }
+    
+    // Filtra per mese sulla data della commessa (come nella tabella)
+    if (this.filtroMargini.mese && this.filtroMargini.mese !== '') {
+        commesseFiltrate = commesseFiltrate.filter(commessa => {
+            const dataCommessa = commessa.dataInizio || commessa.dataCreazione;
+            if (!dataCommessa) return true;
+            const meseCommessa = dataCommessa.split('-')[1];
+            return meseCommessa === this.filtroMargini.mese;
+        });
+        console.log(`📅 Filtro mese ${this.filtroMargini.mese}: ${commesseFiltrate.length} commesse rimaste`);
+    }
+    
+    // 2. CALCOLA MARGINI PER OGNI COMMESSA USANDO LO STESSO METODO DELLA TABELLA
+    const risultati = [];
+    
+    for (const commessa of commesseFiltrate) {
+        if (!commessa.nomeCommessa) continue;
+        
+        // USA LO STESSO METODO DELLA TABELLA MONITORAGGIO
+        const stats = this.calcolaStatisticheCommessa(commessa, tutteLeOre);
+        
+        // Prendi i valori esattamente come nella tabella
+        const margine = stats.marginePercentuale;
+        const preventivo = stats.valorePreventivo || commessa.valorePreventivo || 0;
+        const ricavoTotale = stats.ricavoTotale || preventivo;
+        const oreLavorate = stats.oreLavorateTotali || 0;
+        
+        risultati.push({
+            nome: commessa.nomeCommessa,
+            margine: margine,
+            preventivo: preventivo,
+            ricavoTotale: ricavoTotale,
+            oreLavorate: oreLavorate,
+            stato: commessa.stato || 'attiva'
+        });
+    }
+    
+    // 3. ORDINA PER MARGINE (decrescente)
+    risultati.sort((a, b) => b.margine - a.margine);
+    this.tuttiMargini = risultati;
+    
+    console.log(`📊 Risultato: ${this.tuttiMargini.length} commesse`);
+    console.log('Prime 5:', this.tuttiMargini.slice(0, 5).map(m => ({
+        nome: m.nome,
+        margine: m.margine.toFixed(1) + '%'
+    })));
+    
+    // 4. AGGIORNA INFO FILTRI
+    const infoFiltri = document.getElementById('infoFiltriMargini');
+    if (infoFiltri) {
+        let testo = '';
+        if (this.filtroMargini.anno) testo += `Anno: ${this.filtroMargini.anno} `;
+        if (this.filtroMargini.mese) {
+            const mesi = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+            testo += `Mese: ${mesi[parseInt(this.filtroMargini.mese) - 1]}`;
+        }
+        infoFiltri.textContent = testo || 'Tutti i dati';
+        if (this.filtroMargini.anno || this.filtroMargini.mese) {
+            infoFiltri.textContent += ` (${this.tuttiMargini.length} commesse)`;
+        }
+    }
+    
+    // 5. RESET PAGINA E DISEGNA
+    this.paginaMarginiCorrente = 1;
+    this.disegnaGraficoMargini();
+}
+popolaAnniFiltriGrafici(tutteLeOre, commesse) {
+    // Estrai anni unici dalle DATE DELLE COMMESSE (come nella tabella)
+    const anni = new Set();
+    
+    // Prendi anni dalle commesse
+    commesse.forEach(commessa => {
+        const dataCommessa = commessa.dataInizio || commessa.dataCreazione;
+        if (dataCommessa) {
+            const anno = dataCommessa.split('-')[0];
+            if (anno) anni.add(anno);
+        }
+    });
+    
+    // Aggiungi anche l'anno corrente se non c'è
+    const annoCorrente = new Date().getFullYear().toString();
+    anni.add(annoCorrente);
+    
+    const anniArray = Array.from(anni).sort().reverse();
+    
+    // Popola select per margini
+    const selectMargini = document.getElementById('filtroAnnoMargini');
+    if (selectMargini) {
+        const valoreCorrente = selectMargini.value;
+        selectMargini.innerHTML = '<option value="">Tutti gli anni</option>';
+        anniArray.forEach(anno => {
+            const option = document.createElement('option');
+            option.value = anno;
+            option.textContent = anno;
+            selectMargini.appendChild(option);
+        });
+        if (valoreCorrente) selectMargini.value = valoreCorrente;
+    }
+    
+    // Popola select per ore dipendenti
+    const selectOre = document.getElementById('filtroAnnoOreDipendenti');
+    if (selectOre) {
+        const valoreCorrente = selectOre.value;
+        selectOre.innerHTML = '<option value="">Tutti gli anni</option>';
+        anniArray.forEach(anno => {
+            const option = document.createElement('option');
+            option.value = anno;
+            option.textContent = anno;
+            selectOre.appendChild(option);
+        });
+        if (valoreCorrente) selectOre.value = valoreCorrente;
+    }
+}
+async calcolaStatisticheCommessaConFiltro(commessa, oreFiltrate) {
+    try {
+        // Valori base dalla commessa
+        let valorePreventivo = parseFloat(commessa.valorePreventivo) || 0;
+        let oreIntegrazione = parseFloat(commessa.oreIntegrazione) || 0;
+        
+        // Filtra ore per questa commessa (solo quelle già filtrate per data)
+        const oreCommessa = oreFiltrate.filter(ore => {
+            if (!ore || !ore.commessa) return false;
+            const nomeOre = ore.commessa.trim().toLowerCase();
+            const nomeComm = commessa.nomeCommessa.trim().toLowerCase();
+            return nomeOre === nomeComm;
+        });
+        
+        // Calcola ore lavorate totali
+        let oreLavorateTotali = 0;
+        let oreNonConformita = 0;
+        
+        oreCommessa.forEach(ore => {
+            if (ore.oraInizio && ore.oraFine) {
+                try {
+                    const oreCalc = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+                    if (!isNaN(oreCalc) && oreCalc > 0) {
+                        oreLavorateTotali += oreCalc;
+                        if (ore.nonConformita === true) {
+                            oreNonConformita += oreCalc;
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`Errore calcolo ore:`, e);
+                }
+            }
+        });
+        
+        // Costi
+        const tariffaOraria = window.TARIFFA_ORARIA || 28.50;
+        const costoOreTotali = oreLavorateTotali * tariffaOraria;
+        
+        // Integrazione
+        const costoIntegrazione = oreIntegrazione * tariffaOraria;
+        
+        // Ricavo totale = preventivo + integrazione
+        const ricavoTotale = valorePreventivo + costoIntegrazione;
+        
+        // Margine
+        let marginePercentuale = 0;
+        if (ricavoTotale > 0) {
+            const margineEuro = ricavoTotale - costoOreTotali;
+            marginePercentuale = (margineEuro / ricavoTotale) * 100;
+        } else if (valorePreventivo > 0) {
+            const margineEuro = valorePreventivo - costoOreTotali;
+            marginePercentuale = (margineEuro / valorePreventivo) * 100;
+        }
+        
+        // Limita il margine tra -100 e 100 per visualizzazione
+        marginePercentuale = Math.min(100, Math.max(-100, marginePercentuale));
+        
+        return {
+            valorePreventivo: valorePreventivo,
+            oreLavorateTotali: oreLavorateTotali,
+            costoOreTotali: costoOreTotali,
+            ricavoTotale: ricavoTotale,
+            marginePercentuale: marginePercentuale,
+            datiCompleti: valorePreventivo > 0
+        };
+        
+    } catch (error) {
+        console.error(`Errore calcolo per ${commessa?.nomeCommessa}:`, error);
+        return {
+            valorePreventivo: 0,
+            oreLavorateTotali: 0,
+            costoOreTotali: 0,
+            ricavoTotale: 0,
+            marginePercentuale: 0,
+            datiCompleti: false
+        };
+    }
+}
+
+// Aggiorna grafico ore dipendenti con filtri
+async aggiornaGraficoOreDipendenti(tutteLeOre, dipendenti) {
+    // Applica filtri alle ore
+    let oreFiltrate = tutteLeOre;
+    
+    if (this.filtroOreDipendenti.anno) {
+        oreFiltrate = oreFiltrate.filter(ore => {
+            if (!ore.data) return false;
+            const anno = ore.data.split('-')[0];
+            return anno === this.filtroOreDipendenti.anno;
+        });
+    }
+    
+    if (this.filtroOreDipendenti.mese) {
+        oreFiltrate = oreFiltrate.filter(ore => {
+            if (!ore.data) return false;
+            const mese = ore.data.split('-')[1];
+            return mese === this.filtroOreDipendenti.mese;
+        });
+    }
+    
+    // Calcola ore per dipendente con ore filtrate
+    const orePerDipendente = {};
+    
+    dipendenti.forEach(dip => {
+        const nomeCompleto = `${dip.nome} ${dip.cognome}`;
+        orePerDipendente[nomeCompleto] = 0;
+    });
+    
+    oreFiltrate.forEach(ore => {
+        const nomeCompleto = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
+        const oreLavorate = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+        if (orePerDipendente[nomeCompleto] !== undefined) {
+            orePerDipendente[nomeCompleto] += oreLavorate;
+        }
+    });
+    
+    this.tutteOreDipendenti = Object.entries(orePerDipendente)
+        .filter(([_, ore]) => ore > 0)
+        .sort((a, b) => b[1] - a[1])
+        .map(([nome, ore]) => ({ nome, ore: parseFloat(ore.toFixed(1)) }));
+    
+    // Aggiorna info filtri
+    const infoFiltri = document.getElementById('infoFiltriOreDipendenti');
+    if (infoFiltri) {
+        let testo = '';
+        if (this.filtroOreDipendenti.anno) testo += `Anno: ${this.filtroOreDipendenti.anno} `;
+        if (this.filtroOreDipendenti.mese) {
+            const mesi = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+            testo += `Mese: ${mesi[parseInt(this.filtroOreDipendenti.mese) - 1]}`;
+        }
+        infoFiltri.textContent = testo || 'Tutti i dati';
+    }
+    
+    // Reset pagina e ridisegna
+    this.paginaOreCorrente = 1;
+    this.disegnaGraficoOreDipendenti();
+}
+
+// Metodo helper per calcolare statistiche con ore specifiche
+calcolaStatisticheCommessaConOre(commessa, oreFiltrate) {
+    try {
+        let valorePreventivo = parseFloat(commessa.valorePreventivo) || 0;
+        let oreTotaliPreviste = parseFloat(commessa.oreTotaliPreviste) || 0;
+        let oreIntegrazione = parseFloat(commessa.oreIntegrazione) || 0;
+        
+        // Filtra ore per questa commessa
+        const oreCommessa = oreFiltrate.filter(ore => {
+            if (!ore || !ore.commessa) return false;
+            const nomeOre = ore.commessa.trim().toLowerCase();
+            const nomeComm = commessa.nomeCommessa.trim().toLowerCase();
+            return nomeOre === nomeComm;
+        });
+        
+        let oreLavorateTotali = 0;
+        let oreNonConformita = 0;
+        
+        oreCommessa.forEach(ore => {
+            if (ore.oraInizio && ore.oraFine) {
+                const oreCalc = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+                oreLavorateTotali += oreCalc;
+                if (ore.nonConformita === true) {
+                    oreNonConformita += oreCalc;
+                }
+            }
+        });
+        
+        const tariffaOraria = 28.50;
+        const costoTariffaNC = 28.50;
+        
+        // CALCOLO CORRETTO DEL COSTO
+        const oreConformi = oreLavorateTotali - oreNonConformita;
+        const costoOreConformi = oreConformi * tariffaOraria;
+        const costoOreNonConformi = oreNonConformita * costoTariffaNC;
+        const costoOreTotali = costoOreConformi + costoOreNonConformi;
+        
+        // COSTO INTEGRAZIONE
+        const costoIntegrazione = oreIntegrazione * tariffaOraria;
+        
+        // RICAVO TOTALE (preventivo + integrazione)
+        const ricavoTotale = valorePreventivo + costoIntegrazione;
+        
+        // MARGINE CORRETTO
+        let margineEuro = ricavoTotale - costoOreTotali;
+        let marginePercentuale = 0;
+        
+        if (ricavoTotale > 0) {
+            marginePercentuale = (margineEuro / ricavoTotale) * 100;
+        }
+        
+        // DEBUG per verificare
+        console.log(`📊 ${commessa.nomeCommessa}:`, {
+            preventivo: valorePreventivo,
+            ricavo: ricavoTotale,
+            costoOre: costoOreTotali,
+            margineEuro: margineEuro,
+            marginePercentuale: marginePercentuale.toFixed(1)
+        });
+        
+        return {
+            valorePreventivo: valorePreventivo,
+            oreTotaliPreviste: oreTotaliPreviste,
+            marginePercentuale: marginePercentuale,
+            ricavoTotale: ricavoTotale,
+            datiCompleti: valorePreventivo > 0
+        };
+    } catch (error) {
+        console.error(`Errore calcolo per ${commessa?.nomeCommessa}:`, error);
+        return {
+            valorePreventivo: 0,
+            oreTotaliPreviste: 0,
+            marginePercentuale: 0,
+            ricavoTotale: 0,
+            datiCompleti: false
+        };
+    }
+}
+
+// Aggiungi listener per i filtri
+aggiungiListenerFiltriGrafici() {
+    // Filtri grafico margini
+    const btnApplicaMargini = document.getElementById('btnApplicaFiltriMargini');
+    const btnResetMargini = document.getElementById('btnResetFiltriMargini');
+    const selectAnnoMargini = document.getElementById('filtroAnnoMargini');
+    const selectMeseMargini = document.getElementById('filtroMeseMargini');
+    
+    if (btnApplicaMargini) {
+        btnApplicaMargini.onclick = async () => {
+            this.filtroMargini = {
+                anno: selectAnnoMargini?.value || '',
+                mese: selectMeseMargini?.value || ''
+            };
+            console.log('🔍 Filtro margini applicato:', this.filtroMargini);
+            
+            const [commesse, tutteLeOre] = await Promise.all([
+                this.firebaseService.getCollection("commesse"),
+                this.firebaseService.getCollection("oreLavorate")
+            ]);
+            await this.aggiornaGraficoMargini(commesse, tutteLeOre);
+            ErrorHandler.showNotification('Filtri applicati al grafico margini', 'success');
+        };
+    }
+    
+    if (btnResetMargini) {
+        btnResetMargini.onclick = async () => {
+            this.filtroMargini = { anno: '', mese: '' };
+            if (selectAnnoMargini) selectAnnoMargini.value = '';
+            if (selectMeseMargini) selectMeseMargini.value = '';
+            console.log('🔍 Reset filtri margini');
+            
+            const [commesse, tutteLeOre] = await Promise.all([
+                this.firebaseService.getCollection("commesse"),
+                this.firebaseService.getCollection("oreLavorate")
+            ]);
+            await this.aggiornaGraficoMargini(commesse, tutteLeOre);
+            ErrorHandler.showNotification('Filtri resettati', 'info');
+        };
+    }
+    
+    // Filtri grafico ore dipendenti (se non esistono già)
+    const btnApplicaOre = document.getElementById('btnApplicaFiltriOreDipendenti');
+    const btnResetOre = document.getElementById('btnResetFiltriOreDipendenti');
+    const selectAnnoOre = document.getElementById('filtroAnnoOreDipendenti');
+    const selectMeseOre = document.getElementById('filtroMeseOreDipendenti');
+    
+    if (btnApplicaOre) {
+        btnApplicaOre.onclick = async () => {
+            this.filtroOreDipendenti = {
+                anno: selectAnnoOre?.value || '',
+                mese: selectMeseOre?.value || ''
+            };
+            console.log('🔍 Filtro ore dipendenti applicato:', this.filtroOreDipendenti);
+            
+            const [tutteLeOre, dipendenti] = await Promise.all([
+                this.firebaseService.getCollection("oreLavorate"),
+                this.firebaseService.getCollection("dipendenti")
+            ]);
+            await this.aggiornaGraficoOreDipendenti(tutteLeOre, dipendenti);
+        };
+    }
+    
+    if (btnResetOre) {
+        btnResetOre.onclick = async () => {
+            this.filtroOreDipendenti = { anno: '', mese: '' };
+            if (selectAnnoOre) selectAnnoOre.value = '';
+            if (selectMeseOre) selectMeseOre.value = '';
+            
+            const [tutteLeOre, dipendenti] = await Promise.all([
+                this.firebaseService.getCollection("oreLavorate"),
+                this.firebaseService.getCollection("dipendenti")
+            ]);
+            await this.aggiornaGraficoOreDipendenti(tutteLeOre, dipendenti);
+        };
+    }
+}
+
+disegnaGraficoMargini() {
+    const canvas = document.getElementById('chartMarginiCommesse');
+    if (!canvas) return;
+    
+    if (window.chartMarginiCommesse && typeof window.chartMarginiCommesse.destroy === 'function') {
+        window.chartMarginiCommesse.destroy();
+    }
+    
+    // Filtra solo commesse con margine valido (non NaN e non undefined)
+    const marginiValidi = this.tuttiMargini.filter(item => {
+        return item && typeof item.margine === 'number' && !isNaN(item.margine);
+    });
+    
+    if (marginiValidi.length === 0) {
+        this.mostraMessaggioGraficoVuoto(canvas, 'Nessun margine disponibile con i filtri selezionati');
+        return;
+    }
+    
+    // Calcola indici paginazione
+    const startIndex = (this.paginaMarginiCorrente - 1) * this.elementiPerPagina;
+    const endIndex = startIndex + this.elementiPerPagina;
+    const datiPagina = marginiValidi.slice(startIndex, endIndex);
+    
+    const totalePagine = Math.ceil(marginiValidi.length / this.elementiPerPagina);
+    const paginaInfo = document.getElementById('paginaMarginiInfo');
+    if (paginaInfo) {
+        paginaInfo.textContent = `Pagina ${this.paginaMarginiCorrente} / ${totalePagine || 1} (${marginiValidi.length} totali)`;
+    }
+    
+    const btnPrec = document.getElementById('btnPrecMargini');
+    const btnSucc = document.getElementById('btnSuccMargini');
+    if (btnPrec) btnPrec.disabled = this.paginaMarginiCorrente === 1;
+    if (btnSucc) btnSucc.disabled = this.paginaMarginiCorrente === totalePagine || totalePagine === 0;
+    
+    if (datiPagina.length === 0) {
+        this.mostraMessaggioGraficoVuoto(canvas, 'Nessuna commessa con margini disponibili');
+        return;
+    }
+    
+    // DEBUG: stampa i dati visualizzati
+    console.log('📊 Dati visualizzati nel grafico:', datiPagina.map(d => ({
+        nome: d.nome,
+        margine: d.margine.toFixed(1) + '%',
+        preventivo: '€' + d.preventivo
+    })));
+    
+    // Colori in base al margine
+    const colori = datiPagina.map(item => {
+        const m = item.margine;
+        if (m >= 30) return 'rgba(40, 167, 69, 0.8)';
+        if (m >= 20) return 'rgba(23, 162, 184, 0.8)';
+        if (m >= 10) return 'rgba(255, 193, 7, 0.8)';
+        if (m >= 0) return 'rgba(253, 126, 20, 0.8)';
+        return 'rgba(220, 53, 69, 0.8)';
+    });
+    
+    canvas.style.height = '300px';
+    canvas.style.width = '100%';
+    canvas.height = 300;
+    
+    const ctx = canvas.getContext('2d');
+    
+    window.chartMarginiCommesse = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: datiPagina.map(item => {
+                let nome = item.nome;
+                if (nome.length > 25) nome = nome.substring(0, 22) + '...';
+                return nome;
+            }),
+            datasets: [{
+                label: 'Margine (%)',
+                data: datiPagina.map(item => {
+                    // Mostra il margine reale, limitato tra -50 e 100
+                    return Math.min(100, Math.max(-50, item.margine));
+                }),
+                backgroundColor: colori,
+                borderColor: colori.map(c => c.replace('0.8', '1')),
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const val = context.raw;
+                            const item = datiPagina[context.dataIndex];
+                            if (item) {
+                                return [
+                                    `Margine: ${item.margine.toFixed(1)}%`,
+                                    `Preventivo: € ${item.preventivo.toFixed(2)}`,
+                                    `Ricavo: € ${(item.ricavoTotale || item.preventivo).toFixed(2)}`,
+                                    `Ore lavorate: ${item.oreLavorate?.toFixed(1) || 0}h`
+                                ];
+                            }
+                            return `Margine: ${val}%`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    title: { display: true, text: 'Margine (%)' },
+                    ticks: { 
+                        callback: (v) => v + '%', 
+                        stepSize: 20 
+                    },
+                    min: -50,
+                    max: 100
+                },
+                x: {
+                    ticks: { 
+                        maxRotation: 35, 
+                        minRotation: 35, 
+                        autoSkip: false, 
+                        font: { size: 10 } 
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Disegna grafico ore dipendenti con paginazione
+disegnaGraficoOreDipendenti() {
+    const canvas = document.getElementById('chartOreDipendenti');
+    if (!canvas) return;
+    
+    // Distruggi grafico esistente
+    if (window.chartOreDipendenti && typeof window.chartOreDipendenti.destroy === 'function') {
+        window.chartOreDipendenti.destroy();
+    }
+    
+    // Calcola indici paginazione
+    const startIndex = (this.paginaOreCorrente - 1) * this.elementiPerPagina;
+    const endIndex = startIndex + this.elementiPerPagina;
+    const datiPagina = this.tutteOreDipendenti.slice(startIndex, endIndex);
+    
+    // Aggiorna info pagina
+    const totalePagine = Math.ceil(this.tutteOreDipendenti.length / this.elementiPerPagina);
+    const paginaInfo = document.getElementById('paginaOreDipendentiInfo');
+    if (paginaInfo) {
+        paginaInfo.textContent = `Pagina ${this.paginaOreCorrente} / ${totalePagine || 1} (${this.tutteOreDipendenti.length} dipendenti)`;
+    }
+    
+    // Abilita/disabilita pulsanti
+    const btnPrec = document.getElementById('btnPrecOreDipendenti');
+    const btnSucc = document.getElementById('btnSuccOreDipendenti');
+    if (btnPrec) btnPrec.disabled = this.paginaOreCorrente === 1;
+    if (btnSucc) btnSucc.disabled = this.paginaOreCorrente === totalePagine || totalePagine === 0;
+    
+    if (datiPagina.length === 0) {
+        this.mostraMessaggioGraficoVuoto(canvas, 'Nessuna ora lavorata registrata');
+        return;
+    }
+    
+    // Mantieni dimensioni fisse del canvas
+    canvas.style.height = '300px';
+    canvas.style.width = '100%';
+    canvas.height = 300;
+    
+    const ctx = canvas.getContext('2d');
+    window.chartOreDipendenti = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: datiPagina.map(item => item.nome.length > 20 ? item.nome.substring(0, 17) + '...' : item.nome),
+            datasets: [{
+                label: 'Ore Lavorate',
+                data: datiPagina.map(item => item.ore),
+                backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                borderColor: 'rgba(52, 152, 219, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const ore = context.raw;
+                            const oreFormattate = Utils.formattaOreDecimali(ore);
+                            return `${oreFormattate} ore (${ore.toFixed(1)}h)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    title: { display: true, text: 'Ore Lavorate' },
+                    beginAtZero: true,
+                    ticks: {
+                        callback: (value) => Utils.formattaOreDecimali(value)
+                    }
+                },
+                x: {
+                    ticks: {
+                        maxRotation: 35,
+                        minRotation: 35,
+                        autoSkip: false,
+                        font: { size: 10 }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Aggiungi listener per pulsanti di paginazione
+aggiungiListenerPaginazione() {
+    // Rimuovi listener esistenti per evitare duplicati
+    const btnPrecMargini = document.getElementById('btnPrecMargini');
+    const btnSuccMargini = document.getElementById('btnSuccMargini');
+    const btnPrecOre = document.getElementById('btnPrecOreDipendenti');
+    const btnSuccOre = document.getElementById('btnSuccOreDipendenti');
+    
+    // Clona e sostituisci per rimuovere listener vecchi
+    if (btnPrecMargini) {
+        const newBtn = btnPrecMargini.cloneNode(true);
+        btnPrecMargini.parentNode.replaceChild(newBtn, btnPrecMargini);
+        newBtn.addEventListener('click', () => {
+            if (this.paginaMarginiCorrente > 1) {
+                this.paginaMarginiCorrente--;
+                this.disegnaGraficoMargini();
+            }
+        });
+    }
+    
+    if (btnSuccMargini) {
+        const newBtn = btnSuccMargini.cloneNode(true);
+        btnSuccMargini.parentNode.replaceChild(newBtn, btnSuccMargini);
+        newBtn.addEventListener('click', () => {
+            const totalePagine = Math.ceil(this.tuttiMargini.length / this.elementiPerPagina);
+            if (this.paginaMarginiCorrente < totalePagine) {
+                this.paginaMarginiCorrente++;
+                this.disegnaGraficoMargini();
+            }
+        });
+    }
+    
+    if (btnPrecOre) {
+        const newBtn = btnPrecOre.cloneNode(true);
+        btnPrecOre.parentNode.replaceChild(newBtn, btnPrecOre);
+        newBtn.addEventListener('click', () => {
+            if (this.paginaOreCorrente > 1) {
+                this.paginaOreCorrente--;
+                this.disegnaGraficoOreDipendenti();
+            }
+        });
+    }
+    
+    if (btnSuccOre) {
+        const newBtn = btnSuccOre.cloneNode(true);
+        btnSuccOre.parentNode.replaceChild(newBtn, btnSuccOre);
+        newBtn.addEventListener('click', () => {
+            const totalePagine = Math.ceil(this.tutteOreDipendenti.length / this.elementiPerPagina);
+            if (this.paginaOreCorrente < totalePagine) {
+                this.paginaOreCorrente++;
+                this.disegnaGraficoOreDipendenti();
+            }
+        });
+    }
+}
+// Ridimensiona i grafici quando la finestra cambia
+resizeGrafici() {
+    if (window.chartMarginiCommesse) {
+        window.chartMarginiCommesse.resize();
+    }
+    if (window.chartOreDipendenti) {
+        window.chartOreDipendenti.resize();
+    }
+    if (window.chartStatoCommesse) {
+        window.chartStatoCommesse.resize();
+    }
+    if (window.chartAndamentoMensile) {
+        window.chartAndamentoMensile.resize();
+    }
+}
+async debugMargini() {
+    console.log('=== DEBUG MARGINI COMMESSE ===');
+    
+    const [commesse, tutteLeOre] = await Promise.all([
+        this.firebaseService.getCollection("commesse"),
+        this.firebaseService.getCollection("oreLavorate")
+    ]);
+    
+    // Prima controlla se ci sono ore con orari non validi
+    let oreValide = 0;
+    let oreInvalidi = 0;
+    
+    tutteLeOre.forEach(ore => {
+        const oreCalc = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+        if (oreCalc > 0) {
+            oreValide++;
+        } else {
+            oreInvalidi++;
+            console.warn(`Record con orari non validi:`, {
+                id: ore.id,
+                commessa: ore.commessa,
+                oraInizio: ore.oraInizio,
+                oraFine: ore.oraFine,
+                data: ore.data
+            });
+        }
+    });
+    
+    console.log(`📊 Ore valide: ${oreValide}, Ore non valide: ${oreInvalidi}`);
+    
+    if (oreInvalidi > 0) {
+        console.log('💡 Suggerimento: Esegui app.pulisciRecordOreInvalidi() per correggere i record');
+    }
+    
+    // Calcola margini solo per commesse con ore valide
+    for (const commessa of commesse) {
+        // Filtra solo ore valide per questa commessa
+        const oreCommessa = tutteLeOre.filter(ore => {
+            if (!ore.commessa) return false;
+            const oreCalc = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+            return ore.commessa.toLowerCase().trim() === commessa.nomeCommessa.toLowerCase().trim() && oreCalc > 0;
+        });
+        
+        const stats = this.calcolaStatisticheCommessaConOre(commessa, oreCommessa);
+        
+        if (stats.datiCompleti) {
+            console.log(`${commessa.nomeCommessa}:`, {
+                preventivo: `€${stats.valorePreventivo.toFixed(2)}`,
+                ricavo: `€${stats.ricavoTotale.toFixed(2)}`,
+                costoOre: `€${stats.costoOreTotali?.toFixed(2) || 'N/D'}`,
+                marginePercentuale: `${stats.marginePercentuale.toFixed(1)}%`,
+                oreCollegate: oreCommessa.length
+            });
+        }
+    }
+}
+async correggiOrariVentiquattro() {
+    console.log('🔧 Correzione record con ora 24:00...');
+    
+    try {
+        const tutteLeOre = await this.firebaseService.getCollection("oreLavorate");
+        let recordCorretti = 0;
+        
+        for (const ore of tutteLeOre) {
+            let needsUpdate = false;
+            let nuovaFine = ore.oraFine;
+            
+            // Correggi "24:00" in "23:59" o "00:00" del giorno dopo?
+            if (ore.oraFine === "24:00") {
+                nuovaFine = "23:59";
+                needsUpdate = true;
+                console.log(`📝 Correzione record ${ore.id}: ${ore.oraFine} -> 23:59`);
+            }
+            
+            // Controlla anche altri formati anomali
+            if (ore.oraFine === "24:00" || ore.oraFine === "24:00:00") {
+                nuovaFine = "23:59";
+                needsUpdate = true;
+            }
+            
+            // Controlla se l'ora inizio è maggiore dell'ora fine (esclude mezzanotte)
+            if (ore.oraInizio && ore.oraFine && ore.oraFine !== "23:59") {
+                const inizioNum = parseInt(ore.oraInizio.split(':')[0]);
+                const fineNum = parseInt(ore.oraFine.split(':')[0]);
+                if (fineNum < inizioNum && fineNum !== 0) {
+                    console.warn(`⚠️ Orario anomalo: ${ore.oraInizio} - ${ore.oraFine} per ${ore.id}`);
+                }
+            }
+            
+            if (needsUpdate) {
+                await this.firebaseService.updateDocument("oreLavorate", ore.id, {
+                    oraFine: nuovaFine
+                });
+                recordCorretti++;
+            }
+        }
+        
+        console.log(`✅ Corretti ${recordCorretti} record con ora 24:00`);
+        
+        if (recordCorretti > 0) {
+            ErrorHandler.showNotification(`Corretti ${recordCorretti} record con ora 24:00`, 'success');
+            // Ricarica i grafici
+            await this.creaGraficiDashboard();
+        }
+        
+        return recordCorretti;
+        
+    } catch (error) {
+        console.error('Errore correzione orari:', error);
+        return 0;
+    }
+}
+async verificaRecordOre() {
+    console.log('=== VERIFICA RECORD ORE ===');
+    
+    const tutteLeOre = await this.firebaseService.getCollection("oreLavorate");
+    
+    let validi = 0;
+    let nonValidi = [];
+    
+    for (const ore of tutteLeOre) {
+        const isValid = Utils.isValidTimeFormat(ore.oraInizio) && Utils.isValidTimeFormat(ore.oraFine);
+        
+        if (!isValid) {
+            nonValidi.push({
+                id: ore.id,
+                commessa: ore.commessa,
+                data: ore.data,
+                oraInizio: ore.oraInizio,
+                oraFine: ore.oraFine
+            });
+        } else {
+            validi++;
+        }
+    }
+    
+    console.log(`📊 Record validi: ${validi}`);
+    console.log(`⚠️ Record non validi: ${nonValidi.length}`);
+    
+    if (nonValidi.length > 0) {
+        console.table(nonValidi);
+        console.log('💡 Per correggere: app.pulisciRecordOreInvalidi()');
+    }
+    
+    return nonValidi;
+}
+
+// GRAFICO 1: Margini Commesse (TUTTE le commesse con scroll)
+async creaGraficoMarginiCommesse(commesse, tutteLeOre) {
+    const canvas = document.getElementById('chartMarginiCommesse');
+    if (!canvas) {
+        console.warn('Canvas chartMarginiCommesse non trovato');
+        return;
+    }
+    
+    // Aggiungi un container con scroll se necessario
+    const container = canvas.parentElement;
+    if (container && !container.querySelector('.chart-scroll-controls')) {
+        container.style.overflowX = 'auto';
+        container.style.overflowY = 'hidden';
+        container.style.width = '100%';
+        
+        // Imposta larghezza dinamica in base al numero di dati
+        canvas.style.minWidth = '100%';
+    }
+    
+    // Distruggi grafico esistente
+    if (window.chartMarginiCommesse && typeof window.chartMarginiCommesse.destroy === 'function') {
+        window.chartMarginiCommesse.destroy();
+    }
+    
+    // Calcola margini per TUTTE le commesse
+    const marginiCommesse = [];
+    
+    for (const commessa of commesse) {
+        const stats = this.calcolaStatisticheCommessa(commessa, tutteLeOre);
+        if (stats.datiCompleti && stats.marginePercentuale !== 0 && stats.marginePercentuale !== undefined) {
+            marginiCommesse.push({
+                nome: commessa.nomeCommessa,
+                margine: stats.marginePercentuale,
+                preventivo: stats.valorePreventivo,
+                ricavoTotale: stats.ricavoTotale
+            });
+        }
+    }
+    
+    if (marginiCommesse.length === 0) {
+        this.mostraMessaggioGraficoVuoto(canvas, 'Nessuna commessa con margini disponibili');
+        return;
+    }
+    
+    // Ordina per margine decrescente
+    marginiCommesse.sort((a, b) => b.margine - a.margine);
+    
+    // Colori in base al margine
+    const colori = marginiCommesse.map(item => {
+        if (item.margine >= 30) return 'rgba(40, 167, 69, 0.8)';
+        if (item.margine >= 20) return 'rgba(23, 162, 184, 0.8)';
+        if (item.margine >= 10) return 'rgba(255, 193, 7, 0.8)';
+        if (item.margine >= 0) return 'rgba(253, 126, 20, 0.8)';
+        return 'rgba(220, 53, 69, 0.8)';
+    });
+    
+    // Calcola larghezza dinamica del canvas (40px per ogni commessa, min 800px)
+    const larghezzaCanvas = Math.max(800, marginiCommesse.length * 40);
+    canvas.style.width = `${larghezzaCanvas}px`;
+    canvas.width = larghezzaCanvas;
+    canvas.height = 300;
+    
+    // Aggiungi controlli scroll se necessario
+    this.aggiungiControlliScroll(canvas, 'chartMarginiCommesse');
+    
+    const ctx = canvas.getContext('2d');
+    window.chartMarginiCommesse = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: marginiCommesse.map(item => item.nome.length > 20 ? item.nome.substring(0, 17) + '...' : item.nome),
+            datasets: [{
+                label: 'Margine (%)',
+                data: marginiCommesse.map(item => parseFloat(item.margine.toFixed(1))),
+                backgroundColor: colori,
+                borderColor: colori.map(c => c.replace('0.8', '1')),
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y', // Rende il grafico orizzontale se ci sono molti dati
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const valore = context.raw;
+                            const commessa = marginiCommesse[context.dataIndex];
+                            return [
+                                `Margine: ${valore}%`,
+                                `Preventivo: € ${commessa.preventivo.toFixed(2)}`,
+                                `Ricavo Totale: € ${commessa.ricavoTotale?.toFixed(2) || commessa.preventivo.toFixed(2)}`
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Margine (%)' },
+                    ticks: { callback: (value) => value + '%' },
+                    beginAtZero: true
+                },
+                y: {
+                    ticks: {
+                        autoSkip: false,
+                        font: { size: 10 }
+                    }
+                }
+            },
+            layout: {
+                padding: {
+                    left: 10,
+                    right: 10,
+                    top: 10,
+                    bottom: 10
+                }
+            }
+        }
+    });
+}
+// Aggiungi pulsanti nel header del grafico
+aggiungiPulsantiVisualizzazione() {
+    const cardHeader = document.querySelector('#chartMarginiCommesse')?.closest('.card')?.querySelector('.card-header');
+    if (!cardHeader) return;
+    
+    const btnGroup = document.createElement('div');
+    btnGroup.className = 'btn-group btn-group-sm ms-auto';
+    btnGroup.innerHTML = `
+        <button class="btn btn-outline-secondary btn-vista-barre" data-tipo="barre">
+            <i class="fas fa-chart-bar"></i> Barre
+        </button>
+        <button class="btn btn-outline-secondary btn-vista-linee" data-tipo="linee">
+            <i class="fas fa-chart-line"></i> Linee
+        </button>
+    `;
+    
+    cardHeader.appendChild(btnGroup);
+    
+    btnGroup.querySelector('.btn-vista-barre')?.addEventListener('click', () => {
+        this.cambiaTipoGrafico('chartMarginiCommesse', 'bar');
+    });
+    
+    btnGroup.querySelector('.btn-vista-linee')?.addEventListener('click', () => {
+        this.cambiaTipoGrafico('chartMarginiCommesse', 'line');
+    });
+}
+
+// Cambia tipo di grafico
+cambiaTipoGrafico(chartId, tipo) {
+    const chart = window[chartId];
+    if (chart) {
+        chart.config.type = tipo;
+        chart.update();
+    }
+}
+// GRAFICO 2: Stato Commesse (Pie Chart) - CORRETTO
+async creaGraficoStatoCommesse(commesse) {
+    const canvas = document.getElementById('chartStatoCommesse');
+    if (!canvas) {
+        console.warn('Canvas chartStatoCommesse non trovato');
+        return;
+    }
+    
+    if (window.chartStatoCommesse && typeof window.chartStatoCommesse.destroy === 'function') {
+        window.chartStatoCommesse.destroy();
+    }
+    
+    const attive = commesse.filter(c => c.stato === 'attiva' || !c.stato).length;
+    const concluse = commesse.filter(c => c.stato === 'conclusa').length;
+    
+    const ctx = canvas.getContext('2d');
+    window.chartStatoCommesse = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: [`Attive (${attive})`, `Concluse (${concluse})`],
+            datasets: [{
+                data: [attive, concluse],
+                backgroundColor: ['rgba(40, 167, 69, 0.8)', 'rgba(108, 117, 125, 0.8)'],
+                borderColor: ['#28a745', '#6c757d'],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const total = attive + concluse;
+                            const percentuale = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${label}: ${value} (${percentuale}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+       
+
+// GRAFICO 3: Ore Lavorate per Dipendente
+// GRAFICO 3: Ore Lavorate per Dipendente (TUTTI i dipendenti)
+async creaGraficoOreDipendenti(tutteLeOre, dipendenti) {
+    const canvas = document.getElementById('chartOreDipendenti');
+    if (!canvas) return;
+    
+    if (window.chartOreDipendenti && typeof window.chartOreDipendenti.destroy === 'function') {
+        window.chartOreDipendenti.destroy();
+    }
+    
+    // Calcola ore per TUTTI i dipendenti
+    const orePerDipendente = {};
+    
+    // Inizializza tutti i dipendenti con 0 ore
+    dipendenti.forEach(dip => {
+        const nomeCompleto = `${dip.nome} ${dip.cognome}`;
+        orePerDipendente[nomeCompleto] = 0;
+    });
+    
+    // Somma le ore
+    tutteLeOre.forEach(ore => {
+        const nomeCompleto = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
+        const oreLavorate = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+        if (orePerDipendente[nomeCompleto] !== undefined) {
+            orePerDipendente[nomeCompleto] += oreLavorate;
+        }
+    });
+    
+    // Converti in array e ordina per ore decrescenti
+    const sorted = Object.entries(orePerDipendente)
+        .filter(([_, ore]) => ore > 0) // Solo chi ha ore > 0
+        .sort((a, b) => b[1] - a[1]);
+    
+    if (sorted.length === 0) {
+        this.mostraMessaggioGraficoVuoto(canvas, 'Nessuna ora lavorata registrata');
+        return;
+    }
+    
+    // Calcola larghezza dinamica
+    const larghezzaCanvas = Math.max(800, sorted.length * 50);
+    canvas.style.width = `${larghezzaCanvas}px`;
+    canvas.width = larghezzaCanvas;
+    canvas.height = 300;
+    
+    // Aggiungi controlli scroll
+    this.aggiungiControlliScroll(canvas, 'chartOreDipendenti');
+    
+    const ctx = canvas.getContext('2d');
+    window.chartOreDipendenti = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(item => item[0].length > 15 ? item[0].substring(0, 12) + '...' : item[0]),
+            datasets: [{
+                label: 'Ore Lavorate',
+                data: sorted.map(item => parseFloat(item[1].toFixed(1))),
+                backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                borderColor: 'rgba(52, 152, 219, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y', // Grafico orizzontale per leggere meglio i nomi
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const ore = context.raw;
+                            const oreFormattate = Utils.formattaOreDecimali(ore);
+                            return `${oreFormattate} ore (${ore.toFixed(1)}h)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Ore Lavorate' },
+                    beginAtZero: true,
+                    ticks: {
+                        callback: (value) => value + 'h'
+                    }
+                },
+                y: {
+                    ticks: {
+                        autoSkip: false,
+                        font: { size: 10 }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// GRAFICO 4: Andamento Mensile Ore
+async creaGraficoAndamentoMensile(tutteLeOre) {
+    const canvas = document.getElementById('chartAndamentoMensile');
+    if (!canvas) return;
+    
+    if (window.chartAndamentoMensile && typeof window.chartAndamentoMensile.destroy === 'function') {
+        window.chartAndamentoMensile.destroy();
+    }
+    
+    const mesi = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+    const orePerMese = new Array(12).fill(0);
+    const annoCorrente = new Date().getFullYear();
+    
+    tutteLeOre.forEach(ore => {
+        if (ore.data) {
+            const parti = ore.data.split('-');
+            if (parti.length >= 2) {
+                const mese = parseInt(parti[1]) - 1;
+                const anno = parseInt(parti[0]);
+                if (anno === annoCorrente && mese >= 0 && mese < 12) {
+                    const oreLavorate = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+                    orePerMese[mese] += oreLavorate;
+                }
+            }
+        }
+    });
+    
+    // Verifica se ci sono dati
+    const hasData = orePerMese.some(ore => ore > 0);
+    if (!hasData) {
+        this.mostraMessaggioGraficoVuoto(canvas, `Nessuna ora registrata nel ${annoCorrente}`);
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    window.chartAndamentoMensile = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: mesi,
+            datasets: [{
+                label: `Ore Lavorate ${annoCorrente}`,
+                data: orePerMese.map(ore => parseFloat(ore.toFixed(1))),
+                borderColor: 'rgba(46, 204, 113, 1)',
+                backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointBackgroundColor: 'rgba(46, 204, 113, 1)',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            return `${context.raw} ore`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    title: { display: true, text: 'Ore Lavorate' },
+                    beginAtZero: true,
+                    ticks: {
+                        callback: (value) => value + 'h'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Aggiungi controlli scroll per i grafici
+aggiungiControlliScroll(canvas, chartId) {
+    const container = canvas.parentElement;
+    if (!container) return;
+    
+    // Rimuovi controlli esistenti
+    const existingControls = container.querySelector('.chart-scroll-controls');
+    if (existingControls) {
+        existingControls.remove();
+    }
+    
+    // Crea controlli scroll
+    const controls = document.createElement('div');
+    controls.className = 'chart-scroll-controls mt-2';
+    controls.style.cssText = 'display: flex; align-items: center; gap: 10px; justify-content: space-between;';
+    
+    controls.innerHTML = `
+        <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary btn-scroll-left" title="Scroll sinistra">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <button class="btn btn-outline-secondary btn-scroll-right" title="Scroll destra">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="small text-muted">Trascina per vedere tutti</span>
+            <i class="fas fa-arrows-alt-h text-muted"></i>
+        </div>
+        <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-primary btn-zoom-out" title="Zoom out">
+                <i class="fas fa-search-minus"></i>
+            </button>
+            <button class="btn btn-outline-primary btn-zoom-in" title="Zoom in">
+                <i class="fas fa-search-plus"></i>
+            </button>
+            <button class="btn btn-outline-danger btn-reset-zoom" title="Reset">
+                <i class="fas fa-undo"></i>
+            </button>
+        </div>
+    `;
+    
+    container.appendChild(controls);
+    
+    // Eventi scroll
+    const scrollLeftBtn = controls.querySelector('.btn-scroll-left');
+    const scrollRightBtn = controls.querySelector('.btn-scroll-right');
+    const zoomInBtn = controls.querySelector('.btn-zoom-in');
+    const zoomOutBtn = controls.querySelector('.btn-zoom-out');
+    const resetZoomBtn = controls.querySelector('.btn-reset-zoom');
+    
+    let currentZoom = 1;
+    const originalWidth = canvas.width;
+    
+    scrollLeftBtn?.addEventListener('click', () => {
+        container.scrollLeft -= 100;
+    });
+    
+    scrollRightBtn?.addEventListener('click', () => {
+        container.scrollLeft += 100;
+    });
+    
+    zoomInBtn?.addEventListener('click', () => {
+        currentZoom = Math.min(currentZoom + 0.2, 2);
+        canvas.style.zoom = currentZoom;
+        if (window[`chart_${chartId}`]) {
+            window[`chart_${chartId}`].update();
+        }
+    });
+    
+    zoomOutBtn?.addEventListener('click', () => {
+        currentZoom = Math.max(currentZoom - 0.2, 0.5);
+        canvas.style.zoom = currentZoom;
+        if (window[`chart_${chartId}`]) {
+            window[`chart_${chartId}`].update();
+        }
+    });
+    
+    resetZoomBtn?.addEventListener('click', () => {
+        currentZoom = 1;
+        canvas.style.zoom = 1;
+        if (window[`chart_${chartId}`]) {
+            window[`chart_${chartId}`].update();
+        }
+    });
+}
+// Metodo helper per mostrare messaggio quando il grafico è vuoto
+mostraMessaggioGraficoVuoto(canvas, messaggio) {
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    ctx.clearRect(0, 0, width, height);
+    ctx.font = '14px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#6c757d';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(messaggio || 'Nessun dato disponibile', width / 2, height / 2);
+}
+
+// Esporta grafici come PNG
+async esportaGraficiPNG() {
+    try {
+        // Verifica jsPDF
+        if (typeof window.jspdf === 'undefined') {
+            await this.caricaLibreriePDFDinamico();
+        }
+        
+        const { jsPDF } = window.jspdf;
+        if (!jsPDF) {
+            ErrorHandler.showNotification('Librerie PDF non disponibili', 'error');
+            return;
+        }
+        
+        const doc = new jsPDF({
+            orientation: 'landscape',
+            unit: 'mm',
+            format: 'a4'
+        });
+        
+        // Titolo
+        doc.setFontSize(18);
+        doc.text('Dashboard Grafica - Report Commesse', 148, 20, { align: 'center' });
+        doc.setFontSize(10);
+        doc.text(`Generato il: ${new Date().toLocaleString('it-IT')}`, 148, 28, { align: 'center' });
+        
+        // Cattura i grafici
+        const grafici = [
+            { id: 'chartMarginiCommesse', titolo: 'Top 10 Margini Commesse', x: 10, y: 40, w: 70, h: 50 },
+            { id: 'chartStatoCommesse', titolo: 'Stato Commesse', x: 160, y: 40, w: 70, h: 50 },
+            { id: 'chartOreDipendenti', titolo: 'Ore Lavorate per Dipendente', x: 10, y: 120, w: 70, h: 50 },
+            { id: 'chartAndamentoMensile', titolo: 'Andamento Mensile Ore', x: 160, y: 120, w: 70, h: 50 }
+        ];
+        
+        let yOffset = 40;
+        for (const grafico of grafici) {
+            const canvas = document.getElementById(grafico.id);
+            if (canvas && canvas.toDataURL) {
+                try {
+                    const imgData = canvas.toDataURL('image/png');
+                    doc.setFontSize(10);
+                    doc.text(grafico.titolo, grafico.x, grafico.y - 5);
+                    doc.addImage(imgData, 'PNG', grafico.x, grafico.y, grafico.w, grafico.h);
+                } catch (e) {
+                    console.warn(`Errore esportazione ${grafico.id}:`, e);
+                }
+            }
+        }
+        
+        doc.save(`dashboard_grafica_${new Date().toISOString().split('T')[0]}.pdf`);
+        ErrorHandler.showNotification('Grafici esportati con successo!', 'success');
+        
+    } catch (error) {
+        console.error('Errore esportazione grafici:', error);
+        ErrorHandler.showNotification('Errore durante l\'esportazione', 'error');
+    }
+}
+// ========== BACKUP E RIPRISTINO DATI ==========
+
+async eseguiBackupDati() {
+    try {
+        console.log('💾 Avvio backup dati...');
+        ErrorHandler.showNotification('Generazione backup in corso...', 'info');
+        
+        // Recupera tutti i dati
+        const [commesse, dipendenti, oreLavorate, fornitori] = await Promise.all([
+            this.firebaseService.getCollection("commesse"),
+            this.firebaseService.getCollection("dipendenti"),
+            this.firebaseService.getCollection("oreLavorate"),
+            this.firebaseService.getCollection("fornitoriLavorazioni")
+        ]);
+        
+        // Crea oggetto backup
+        const backup = {
+            metadata: {
+                versione: "1.0",
+                dataGenerazione: new Date().toISOString(),
+                autore: stateManager.currentUser?.email || "Sconosciuto",
+                conteggio: {
+                    commesse: commesse.length,
+                    dipendenti: dipendenti.length,
+                    oreLavorate: oreLavorate.length,
+                    fornitori: fornitori.length
+                }
+            },
+            dati: {
+                commesse: commesse,
+                dipendenti: dipendenti,
+                oreLavorate: oreLavorate,
+                fornitori: fornitori
+            }
+        };
+        
+        // Converti in JSON
+        const jsonString = JSON.stringify(backup, null, 2);
+        const blob = new Blob([jsonString], { type: "application/json" });
+        
+        // Download
+        const dataStr = new Date().toISOString().split('T')[0];
+        const nomeFile = `backup_union14_${dataStr}.json`;
+        
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = nomeFile;
+        link.click();
+        
+        URL.revokeObjectURL(link.href);
+        
+        // Salva info ultimo backup
+        localStorage.setItem('ultimoBackup', JSON.stringify({
+            data: new Date().toISOString(),
+            utente: stateManager.currentUser?.email,
+            conteggio: backup.metadata.conteggio
+        }));
+        
+        this.aggiornaInfoUltimoBackup();
+        
+        console.log('✅ Backup completato:', backup.metadata.conteggio);
+        ErrorHandler.showNotification(`Backup completato! ${commesse.length} commesse, ${dipendenti.length} dipendenti`, 'success');
+        
+    } catch (error) {
+        console.error('❌ Errore backup:', error);
+        ErrorHandler.showNotification('Errore durante il backup dei dati', 'error');
+    }
+}
+
+async ripristinaDaBackup(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        
+        reader.onload = async (e) => {
+            try {
+                const backup = JSON.parse(e.target.result);
+                
+                // Verifica struttura backup
+                if (!backup.dati || !backup.dati.commesse) {
+                    throw new Error('File backup non valido');
+                }
+                
+                console.log('📦 Backup letto:', backup.metadata);
+                
+                const conferma = confirm(
+                    `⚠️ ATTENZIONE: Questa operazione SOSTITUIRÀ tutti i dati esistenti!\n\n` +
+                    `Backup del: ${new Date(backup.metadata.dataGenerazione).toLocaleString('it-IT')}\n` +
+                    `Commesse: ${backup.dati.commesse.length}\n` +
+                    `Dipendenti: ${backup.dati.dipendenti.length}\n` +
+                    `Ore lavorate: ${backup.dati.oreLavorate.length}\n` +
+                    `Fornitori: ${backup.dati.fornitori?.length || 0}\n\n` +
+                    `Sei sicuro di voler procedere?`
+                );
+                
+                if (!conferma) {
+                    resolve(false);
+                    return;
+                }
+                
+                ErrorHandler.showNotification('Ripristino in corso...', 'info');
+                
+                // Pulisci collezioni esistenti
+                const collezioni = ['commesse', 'dipendenti', 'oreLavorate', 'fornitoriLavorazioni'];
+                
+                for (const collezione of collezioni) {
+                    const documenti = await this.firebaseService.getCollection(collezione);
+                    for (const doc of documenti) {
+                        await this.firebaseService.deleteDocument(collezione, doc.id);
+                    }
+                    console.log(`🗑️ Cancellata collezione: ${collezione}`);
+                }
+                
+                // Ripristina nuovi dati
+                for (const commessa of backup.dati.commesse) {
+                    delete commessa.id;
+                    await this.firebaseService.addDocument("commesse", commessa);
+                }
+                
+                for (const dipendente of backup.dati.dipendenti) {
+                    delete dipendente.id;
+                    await this.firebaseService.addDocument("dipendenti", dipendente);
+                }
+                
+                for (const ore of backup.dati.oreLavorate) {
+                    delete ore.id;
+                    await this.firebaseService.addDocument("oreLavorate", ore);
+                }
+                
+                if (backup.dati.fornitori && backup.dati.fornitori.length > 0) {
+                    for (const fornitore of backup.dati.fornitori) {
+                        delete fornitore.id;
+                        await this.firebaseService.addDocument("fornitoriLavorazioni", fornitore);
+                    }
+                }
+                
+                // Svuota cache
+                stateManager.clearCache();
+                
+                // Ricarica tutte le viste
+                await this.aggiornaTabellaCommesse();
+                await this.aggiornaTabellaDipendenti();
+                await this.aggiornaTabellaOreLavorate();
+                await this.aggiornaMonitorCommesse();
+                await this.creaGraficiDashboard();
+                
+                console.log('✅ Ripristino completato!');
+                ErrorHandler.showNotification('Ripristino completato con successo!', 'success');
+                
+                resolve(true);
+                
+            } catch (error) {
+                console.error('❌ Errore ripristino:', error);
+                ErrorHandler.showNotification('Errore durante il ripristino: file non valido', 'error');
+                reject(error);
+            }
+        };
+        
+        reader.onerror = () => {
+            reject(new Error('Errore nella lettura del file'));
+        };
+        
+        reader.readAsText(file);
+    });
+}
+
+aggiornaInfoUltimoBackup() {
+    const infoDiv = document.getElementById('infoUltimoBackup');
+    if (!infoDiv) return;
+    
+    const ultimoBackup = localStorage.getItem('ultimoBackup');
+    if (ultimoBackup) {
+        const data = JSON.parse(ultimoBackup);
+        const dataFormattata = new Date(data.data).toLocaleString('it-IT');
+        infoDiv.innerHTML = `<i class="fas fa-history"></i> Ultimo backup: ${dataFormattata} - Utente: ${data.utente}`;
+    } else {
+        infoDiv.innerHTML = '<i class="fas fa-clock"></i> Nessun backup precedente trovato';
+    }
+}
+
+mostraSelettoreBackup() {
+    const input = document.getElementById('fileBackupInput');
+    if (input) {
+        input.click();
+        input.onchange = async (e) => {
+            if (e.target.files && e.target.files[0]) {
+                await this.ripristinaDaBackup(e.target.files[0]);
+                input.value = ''; // Reset
+            }
+        };
+    }
+}
+// ========== DARK MODE ==========
+
+inizializzaDarkMode() {
+    // Controlla se c'è una preferenza salvata
+    const savedTheme = localStorage.getItem('theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+        this.attivaDarkMode();
+    } else {
+        this.attivaLightMode();
+    }
+    
+    // Aggiungi listener per il toggle button
+    const toggleBtn = document.getElementById('darkModeToggle');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => this.toggleDarkMode());
+    }
+    
+    // Ascolta i cambi di preferenza del sistema
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+            if (e.matches) {
+                this.attivaDarkMode();
+            } else {
+                this.attivaLightMode();
+            }
+        }
+    });
+}
+
+toggleDarkMode() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (isDark) {
+        this.attivaLightMode();
+    } else {
+        this.attivaDarkMode();
+    }
+}
+
+attivaDarkMode() {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    localStorage.setItem('theme', 'dark');
+    
+    // Cambia icona del bottone
+    const toggleBtn = document.getElementById('darkModeToggle');
+    if (toggleBtn) {
+        toggleBtn.innerHTML = '<i class="fas fa-sun"></i>';
+        toggleBtn.title = 'Light mode';
+    }
+    
+    // Aggiorna i grafici Chart.js per adattarli al tema scuro
+    this.aggiornaGraficiPerDarkMode(true);
+    
+    console.log('🌙 Dark mode attivata');
+}
+
+attivaLightMode() {
+    document.documentElement.setAttribute('data-theme', 'light');
+    localStorage.setItem('theme', 'light');
+    
+    // Cambia icona del bottone
+    const toggleBtn = document.getElementById('darkModeToggle');
+    if (toggleBtn) {
+        toggleBtn.innerHTML = '<i class="fas fa-moon"></i>';
+        toggleBtn.title = 'Dark mode';
+    }
+    
+    // Aggiorna i grafici Chart.js per adattarli al tema chiaro
+    this.aggiornaGraficiPerDarkMode(false);
+    
+    console.log('☀️ Light mode attivata');
+}
+
+aggiornaGraficiPerDarkMode(isDark) {
+    // Aggiorna tutti i grafici per adattarli al tema
+    const grafici = [
+        'chartMarginiCommesse',
+        'chartOreDipendenti', 
+        'chartStatoCommesse',
+        'chartAndamentoMensile'
+    ];
+    
+    grafici.forEach(id => {
+        const chart = window[`chart${id.charAt(0).toUpperCase() + id.slice(1)}`];
+        if (chart) {
+            // Cambia colore del testo degli assi
+            const textColor = isDark ? '#e0e0e0' : '#212529';
+            const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+            
+            if (chart.options.scales) {
+                if (chart.options.scales.x) {
+                    chart.options.scales.x.ticks.color = textColor;
+                    chart.options.scales.x.grid.color = gridColor;
+                }
+                if (chart.options.scales.y) {
+                    chart.options.scales.y.ticks.color = textColor;
+                    chart.options.scales.y.grid.color = gridColor;
+                }
+            }
+            
+            if (chart.options.plugins?.legend) {
+                chart.options.plugins.legend.labels.color = textColor;
+            }
+            
+            chart.update();
+        }
+    });
+}
 
 }
 
