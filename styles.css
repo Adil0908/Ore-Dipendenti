@@ -1033,3 +1033,695 @@ h3 {
     border-left: 3px solid #ffc107;
     background: linear-gradient(90deg, rgba(255,193,7,0.05) 0%, rgba(255,193,7,0) 100%);
 }
+/* Stili per sezione fornitori */
+#fornitoriTable td {
+    vertical-align: middle;
+}
+
+#fornitoriTable .btn-sm {
+    padding: 2px 8px;
+}
+
+/* Badge fornitore */
+.badge.bg-info {
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+    color: white;
+}
+
+/* Effetto hover per righe con fornitori */
+tr.has-fornitore {
+    background-color: #e8f4f8 !important;
+}
+/* Responsive per i nuovi filtri */
+@media (max-width: 768px) {
+    .filtri-monitor .col-md-3,
+    .filtri-monitor .col-md-2 {
+        margin-bottom: 0.75rem;
+    }
+}
+
+/* Badge per filtro data attivo */
+.badge-filtro-data {
+    background-color: #17a2b8;
+    color: white;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    margin-left: 0.5rem;
+}
+/* Pulsante PDF rubrica */
+#btnScaricaPDFDipendenti {
+    transition: all 0.3s ease;
+}
+
+#btnScaricaPDFDipendenti:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+#btnScaricaPDFDipendenti:active {
+    transform: translateY(0);
+}
+
+/* Controlli scroll per grafici */
+.chart-scroll-controls {
+    margin-top: 8px;
+    padding: 5px 0;
+    border-top: 1px solid #e9ecef;
+}
+
+.chart-scroll-controls .btn {
+    padding: 2px 8px;
+    font-size: 0.75rem;
+}
+
+.chart-scroll-controls .btn i {
+    font-size: 0.7rem;
+}
+
+/* Container scroll orizzontale */
+canvas {
+    transition: zoom 0.3s ease;
+}
+
+/* Tooltip migliorati */
+.chart-scroll-controls .btn:hover {
+    transform: scale(1.05);
+}
+/* Controlli paginazione grafici */
+#paginaMarginiInfo,
+#paginaOreDipendentiInfo {
+    min-width: 120px;
+    text-align: center;
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+.btn-group .btn {
+    transition: all 0.2s ease;
+}
+
+.btn-group .btn:hover:not(:disabled) {
+    transform: scale(1.02);
+}
+
+.btn-group .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+/* Filtri nei grafici */
+#chartMarginiCommesse .card-header,
+#chartOreDipendenti .card-header {
+    flex-wrap: wrap;
+}
+
+.form-select-sm {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+#infoFiltriMargini,
+#infoFiltriOreDipendenti {
+    font-size: 0.7rem;
+    color: #6c757d;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .card-header .d-flex {
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+    
+    .card-header select,
+    .card-header button {
+        width: 100% !important;
+    }
+}
+/* Dimensioni fisse per i canvas dei grafici */
+#chartMarginiCommesse,
+#chartOreDipendenti,
+#chartStatoCommesse,
+#chartAndamentoMensile {
+    max-height: 300px !important;
+    min-height: 300px !important;
+    height: 300px !important;
+    width: 100% !important;
+}
+
+/* Container dei grafici */
+.card-body canvas {
+    max-height: 300px;
+    min-height: 300px;
+}
+/* ===== DARK MODE PROFESSIONALE ===== */
+:root {
+    /* Light mode (default) */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f7fb;
+    --bg-card: #ffffff;
+    --bg-input: #ffffff;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --border-color: #e2e8f0;
+    --border-light: #f1f5f9;
+    --table-header: #1e293b;
+    --table-header-text: #ffffff;
+    --table-row-hover: #f8fafc;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    --navbar-bg: #ffffff;
+    --card-header-bg: #f8fafc;
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --info: #3b82f6;
+}
+
+[data-theme="dark"] {
+    /* Dark mode professionale - come GitHub Dark / VS Code */
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-card: #0d1117;
+    --bg-input: #0d1117;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --border-color: #30363d;
+    --border-light: #21262d;
+    --table-header: #161b22;
+    --table-header-text: #e6edf3;
+    --table-row-hover: #1f242e;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --navbar-bg: #0d1117;
+    --card-header-bg: #161b22;
+    --success: #2ea043;
+    --danger: #f85149;
+    --warning: #d29922;
+    --info: #58a6ff;
+}
+
+
+/* Applicazione dark mode */
+[data-theme="dark"] body {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+/* Card eleganti */
+[data-theme="dark"] .card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .card-header {
+    background-color: var(--card-header-bg);
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 12px 12px 0 0;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+/* ===== TABELLE - DARK MODE CORRETTA ===== */
+
+/* Forza i colori delle tabelle in dark mode */
+[data-theme="dark"] table,
+[data-theme="dark"] .table {
+    color: var(--text-primary) !important;
+    background-color: var(--bg-card) !important;
+}
+
+[data-theme="dark"] .table thead th,
+[data-theme="dark"] table thead th {
+    background-color: var(--table-header) !important;
+    color: var(--table-header-text) !important;
+    border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .table tbody tr,
+[data-theme="dark"] table tbody tr {
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .table tbody td,
+[data-theme="dark"] table tbody td {
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+[data-theme="dark"] .table-striped tbody tr:nth-of-type(odd) td {
+    background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+[data-theme="dark"] .table-hover tbody tr:hover {
+    background-color: var(--table-row-hover) !important;
+}
+
+[data-theme="dark"] .table-hover tbody tr:hover td {
+    background-color: var(--table-row-hover) !important;
+}
+
+/* Tabella monitoraggio commesse specifica */
+[data-theme="dark"] #monitorCommesseTable,
+[data-theme="dark"] #monitorCommesseTable tbody,
+[data-theme="dark"] #monitorCommesseTable tr,
+[data-theme="dark"] #monitorCommesseTable td {
+    background-color: var(--bg-card) !important;
+}
+
+[data-theme="dark"] #monitorCommesseTable td {
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Tabella commesse */
+[data-theme="dark"] #commesseTable,
+[data-theme="dark"] #commesseTable tbody,
+[data-theme="dark"] #commesseTable tr,
+[data-theme="dark"] #commesseTable td {
+    background-color: var(--bg-card) !important;
+}
+
+/* Tabella ore lavorate */
+[data-theme="dark"] #orelavorateTable,
+[data-theme="dark"] #orelavorateTable tbody,
+[data-theme="dark"] #orelavorateTable tr,
+[data-theme="dark"] #orelavorateTable td {
+    background-color: var(--bg-card) !important;
+}
+
+/* Tabella dipendenti */
+[data-theme="dark"] #dipendentiTable,
+[data-theme="dark"] #dipendentiTable tbody,
+[data-theme="dark"] #dipendentiTable tr,
+[data-theme="dark"] #dipendentiTable td {
+    background-color: var(--bg-card) !important;
+}
+
+/* Tabella fornitori */
+[data-theme="dark"] #fornitoriTable,
+[data-theme="dark"] #fornitoriTable tbody,
+[data-theme="dark"] #fornitoriTable tr,
+[data-theme="dark"] #fornitoriTable td {
+    background-color: var(--bg-card) !important;
+}
+
+/* Stile per righe pari/dispari */
+[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(even) > * {
+    background-color: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Bordo superiore tabella */
+[data-theme="dark"] .table-bordered,
+[data-theme="dark"] .table-bordered td,
+[data-theme="dark"] .table-bordered th {
+    border-color: var(--border-color) !important;
+}
+
+/* Card-body delle tabelle */
+[data-theme="dark"] .card-body {
+    background-color: var(--bg-card) !important;
+}
+
+/* Container delle tabelle responsive */
+[data-theme="dark"] .table-responsive {
+    background-color: var(--bg-card) !important;
+}
+/* ===== GRAFICI IN DARK MODE ===== */
+[data-theme="dark"] canvas {
+    background-color: var(--bg-card) !important;
+    border-radius: 8px;
+}
+
+/* Container dei grafici */
+[data-theme="dark"] .card canvas {
+    background-color: transparent !important;
+}
+/* ===== CARD HEADER DARK MODE ===== */
+[data-theme="dark"] .card-header {
+    background-color: var(--card-header-bg) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .card-header h2,
+[data-theme="dark"] .card-header h3,
+[data-theme="dark"] .card-header h4,
+[data-theme="dark"] .card-header h5 {
+    color: var(--text-primary) !important;
+}
+
+/* Form input */
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select {
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+
+[data-theme="dark"] .form-control:focus,
+[data-theme="dark"] .form-select:focus {
+    background-color: var(--bg-input);
+    border-color: var(--info);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.2);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .form-control::placeholder {
+    color: var(--text-muted);
+}
+
+[data-theme="dark"] .form-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-bottom: 6px;
+}
+
+/* Navbar */
+[data-theme="dark"] .navbar {
+    background: var(--navbar-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .navbar-brand {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+/* Bottoni - restyling completo */
+[data-theme="dark"] .btn-primary {
+    background-color: var(--info);
+    border-color: var(--info);
+    color: #ffffff;
+}
+
+[data-theme="dark"] .btn-primary:hover {
+    background-color: #1f6feb;
+    border-color: #1f6feb;
+}
+
+[data-theme="dark"] .btn-success {
+    background-color: var(--success);
+    border-color: var(--success);
+}
+
+[data-theme="dark"] .btn-success:hover {
+    background-color: #2c974b;
+    border-color: #2c974b;
+}
+
+[data-theme="dark"] .btn-danger {
+    background-color: var(--danger);
+    border-color: var(--danger);
+}
+
+[data-theme="dark"] .btn-danger:hover {
+    background-color: #d63a34;
+    border-color: #d63a34;
+}
+
+[data-theme="dark"] .btn-warning {
+    background-color: var(--warning);
+    border-color: var(--warning);
+    color: #0d1117;
+}
+
+[data-theme="dark"] .btn-outline-secondary {
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .btn-outline-secondary:hover {
+    background-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .btn-outline-primary {
+    color: var(--info);
+    border-color: var(--info);
+}
+
+[data-theme="dark"] .btn-outline-primary:hover {
+    background-color: var(--info);
+    color: #ffffff;
+}
+
+[data-theme="dark"] .btn-outline-success {
+    color: var(--success);
+    border-color: var(--success);
+}
+
+[data-theme="dark"] .btn-outline-success:hover {
+    background-color: var(--success);
+    color: #ffffff;
+}
+
+[data-theme="dark"] .btn-outline-danger {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+[data-theme="dark"] .btn-outline-danger:hover {
+    background-color: var(--danger);
+    color: #ffffff;
+}
+
+/* Login page */
+[data-theme="dark"] .login-container {
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+}
+
+[data-theme="dark"] .login-form {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+}
+
+[data-theme="dark"] .login-form h2 {
+    color: var(--text-primary);
+}
+
+/* Alert moderni */
+[data-theme="dark"] .alert {
+    border-radius: 10px;
+    border: 1px solid transparent;
+}
+
+[data-theme="dark"] .alert-info {
+    background-color: rgba(88, 166, 255, 0.15);
+    border-color: rgba(88, 166, 255, 0.3);
+    color: var(--info);
+}
+
+[data-theme="dark"] .alert-success {
+    background-color: rgba(46, 160, 67, 0.15);
+    border-color: rgba(46, 160, 67, 0.3);
+    color: var(--success);
+}
+
+[data-theme="dark"] .alert-warning {
+    background-color: rgba(210, 153, 34, 0.15);
+    border-color: rgba(210, 153, 34, 0.3);
+    color: var(--warning);
+}
+
+[data-theme="dark"] .alert-danger {
+    background-color: rgba(248, 81, 73, 0.15);
+    border-color: rgba(248, 81, 73, 0.3);
+    color: var(--danger);
+}
+
+/* Badge moderni */
+[data-theme="dark"] .badge {
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-weight: 500;
+}
+
+[data-theme="dark"] .badge.bg-success {
+    background-color: var(--success) !important;
+}
+
+[data-theme="dark"] .badge.bg-danger {
+    background-color: var(--danger) !important;
+}
+
+[data-theme="dark"] .badge.bg-warning {
+    background-color: var(--warning) !important;
+    color: #0d1117;
+}
+
+[data-theme="dark"] .badge.bg-info {
+    background-color: var(--info) !important;
+}
+
+[data-theme="dark"] .badge.bg-secondary {
+    background-color: var(--text-muted) !important;
+}
+
+/* Commessa conclusa in dark mode */
+[data-theme="dark"] .commessa-conclusa {
+    background-color: rgba(139, 148, 158, 0.1) !important;
+    opacity: 0.8;
+}
+
+[data-theme="dark"] .commessa-conclusa td {
+    color: var(--text-muted);
+}
+
+/* Paginazione */
+[data-theme="dark"] .pagination-controls .btn {
+    background-color: var(--bg-input);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .pagination-controls .btn-primary {
+    background-color: var(--info);
+    border-color: var(--info);
+    color: #ffffff;
+}
+
+[data-theme="dark"] .pagination-controls .btn-primary:disabled,
+[data-theme="dark"] .pagination-controls .btn:disabled {
+    opacity: 0.5;
+    background-color: var(--border-color);
+    color: var(--text-muted);
+}
+
+/* Progress bar */
+[data-theme="dark"] .progress {
+    background-color: var(--border-color);
+    border-radius: 10px;
+}
+
+[data-theme="dark"] .progress-bar.bg-success {
+    background-color: var(--success) !important;
+}
+
+[data-theme="dark"] .progress-bar.bg-warning {
+    background-color: var(--warning) !important;
+}
+
+[data-theme="dark"] .progress-bar.bg-danger {
+    background-color: var(--danger) !important;
+}
+
+[data-theme="dark"] .progress-bar.bg-info {
+    background-color: var(--info) !important;
+}
+
+/* Dropdown */
+[data-theme="dark"] .dropdown-menu {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+}
+
+[data-theme="dark"] .dropdown-item {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+    background-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Modal */
+[data-theme="dark"] .modal-content {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+}
+
+[data-theme="dark"] .modal-header {
+    border-bottom-color: var(--border-color);
+}
+
+[data-theme="dark"] .modal-footer {
+    border-top-color: var(--border-color);
+}
+
+/* Toggle Dark Mode Button - migliorato */
+[data-theme="dark"] .dark-mode-toggle {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--warning);
+    box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .dark-mode-toggle {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color);
+    color: #1e293b;
+    box-shadow: var(--shadow-md);
+}
+
+/* Grafici Chart.js - adattamento automatico */
+[data-theme="dark"] canvas {
+    filter: brightness(0.95) contrast(1.05);
+}
+/* Dark Mode Toggle Button - versione migliorata */
+.dark-mode-toggle {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1000;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(10px);
+}
+
+.dark-mode-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode-toggle i {
+    font-size: 1.3rem;
+    transition: transform 0.3s ease;
+}
+
+.dark-mode-toggle:hover i {
+    transform: rotate(15deg);
+}
+
+[data-theme="light"] .dark-mode-toggle {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+[data-theme="dark"] .dark-mode-toggle {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #0d1117;
+}
+/* Glass morphism effect per card (solo dark mode) */
+[data-theme="dark"] .card {
+    backdrop-filter: blur(10px);
+    background: rgba(13, 17, 23, 0.9);
+}
+
+[data-theme="dark"] .card-header {
+    backdrop-filter: blur(10px);
+    background: rgba(22, 27, 34, 0.95);
+}
