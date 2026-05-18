@@ -10,7 +10,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome per le icone -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+    <!-- Chart.js per i grafici -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js"></script>
     <!-- jsPDF -->
@@ -19,6 +20,9 @@
  
 </head>
 <body>
+    <button class="dark-mode-toggle" id="darkModeToggle" title="Dark/Light mode">
+    <i class="fas fa-moon"></i>
+</button>
     <script src="app.js"></script>
     <div id="loginPage" class="login-container">
         <div class="login-form">
@@ -116,51 +120,82 @@
                 <div class="card-body">
 
                     <div class="row mb-3">
-                         <!-- NUOVO FILTRO PER COMMESSA SPECIFICA -->
-                <div class="col-md-4">
-                    <label for="filtroNomeCommessa" class="form-label">Cerca Commessa:</label>
-                    <input type="text" id="filtroNomeCommessa" class="form-control" 
-                           placeholder="Nome commessa..." list="listaCommesse">
-                    <datalist id="listaCommesse">
-                        <!-- Le opzioni verranno popolate dinamicamente -->
-                    </datalist>
-                </div>
+    <!-- FILTRO NOME COMMESSA -->
+    <div class="col-md-3">
+        <label for="filtroNomeCommessa" class="form-label">Cerca Commessa:</label>
+        <input type="text" id="filtroNomeCommessa" class="form-control" 
+               placeholder="Nome commessa..." list="listaCommesse">
+        <datalist id="listaCommesse"></datalist>
+    </div>
+    
+    <!-- FILTRO STATO -->
+    <div class="col-md-2">
+        <label for="filtroCommessaMonitor" class="form-label">Filtra per Stato:</label>
+        <select id="filtroCommessaMonitor" class="form-select">
+            <option value="">Tutte le commesse</option>
+            <option value="attive">Solo attive</option>
+            <option value="concluse">Solo concluse</option>
+        </select>
+    </div>
+    
+    <!-- NUOVO: FILTRO ANNO -->
+    <div class="col-md-2">
+        <label for="filtroAnnoMonitor" class="form-label">Anno:</label>
+        <select id="filtroAnnoMonitor" class="form-select">
+            <option value="">Tutti gli anni</option>
+        </select>
+    </div>
+    
+    <!-- NUOVO: FILTRO MESE -->
+    <div class="col-md-2">
+        <label for="filtroMeseMonitor" class="form-label">Mese:</label>
+        <select id="filtroMeseMonitor" class="form-select">
+            <option value="">Tutti i mesi</option>
+            <option value="01">Gennaio</option>
+            <option value="02">Febbraio</option>
+            <option value="03">Marzo</option>
+            <option value="04">Aprile</option>
+            <option value="05">Maggio</option>
+            <option value="06">Giugno</option>
+            <option value="07">Luglio</option>
+            <option value="08">Agosto</option>
+            <option value="09">Settembre</option>
+            <option value="10">Ottobre</option>
+            <option value="11">Novembre</option>
+            <option value="12">Dicembre</option>
+        </select>
+    </div>
+    
+    <!-- PULSANTI -->
+    <div class="col-md-3 d-flex align-items-end gap-2">
+        <button id="btnAggiornaMonitor" class="btn btn-primary">
+            <i class="fas fa-sync-alt"></i> Aggiorna
+        </button>
+        <button id="btnResetFiltriMonitor" class="btn btn-secondary">
+            <i class="fas fa-undo"></i> Reset
+        </button>
+        <button id="btnScaricaPDFMonitor" class="btn btn-success">
+            <i class="fas fa-file-pdf"></i> PDF
+        </button>
+    </div>
+</div>
                 
-                <div class="col-md-4">
-                    <label for="filtroCommessaMonitor" class="form-label">Filtra per Stato:</label>
-                    <select id="filtroCommessaMonitor" class="form-select">
-                        <option value="">Tutte le commesse</option>
-                        <option value="attive">Solo attive</option>
-                        <option value="concluse">Solo concluse</option>
-                    </select>
-                </div>
-                
-                <div class="col-md-4 d-flex align-items-end gap-2">
-                    <button id="btnAggiornaMonitor" class="btn btn-primary">
-                        <i class="fas fa-sync-alt"></i> Aggiorna
-                    </button>
-                    <button id="btnResetFiltriMonitor" class="btn btn-secondary">
-                        <i class="fas fa-undo"></i> Reset
-                    </button>
-                    <button id="btnScaricaPDFMonitor" class="btn btn-success">
-    <i class="fas fa-file-pdf"></i> Scarica PDF Monitoraggio
-</button>
-                </div>
-            </div>
                     
                     <div class="table-responsive">
                         <table id="monitorCommesseTable" class="table table-striped table-bordered table-hover">
                             <thead class="table-dark">
                                 <tr>
-                                    <th>Commessa</th>
-                                    <th>Preventivo (€)</th>
-                                    <th>Ore Lav/Prev</th>
-                                    <th>Ore NC</th>
-                                   <th>Integr.</th>    <!-- Nuova colonna compatta -->
-                                    <th>Costo (€)</th>
-                                   <th>Margine (€)</th>
-                                    <th>Margine (%)</th>
-                                      <th>Stato</th>
+                                     <th>Commessa</th>
+        <th>Preventivo (€)</th>
+        <th>Ore Lav/Prev</th>
+        <th>Ore NC</th>
+        <th>Integr.</th>
+        <th>Costo Dipendenti (€)</th>
+        <th>Costo Fornitori (€)</th>   <!-- NUOVA COLONNA -->
+        <th>Costo Totale (€)</th>
+        <th>Margine (€)</th>
+        <th>Margine (%)</th>
+        <th>Stato</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -187,6 +222,204 @@
                 </div>
             </div>
         </div>
+        <!-- SEZIONE GRAFICI DASHBOARD -->
+<div class="admin-only card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="mb-0"><i class="fas fa-chart-pie"></i> Dashboard Grafica</h3>
+        <div>
+            <button id="btnAggiornaGrafici" class="btn btn-sm btn-primary">
+                <i class="fas fa-sync-alt"></i> Aggiorna
+            </button>
+            <button id="btnEsportaGrafici" class="btn btn-sm btn-success">
+                <i class="fas fa-download"></i> Esporta PNG
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+ <!-- Grafico Margini Commesse (con paginazione e filtri) -->
+<div class="col-md-6 mb-4">
+    <div class="card h-100">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0"><i class="fas fa-chart-line"></i> Margini Commesse</h5>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <!-- Filtro Anno -->
+                    <select id="filtroAnnoMargini" class="form-select form-select-sm" style="width: 100px;">
+                        <option value="">Tutti</option>
+                    </select>
+                    <!-- Filtro Mese -->
+                    <select id="filtroMeseMargini" class="form-select form-select-sm" style="width: 120px;">
+                        <option value="">Tutti i mesi</option>
+                        <option value="01">Gennaio</option>
+                        <option value="02">Febbraio</option>
+                        <option value="03">Marzo</option>
+                        <option value="04">Aprile</option>
+                        <option value="05">Maggio</option>
+                        <option value="06">Giugno</option>
+                        <option value="07">Luglio</option>
+                        <option value="08">Agosto</option>
+                        <option value="09">Settembre</option>
+                        <option value="10">Ottobre</option>
+                        <option value="11">Novembre</option>
+                        <option value="12">Dicembre</option>
+                    </select>
+                    <button id="btnApplicaFiltriMargini" class="btn btn-sm btn-primary">
+                        <i class="fas fa-filter"></i> Filtra
+                    </button>
+                    <button id="btnResetFiltriMargini" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" id="btnPrecMargini" disabled>
+                        <i class="fas fa-chevron-left"></i> Prec
+                    </button>
+                    <span class="badge bg-secondary d-flex align-items-center px-3" id="paginaMarginiInfo">Pagina 1</span>
+                    <button class="btn btn-outline-secondary" id="btnSuccMargini">
+                        Succ <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                <small class="text-muted" id="infoFiltriMargini"></small>
+            </div>
+        </div>
+        <div class="card-body">
+            <canvas id="chartMarginiCommesse" style="height: 300px; width: 100%;"></canvas>
+        </div>
+    </div>
+</div>
+            
+            <!-- Grafico Distribuzione Stato Commesse -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Stato Commesse</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="chartStatoCommesse" style="max-height: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+<!-- Grafico Ore Dipendenti (con paginazione e filtri) -->
+<div class="col-md-6 mb-4">
+    <div class="card h-100">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0"><i class="fas fa-users"></i> Ore Lavorate per Dipendente</h5>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <!-- Filtro Anno -->
+                    <select id="filtroAnnoOreDipendenti" class="form-select form-select-sm" style="width: 100px;">
+                        <option value="">Tutti</option>
+                    </select>
+                    <!-- Filtro Mese -->
+                    <select id="filtroMeseOreDipendenti" class="form-select form-select-sm" style="width: 120px;">
+                        <option value="">Tutti i mesi</option>
+                        <option value="01">Gennaio</option>
+                        <option value="02">Febbraio</option>
+                        <option value="03">Marzo</option>
+                        <option value="04">Aprile</option>
+                        <option value="05">Maggio</option>
+                        <option value="06">Giugno</option>
+                        <option value="07">Luglio</option>
+                        <option value="08">Agosto</option>
+                        <option value="09">Settembre</option>
+                        <option value="10">Ottobre</option>
+                        <option value="11">Novembre</option>
+                        <option value="12">Dicembre</option>
+                    </select>
+                    <button id="btnApplicaFiltriOreDipendenti" class="btn btn-sm btn-primary">
+                        <i class="fas fa-filter"></i> Filtra
+                    </button>
+                    <button id="btnResetFiltriOreDipendenti" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" id="btnPrecOreDipendenti" disabled>
+                        <i class="fas fa-chevron-left"></i> Prec
+                    </button>
+                    <span class="badge bg-secondary d-flex align-items-center px-3" id="paginaOreDipendentiInfo">Pagina 1</span>
+                    <button class="btn btn-outline-secondary" id="btnSuccOreDipendenti">
+                        Succ <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                <small class="text-muted" id="infoFiltriOreDipendenti"></small>
+            </div>
+        </div>
+        <div class="card-body">
+            <canvas id="chartOreDipendenti" style="height: 300px; width: 100%;"></canvas>
+        </div>
+    </div>
+</div>
+            
+            <!-- Grafico Andamento Mensile -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> Andamento Mensile Ore</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="chartAndamentoMensile" style="max-height: 300px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- SEZIONE BACKUP DATI -->
+<div class="admin-only card mb-4">
+    <div class="card-header">
+        <h3 class="mb-0"><i class="fas fa-database"></i> Backup e Ripristino Dati</h3>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <i class="fas fa-download fa-3x mb-3 text-primary"></i>
+                        <h5>Esporta Backup</h5>
+                        <p class="small text-muted">Esporta tutti i dati (commesse, dipendenti, ore, fornitori)</p>
+                        <button id="btnBackupDati" class="btn btn-primary">
+                            <i class="fas fa-download"></i> Scarica Backup JSON
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <i class="fas fa-upload fa-3x mb-3 text-warning"></i>
+                        <h5>Importa Backup</h5>
+                        <p class="small text-muted">Carica un file JSON per ripristinare i dati</p>
+                        <input type="file" id="fileBackupInput" accept=".json" style="display: none;">
+                        <button id="btnRipristinoDati" class="btn btn-warning">
+                            <i class="fas fa-upload"></i> Carica Backup
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="alert alert-info small">
+                    <i class="fas fa-info-circle"></i> 
+                    <strong>Info:</strong> Il backup include tutte le commesse, dipendenti, ore lavorate e fornitori. 
+                    Il ripristino SOSTITUIRÀ i dati esistenti. Si consiglia di fare un backup prima di importare.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Ultimo backup info -->
+        <div id="infoUltimoBackup" class="text-center text-muted small mt-2"></div>
+    </div>
+</div>
 
         <!-- SEZIONE ADMIN: TABELLA ORE LAVORATE (SOLO PER ADMIN) -->
         <div class="admin-only card mb-4">
@@ -352,6 +585,11 @@
                         <label for="valorePreventivo" class="form-label">Valore Preventivo (€):</label>
                         <input type="number" id="valorePreventivo" class="form-control" step="0.01" min="0" required>
                     </div>
+                    <!-- NUOVO CAMPO DATA COMMESSA -->
+                       <div class="col-md-4">
+                           <label for="dataCommessa" class="form-label">Data Inizio Commessa:</label>
+                            <input type="date" id="dataCommessa" class="form-control" required>
+                         </div>
                     <div class="col-md-6">
                         <label for="statoCommessa" class="form-label">Stato Commessa:</label>
                         <select id="statoCommessa" class="form-select" required>
@@ -375,33 +613,91 @@
                 </div>
                 
                 <div class="table-responsive">
-                    <table id="commesseTable" class="table table-striped table-bordered">
-                        <thead class="table-info">
-                            <tr>
-                                <th>Nome Commessa</th>
-                                <th>Cliente</th>
-                                <th>Valore Preventivo (€)</th>  
-                                <th>Ore Totali Previste</th>
-                                <th>Stato</th>
-                                <th>Azioni</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Le commesse verranno aggiunte qui dinamicamente -->
-                        </tbody>
-                    </table>
+                   <table id="commesseTable" class="table table-striped table-bordered">
+    <thead class="table-info">
+        <tr>
+            <th>Nome Commessa / Cliente</th>
+            <th>Valore Preventivo (€)</th>
+            <th>Ore Totali Previste</th>
+            <th>Data Inizio</th>
+            <th>Stato</th>
+            <th>Azioni</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- I dati verranno popolati dinamicamente -->
+    </tbody>
+</table>
                 </div>
                 
                 <!-- PAGINAZIONE COMMESSE -->
                 <div id="paginationCommesse" class="mt-3"></div>
             </div>
         </div>
+        <!-- Sezione Gestione Fornitori -->
+<div class="admin-only card mb-4">
+    <div class="card-header">
+        <h3><i class="fas fa-truck"></i> Gestione Fornitori Esterni</h3>
+    </div>
+    <div class="card-body">
+        <form id="fornitoreForm" class="row g-3">
+            <div class="col-md-4">
+                <label for="fornitoreNome" class="form-label">Nome Fornitore:</label>
+                <input type="text" id="fornitoreNome" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+                <label for="fornitoreCommessa" class="form-label">Commessa Associata:</label>
+                <select id="fornitoreCommessa" class="form-select" required>
+                    <option value="">Seleziona una commessa</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="fornitoreCosto" class="form-label">Costo Lavorazione (€):</label>
+                <input type="number" id="fornitoreCosto" class="form-control" step="0.01" min="0" required>
+            </div>
+            <div class="col-md-6">
+                <label for="fornitoreDescrizione" class="form-label">Descrizione Lavoro:</label>
+                <textarea id="fornitoreDescrizione" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="col-md-6">
+                <label for="fornitoreData" class="form-label">Data Lavorazione:</label>
+                <input type="date" id="fornitoreData" class="form-control">
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-plus"></i> Aggiungi Lavorazione Fornitore
+                </button>
+            </div>
+        </form>
+        
+        <div class="table-responsive mt-4">
+            <table id="fornitoriTable" class="table table-striped table-bordered">
+                <thead class="table-secondary">
+                    <tr>
+                        <th>Fornitore</th>
+                        <th>Commessa</th>
+                        <th>Costo (€)</th>
+                        <th>Descrizione</th>
+                        <th>Data</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- I fornitori verranno aggiunti qui dinamicamente -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
     
         <!-- Sezione Gestione Dipendenti -->
         <div class="admin-only card mb-4">
-            <div class="card-header">
-                <h3><i class="fas fa-users"></i> Gestione Dipendenti</h3>
-            </div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="mb-0"><i class="fas fa-users"></i> Gestione Dipendenti</h3>
+    <button id="btnScaricaPDFDipendenti" class="btn btn-success btn-sm">
+        <i class="fas fa-file-pdf"></i> Scarica Rubrica PDF
+    </button>
+</div>
             <div class="card-body">
                 <form id="dipendentiForm" class="row g-3">
                     <div class="col-md-6">
