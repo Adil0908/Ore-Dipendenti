@@ -6679,6 +6679,8 @@ async creaGraficiDashboard() {
         
         // Listener per filtri
         this.aggiungiListenerFiltriGrafici();
+         // === AGGIUNGI QUESTA RIGA ===
+        this.aggiungiListenerPaginazione();
         
         console.log('✅ Tutti i grafici creati con successo');
         
@@ -7158,43 +7160,49 @@ disegnaGraficoMargini() {
         window.chartMarginiCommesse.destroy();
     }
     
-    // Filtra solo commesse con margine valido (non NaN e non undefined)
+    // Filtra solo commesse con margine valido
     const marginiValidi = this.tuttiMargini.filter(item => {
         return item && typeof item.margine === 'number' && !isNaN(item.margine);
     });
     
     if (marginiValidi.length === 0) {
         this.mostraMessaggioGraficoVuoto(canvas, 'Nessun margine disponibile con i filtri selezionati');
+        // Aggiorna info pagina
+        const paginaInfo = document.getElementById('paginaMarginiInfo');
+        if (paginaInfo) {
+            paginaInfo.textContent = `Pagina 0 / 0 (0 totali)`;
+        }
+        // Disabilita pulsanti
+        const btnPrec = document.getElementById('btnPrecMargini');
+        const btnSucc = document.getElementById('btnSuccMargini');
+        if (btnPrec) btnPrec.disabled = true;
+        if (btnSucc) btnSucc.disabled = true;
         return;
     }
-    
+    console.log(`📄 Pagina ${this.paginaMarginiCorrente}, elementi per pagina: ${this.elementiPerPagina}, totali: ${marginiValidi.length}`);
     // Calcola indici paginazione
     const startIndex = (this.paginaMarginiCorrente - 1) * this.elementiPerPagina;
     const endIndex = startIndex + this.elementiPerPagina;
     const datiPagina = marginiValidi.slice(startIndex, endIndex);
     
     const totalePagine = Math.ceil(marginiValidi.length / this.elementiPerPagina);
+    
+    // Aggiorna info pagina
     const paginaInfo = document.getElementById('paginaMarginiInfo');
     if (paginaInfo) {
         paginaInfo.textContent = `Pagina ${this.paginaMarginiCorrente} / ${totalePagine || 1} (${marginiValidi.length} totali)`;
     }
     
+    // Aggiorna stato pulsanti
     const btnPrec = document.getElementById('btnPrecMargini');
     const btnSucc = document.getElementById('btnSuccMargini');
-    if (btnPrec) btnPrec.disabled = this.paginaMarginiCorrente === 1;
-    if (btnSucc) btnSucc.disabled = this.paginaMarginiCorrente === totalePagine || totalePagine === 0;
+    if (btnPrec) btnPrec.disabled = (this.paginaMarginiCorrente === 1);
+    if (btnSucc) btnSucc.disabled = (this.paginaMarginiCorrente === totalePagine || totalePagine === 0);
     
     if (datiPagina.length === 0) {
         this.mostraMessaggioGraficoVuoto(canvas, 'Nessuna commessa con margini disponibili');
         return;
     }
-    
-    // DEBUG: stampa i dati visualizzati
-    console.log('📊 Dati visualizzati nel grafico:', datiPagina.map(d => ({
-        nome: d.nome,
-        margine: d.margine.toFixed(1) + '%',
-        preventivo: '€' + d.preventivo
-    })));
     
     // Colori in base al margine
     const colori = datiPagina.map(item => {
@@ -7223,7 +7231,6 @@ disegnaGraficoMargini() {
             datasets: [{
                 label: 'Margine (%)',
                 data: datiPagina.map(item => {
-                    // Mostra il margine reale, limitato tra -50 e 100
                     return Math.min(100, Math.max(-50, item.margine));
                 }),
                 backgroundColor: colori,
@@ -7245,9 +7252,7 @@ disegnaGraficoMargini() {
                             if (item) {
                                 return [
                                     `Margine: ${item.margine.toFixed(1)}%`,
-                                    `Preventivo: € ${item.preventivo.toFixed(2)}`,
-                                    `Ricavo: € ${(item.ricavoTotale || item.preventivo).toFixed(2)}`,
-                                    `Ore lavorate: ${item.oreLavorate?.toFixed(1) || 0}h`
+                                    `Preventivo: € ${item.preventivo.toFixed(2)}`
                                 ];
                             }
                             return `Margine: ${val}%`;
@@ -7258,20 +7263,12 @@ disegnaGraficoMargini() {
             scales: {
                 y: {
                     title: { display: true, text: 'Margine (%)' },
-                    ticks: { 
-                        callback: (v) => v + '%', 
-                        stepSize: 20 
-                    },
+                    ticks: { callback: (v) => v + '%', stepSize: 20 },
                     min: -50,
                     max: 100
                 },
                 x: {
-                    ticks: { 
-                        maxRotation: 35, 
-                        minRotation: 35, 
-                        autoSkip: false, 
-                        font: { size: 10 } 
-                    }
+                    ticks: { maxRotation: 35, minRotation: 35, autoSkip: false, font: { size: 10 } }
                 }
             }
         }
@@ -7368,17 +7365,19 @@ disegnaGraficoOreDipendenti() {
 
 // Aggiungi listener per pulsanti di paginazione
 aggiungiListenerPaginazione() {
-    // Rimuovi listener esistenti per evitare duplicati
+    console.log('🔧 Inizializzazione listener paginazione...');
+    
+    // Pulsanti per grafico margini
     const btnPrecMargini = document.getElementById('btnPrecMargini');
     const btnSuccMargini = document.getElementById('btnSuccMargini');
-    const btnPrecOre = document.getElementById('btnPrecOreDipendenti');
-    const btnSuccOre = document.getElementById('btnSuccOreDipendenti');
     
-    // Clona e sostituisci per rimuovere listener vecchi
+    // Rimuovi listener esistenti clonando e sostituendo
     if (btnPrecMargini) {
-        const newBtn = btnPrecMargini.cloneNode(true);
-        btnPrecMargini.parentNode.replaceChild(newBtn, btnPrecMargini);
-        newBtn.addEventListener('click', () => {
+        const newPrec = btnPrecMargini.cloneNode(true);
+        btnPrecMargini.parentNode.replaceChild(newPrec, btnPrecMargini);
+        newPrec.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('⬅️ Click Precedente Margini');
             if (this.paginaMarginiCorrente > 1) {
                 this.paginaMarginiCorrente--;
                 this.disegnaGraficoMargini();
@@ -7387,9 +7386,11 @@ aggiungiListenerPaginazione() {
     }
     
     if (btnSuccMargini) {
-        const newBtn = btnSuccMargini.cloneNode(true);
-        btnSuccMargini.parentNode.replaceChild(newBtn, btnSuccMargini);
-        newBtn.addEventListener('click', () => {
+        const newSucc = btnSuccMargini.cloneNode(true);
+        btnSuccMargini.parentNode.replaceChild(newSucc, btnSuccMargini);
+        newSucc.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('➡️ Click Successivo Margini');
             const totalePagine = Math.ceil(this.tuttiMargini.length / this.elementiPerPagina);
             if (this.paginaMarginiCorrente < totalePagine) {
                 this.paginaMarginiCorrente++;
@@ -7398,10 +7399,16 @@ aggiungiListenerPaginazione() {
         });
     }
     
+    // Pulsanti per grafico ore dipendenti
+    const btnPrecOre = document.getElementById('btnPrecOreDipendenti');
+    const btnSuccOre = document.getElementById('btnSuccOreDipendenti');
+    
     if (btnPrecOre) {
-        const newBtn = btnPrecOre.cloneNode(true);
-        btnPrecOre.parentNode.replaceChild(newBtn, btnPrecOre);
-        newBtn.addEventListener('click', () => {
+        const newPrecOre = btnPrecOre.cloneNode(true);
+        btnPrecOre.parentNode.replaceChild(newPrecOre, btnPrecOre);
+        newPrecOre.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('⬅️ Click Precedente Ore Dipendenti');
             if (this.paginaOreCorrente > 1) {
                 this.paginaOreCorrente--;
                 this.disegnaGraficoOreDipendenti();
@@ -7410,9 +7417,11 @@ aggiungiListenerPaginazione() {
     }
     
     if (btnSuccOre) {
-        const newBtn = btnSuccOre.cloneNode(true);
-        btnSuccOre.parentNode.replaceChild(newBtn, btnSuccOre);
-        newBtn.addEventListener('click', () => {
+        const newSuccOre = btnSuccOre.cloneNode(true);
+        btnSuccOre.parentNode.replaceChild(newSuccOre, btnSuccOre);
+        newSuccOre.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('➡️ Click Successivo Ore Dipendenti');
             const totalePagine = Math.ceil(this.tutteOreDipendenti.length / this.elementiPerPagina);
             if (this.paginaOreCorrente < totalePagine) {
                 this.paginaOreCorrente++;
