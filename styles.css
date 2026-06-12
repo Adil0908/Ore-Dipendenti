@@ -1356,6 +1356,52 @@ canvas {
 [data-theme="dark"] .table-responsive {
     background-color: var(--bg-card) !important;
 }
+/* Stili per tabella fornitori */
+#fornitoriTable td {
+    vertical-align: middle;
+}
+
+#fornitoriTable .btn-sm {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+}
+
+#fornitoriTable .btn-warning {
+    background-color: #ffc107;
+    border-color: #ffc107;
+    color: #212529;
+}
+
+#fornitoriTable .btn-warning:hover {
+    background-color: #e0a800;
+    border-color: #d39e00;
+}
+
+/* Animazione per il salvataggio */
+@keyframes pulse-green {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+.btn-success:active {
+    animation: pulse-green 0.5s ease-out;
+}
+/* Stili per select con opzioni ordinate */
+select option {
+    padding: 5px 8px;
+}
+
+/* Evidenziazione hover sulle option */
+select option:hover {
+    background-color: #e9ecef;
+}
+
+/* Separatore visivo per le commesse concluse nella select */
+select option[data-stato="conclusa"] {
+    color: #6c757d;
+    font-style: italic;
+}
 /* ===== GRAFICI IN DARK MODE ===== */
 [data-theme="dark"] canvas {
     background-color: var(--bg-card) !important;
@@ -1450,6 +1496,7 @@ canvas {
     background-color: #d63a34;
     border-color: #d63a34;
 }
+
 
 [data-theme="dark"] .btn-warning {
     background-color: var(--warning);
