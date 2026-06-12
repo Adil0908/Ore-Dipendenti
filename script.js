@@ -116,7 +116,7 @@ class Utils {
         console.warn("Orari mancanti:", { oraInizio, oraFine });
         return 0;
     }
-    
+
     // Funzione per normalizzare l'orario
     const normalizzaOra = (ora) => {
         if (!ora || typeof ora !== 'string') return null;
@@ -529,6 +529,9 @@ class OreLavorateApp {
           // Proprietà per filtri grafici
         this.filtroMargini = { anno: '', mese: '' };
         this.filtroOreDipendenti = { anno: '', mese: '' };
+         this.datiTotaliFornitori = [];
+    this.salvataggioInCorso = false;  // PER EVITARE DOPPI SALVATAGGI
+    this.paginazioneFornitori = null;  // PER LA PAGINAZIONE
         
         // NUOVA PROPRIETÀ: controllo aggiornamenti duplicati
         this.aggiornamentoInCorso = false;
@@ -895,6 +898,12 @@ document.getElementById('filtroMeseMonitor')?.addEventListener('change', (e) => 
         console.log('✅ Librerie OK, generando PDF...');
         await this.generaPDFMonitoraggio();
     });
+     // Form fornitore - usa una reference unica
+    const fornitoreForm = document.getElementById('fornitoreForm');
+    if (fornitoreForm && !fornitoreForm.hasAttribute('data-listener-added')) {
+        fornitoreForm.addEventListener('submit', (e) => this.aggiungiLavorazioneFornitore(e));
+        fornitoreForm.setAttribute('data-listener-added', 'true');
+    }
 }
 // POPOLA GLI ANNI NEL SELECT DEL MONITORAGGIO
 popolaAnniMonitor() {
@@ -1579,35 +1588,45 @@ mostraReportDiagnostica(report) {
         }
     }
 
-     async aggiornaMenuCommesse() {
-        const select = document.getElementById('oreCommessa');
-        if (!select) return;
+    async aggiornaMenuCommesse() {
+    const select = document.getElementById('oreCommessa');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">Seleziona una commessa</option>';
+
+    try {
+        const tutteLeCommesse = await this.firebaseService.getCollection("commesse");
+        // FILTRA: mostra solo commesse attive
+        let commesseAttive = tutteLeCommesse.filter(commessa => commessa.stato === 'attiva');
         
-        select.innerHTML = '<option value="">Seleziona una commessa</option>';
-
-        try {
-            const tutteLeCommesse = await this.firebaseService.getCollection("commesse");
-            // FILTRA: mostra solo commesse attive
-            const commesseAttive = tutteLeCommesse.filter(commessa => commessa.stato === 'attiva');
-            
-            if (commesseAttive.length === 0) {
-                const option = document.createElement('option');
-                option.value = "";
-                option.textContent = "Nessuna commessa attiva disponibile";
-                select.appendChild(option);
-                return;
-            }
-
-            commesseAttive.forEach(commessa => {
-                const option = document.createElement('option');
-                option.value = commessa.nomeCommessa;
-                option.textContent = `${commessa.nomeCommessa} - ${commessa.cliente}`;
-                select.appendChild(option);
-            });
-        } catch (error) {
-            ErrorHandler.handleError(error, 'caricamento commesse');
+        // ORDINA IN ORDINE CRESCENTE (A-Z) per nomeCommessa
+        commesseAttive.sort((a, b) => {
+            const nomeA = a.nomeCommessa.toLowerCase();
+            const nomeB = b.nomeCommessa.toLowerCase();
+            return nomeA.localeCompare(nomeB, 'it');
+        });
+        
+        if (commesseAttive.length === 0) {
+            const option = document.createElement('option');
+            option.value = "";
+            option.textContent = "Nessuna commessa attiva disponibile";
+            select.appendChild(option);
+            return;
         }
+
+        commesseAttive.forEach(commessa => {
+            const option = document.createElement('option');
+            option.value = commessa.nomeCommessa;
+            option.textContent = `${commessa.nomeCommessa} - ${commessa.cliente}`;
+            select.appendChild(option);
+        });
+        
+        console.log(`📋 Menu commesse aggiornato: ${commesseAttive.length} commesse ordinate`);
+        
+    } catch (error) {
+        ErrorHandler.handleError(error, 'caricamento commesse');
     }
+}
 
    // CORREZIONE METODI AGGIORNAMENTO TABELLE - VERSIONE SICURA
 async aggiornaTabellaOreLavorate(oreFiltrate = null) {
@@ -1750,47 +1769,75 @@ async aggiornaTabellaCommesse(filtro = '') {
     const tbody = document.querySelector('#commesseTable tbody');
     if (!tbody) return;
 
+    tbody.innerHTML = '';
+
     try {
-        // Mostra loading
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Caricamento...</td></tr>';
-        
-        // Recupera tutte le commesse
-        let tutteLeCommesse = await this.firebaseService.getCollection("commesse");
-        
-        // Filtra se necessario
-        if (filtro && filtro.trim() !== '') {
-            const filtroLowerCase = filtro.toLowerCase();
-            tutteLeCommesse = tutteLeCommesse.filter(commessa => 
-                commessa.nomeCommessa.toLowerCase().includes(filtroLowerCase) ||
-                (commessa.cliente && commessa.cliente.toLowerCase().includes(filtroLowerCase))
-            );
+        if (this.datiTotaliCommesse.length === 0 || filtro) {
+            this.datiTotaliCommesse = await this.firebaseService.getCollection("commesse");
+            
+            if (filtro) {
+                const filtroLowerCase = filtro.toLowerCase();
+                this.datiTotaliCommesse = this.datiTotaliCommesse.filter(commessa => 
+                    commessa.nomeCommessa.toLowerCase().includes(filtroLowerCase) ||
+                    commessa.cliente.toLowerCase().includes(filtroLowerCase)
+                );
+            }
+            
+            // ORDINA IN ORDINE CRESCENTE (A-Z)
+            this.datiTotaliCommesse.sort((a, b) => {
+                const nomeA = a.nomeCommessa.toLowerCase();
+                const nomeB = b.nomeCommessa.toLowerCase();
+                return nomeA.localeCompare(nomeB, 'it');
+            });
+            
+            this.paginazioneCommesse.aggiornaDati(this.datiTotaliCommesse);
         }
-        
-        // Ordina le commesse (attive prima, poi per nome)
-        tutteLeCommesse.sort((a, b) => {
-            const statoA = a.stato === 'attiva' ? 0 : 1;
-            const statoB = b.stato === 'attiva' ? 0 : 1;
-            if (statoA !== statoB) return statoA - statoB;
-            return (a.nomeCommessa || '').localeCompare(b.nomeCommessa || '');
-        });
-        
-        // Salva i dati totali
-        this.datiTotaliCommesse = tutteLeCommesse;
-        
-        // Inizializza la paginazione se non esiste
-        if (!this.paginazioneCommesse) {
-            this.paginazioneCommesse = new PaginationManager('paginationCommesse', CONSTANTS.RIGHE_PER_PAGINA);
+
+        const datiPagina = this.paginazioneCommesse.getDatiPagina();
+
+        if (datiPagina.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td colspan="6" class="text-center">Nessuna commessa trovata</td>`;
+            tbody.appendChild(row);
+        } else {
+            datiPagina.forEach(commessa => {
+                const row = document.createElement('tr');
+                const statoCorrente = commessa.stato || 'attiva';
+                
+                if (statoCorrente === 'conclusa') {
+                    row.classList.add('commessa-conclusa');
+                }
+                
+                row.innerHTML = `
+                    <td>${commessa.nomeCommessa}</td>
+                    <td>${commessa.cliente}</td>
+                    <td class="text-end">€ ${commessa.valorePreventivo?.toFixed(2) || '0.00'}</td>
+                    <td class="text-center">${Utils.formattaOreDecimali(commessa.oreTotaliPreviste || 0)} ore</td>
+                    <td class="text-center">
+                        <span class="badge ${statoCorrente === 'attiva' ? 'badge-attiva' : 'badge-conclusa'}">
+                            ${statoCorrente === 'attiva' ? 'ATTIVA' : 'CONCLUSA'}
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-warning btnModificaCommessa" data-id="${commessa.id}">Modifica</button>
+                        <button class="btn btn-sm btn-secondary" onclick="app.cambiaStatoCommessa('${commessa.id}', '${statoCorrente}')">
+                            ${statoCorrente === 'attiva' ? 'Concludi' : 'Riattiva'}
+                        </button>
+                        <button class="btn btn-sm btn-danger btnEliminaCommessa" data-id="${commessa.id}">Elimina</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+
+                row.querySelector('.btnModificaCommessa').addEventListener('click', () => this.modificaCommessa(commessa.id));
+                row.querySelector('.btnEliminaCommessa').addEventListener('click', () => this.eliminaCommessa(commessa.id));
+            });
         }
-        
-        // Aggiorna i dati nella paginazione
-        this.paginazioneCommesse.aggiornaDati(tutteLeCommesse);
-        
-        // Renderizza la tabella
-        this.renderizzaTabellaCommesse();
-        
+
+        this.paginazioneCommesse.render(this.datiTotaliCommesse, () => this.aggiornaTabellaCommesse(filtro));
+
     } catch (error) {
         console.error('Errore nel caricamento tabella commesse:', error);
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Errore nel caricamento dei dati</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Errore nel caricamento dei dati</td></tr>`;
     }
 }
 
@@ -3964,7 +4011,15 @@ escapeHtml(str) {
 async caricaFornitori() {
     try {
         this.datiTotaliFornitori = await this.firebaseService.getCollection("fornitoriLavorazioni");
+        
+        // Inizializza la paginazione se non esiste
+        if (!this.paginazioneFornitori) {
+            this.paginazioneFornitori = new PaginationManager('paginationFornitori', CONSTANTS.RIGHE_PER_PAGINA);
+        }
+        
+        this.paginazioneFornitori.aggiornaDati(this.datiTotaliFornitori);
         await this.aggiornaTabellaFornitori();
+        
     } catch (error) {
         console.error('Errore caricamento fornitori:', error);
         this.datiTotaliFornitori = [];
@@ -3978,41 +4033,115 @@ async aggiornaTabellaFornitori() {
     tbody.innerHTML = '';
     
     try {
-        const fornitori = await this.firebaseService.getCollection("fornitoriLavorazioni");
+        // Ottieni i dati della pagina corrente
+        const datiPagina = this.paginazioneFornitori.getDatiPagina();
         
-        if (fornitori.length === 0) {
+        if (datiPagina.length === 0) {
             tbody.innerHTML = `<tr><td colspan="6" class="text-center">Nessuna lavorazione fornitore registrata</td></tr>`;
-            return;
+        } else {
+            for (const fornitore of datiPagina) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${this.escapeHtml(fornitore.nomeFornitore)}</td>
+                    <td>${this.escapeHtml(fornitore.commessa)}</td>
+                    <td class="text-end">€ ${fornitore.costo.toFixed(2)}</td>
+                    <td>${this.escapeHtml(fornitore.descrizione || '-')}</td>
+                    <td>${fornitore.data || '-'}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-warning btnModificaFornitore me-1" data-id="${fornitore.id}">
+                            <i class="fas fa-edit"></i> Modifica
+                        </button>
+                        <button class="btn btn-sm btn-danger btnEliminaFornitore" data-id="${fornitore.id}">
+                            <i class="fas fa-trash"></i> Elimina
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+                
+                // Aggiungi event listener per modifica
+                const modificaBtn = row.querySelector('.btnModificaFornitore');
+                if (modificaBtn) {
+                    modificaBtn.addEventListener('click', () => this.modificaLavorazioneFornitore(fornitore.id));
+                }
+                
+                // Aggiungi event listener per elimina
+                const eliminaBtn = row.querySelector('.btnEliminaFornitore');
+                if (eliminaBtn) {
+                    eliminaBtn.addEventListener('click', () => this.eliminaLavorazioneFornitore(fornitore.id));
+                }
+            }
         }
         
-        for (const fornitore of fornitori) {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${this.escapeHtml(fornitore.nomeFornitore)}</td>
-                <td>${this.escapeHtml(fornitore.commessa)}</td>
-                <td class="text-end">€ ${fornitore.costo.toFixed(2)}</td>
-                <td>${this.escapeHtml(fornitore.descrizione || '-')}</td>
-                <td>${fornitore.data || '-'}</td>
-                <td>
-                    <button class="btn btn-sm btn-danger btnEliminaFornitore" data-id="${fornitore.id}">
-                        <i class="fas fa-trash"></i> Elimina
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(row);
-            
-            row.querySelector('.btnEliminaFornitore').addEventListener('click', () => 
-                this.eliminaLavorazioneFornitore(fornitore.id)
-            );
+        // Renderizza la paginazione
+        if (this.paginazioneFornitori) {
+            this.paginazioneFornitori.render(this.datiTotaliFornitori, () => this.aggiornaTabellaFornitori());
         }
+        
     } catch (error) {
         console.error('Errore aggiornamento tabella fornitori:', error);
         tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Errore nel caricamento</td></tr>`;
     }
 }
+async modificaLavorazioneFornitore(id) {
+    try {
+        // Recupera i dati del fornitore
+        const docRef = doc(this.firebaseService.db, "fornitoriLavorazioni", id);
+        const docSnap = await getDoc(docRef);
+        
+        if (!docSnap.exists()) {
+            ErrorHandler.showNotification("Lavorazione fornitore non trovata", 'error');
+            return;
+        }
+        
+        const fornitore = docSnap.data();
+        
+        // Crea un modal di modifica
+        const nuovoNome = prompt("Modifica nome fornitore:", fornitore.nomeFornitore);
+        if (!nuovoNome) return;
+        
+        const nuovaCommessa = prompt("Modifica commessa associata:", fornitore.commessa);
+        if (!nuovaCommessa) return;
+        
+        const nuovoCosto = parseFloat(prompt("Modifica costo (€):", fornitore.costo.toString().replace('.', ',')));
+        if (isNaN(nuovoCosto) || nuovoCosto <= 0) {
+            ErrorHandler.showNotification("Inserisci un costo valido", 'error');
+            return;
+        }
+        
+        const nuovaDescrizione = prompt("Modifica descrizione:", fornitore.descrizione || '');
+        const nuovaData = prompt("Modifica data (YYYY-MM-DD):", fornitore.data || new Date().toISOString().split('T')[0]);
+        
+        await this.firebaseService.updateDocument("fornitoriLavorazioni", id, {
+            nomeFornitore: nuovoNome,
+            commessa: nuovaCommessa,
+            costo: nuovoCosto,
+            descrizione: nuovaDescrizione || '',
+            data: nuovaData,
+            dataModifica: new Date().toISOString()
+        });
+        
+        ErrorHandler.showNotification("Lavorazione fornitore modificata con successo!", 'success');
+        
+        // Aggiorna visualizzazioni
+        await this.caricaFornitori();
+        await this.aggiornaMonitorCommesse();
+        
+    } catch (error) {
+        console.error('Errore modifica fornitore:', error);
+        ErrorHandler.handleError(error, 'modifica lavorazione fornitore');
+    }
+}
 
 async aggiungiLavorazioneFornitore(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    
+    // CONTROLLO PER EVITARE DOPPIO SALVATAGGIO
+    if (this.salvataggioInCorso) {
+        console.log('Salvataggio già in corso, ignorato');
+        return;
+    }
+    
+    this.salvataggioInCorso = true;
     
     try {
         const nomeFornitore = document.getElementById('fornitoreNome').value.trim();
@@ -4023,7 +4152,16 @@ async aggiungiLavorazioneFornitore(e) {
         
         if (!nomeFornitore || !commessa || isNaN(costo) || costo <= 0) {
             ErrorHandler.showNotification("Compila tutti i campi obbligatori", 'error');
+            this.salvataggioInCorso = false;
             return;
+        }
+        
+        // Mostra indicatore di caricamento
+        const submitBtn = document.querySelector('#fornitoreForm button[type="submit"]');
+        const originalText = submitBtn?.innerHTML;
+        if (submitBtn) {
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvataggio...';
+            submitBtn.disabled = true;
         }
         
         await this.firebaseService.addDocument("fornitoriLavorazioni", {
@@ -4044,19 +4182,37 @@ async aggiungiLavorazioneFornitore(e) {
         await this.caricaFornitori();
         await this.aggiornaMonitorCommesse();
         
+        // Ripristina bottone
+        if (submitBtn) {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        }
+        
     } catch (error) {
+        console.error('Errore aggiunta fornitore:', error);
         ErrorHandler.handleError(error, 'aggiunta lavorazione fornitore');
+    } finally {
+        this.salvataggioInCorso = false;
     }
 }
-
 async eliminaLavorazioneFornitore(id) {
-    if (confirm("Sei sicuro di voler eliminare questa lavorazione fornitore?")) {
+    // Modal di conferma personalizzata
+    const conferma = confirm("⚠️ Sei sicuro di voler eliminare questa lavorazione fornitore?\n\nQuesta azione non può essere annullata e influenzerà il calcolo del margine della commessa.");
+    
+    if (conferma) {
         try {
+            // Mostra loading
+            ErrorHandler.showNotification("Eliminazione in corso...", 'info');
+            
             await this.firebaseService.deleteDocument("fornitoriLavorazioni", id);
-            ErrorHandler.showNotification("Lavorazione fornitore eliminata", 'success');
+            ErrorHandler.showNotification("✅ Lavorazione fornitore eliminata con successo!", 'success');
+            
+            // Aggiorna visualizzazioni
             await this.caricaFornitori();
             await this.aggiornaMonitorCommesse();
+            
         } catch (error) {
+            console.error('Errore eliminazione fornitore:', error);
             ErrorHandler.handleError(error, 'eliminazione lavorazione fornitore');
         }
     }
@@ -4070,14 +4226,26 @@ async popolaSelectCommessePerFornitore() {
     
     try {
         const commesse = await this.firebaseService.getCollection("commesse");
-        const commesseAttive = commesse.filter(c => c.stato === 'attiva' || !c.stato);
+        // Mostra tutte le commesse (attive e concluse) per i fornitori
+        let commesseDisponibili = commesse.filter(c => c && c.nomeCommessa);
         
-        commesseAttive.forEach(commessa => {
+        // ORDINA IN ORDINE CRESCENTE (A-Z)
+        commesseDisponibili.sort((a, b) => {
+            const nomeA = a.nomeCommessa.toLowerCase();
+            const nomeB = b.nomeCommessa.toLowerCase();
+            return nomeA.localeCompare(nomeB, 'it');
+        });
+        
+        commesseDisponibili.forEach(commessa => {
             const option = document.createElement('option');
             option.value = commessa.nomeCommessa;
-            option.textContent = `${commessa.nomeCommessa} - ${commessa.cliente || 'N/D'}`;
+            const statoBadge = commessa.stato === 'attiva' ? '🟢' : '🔴';
+            option.textContent = `${statoBadge} ${commessa.nomeCommessa} - ${commessa.cliente || 'N/D'}`;
             select.appendChild(option);
         });
+        
+        console.log(`📋 Select fornitori aggiornata: ${commesseDisponibili.length} commesse ordinate`);
+        
     } catch (error) {
         console.error('Errore caricamento commesse per fornitore:', error);
     }
@@ -4173,11 +4341,15 @@ async popolaDatalistCommesse(commesse) {
     datalist.innerHTML = '';
 
     // Estrai tutti i nomi commessa unici
-    const nomiCommesse = [...new Set(commesse
+    let nomiCommesse = [...new Set(commesse
         .filter(c => c && c.nomeCommessa)
         .map(c => c.nomeCommessa)
-        .sort()
     )];
+    
+    // ORDINA IN ORDINE CRESCENTE (A-Z)
+    nomiCommesse.sort((a, b) => {
+        return a.toLowerCase().localeCompare(b.toLowerCase(), 'it');
+    });
 
     // Aggiungi le opzioni alla datalist
     nomiCommesse.forEach(nome => {
@@ -4186,7 +4358,7 @@ async popolaDatalistCommesse(commesse) {
         datalist.appendChild(option);
     });
 
-    console.log(`📝 Datalist popolata con ${nomiCommesse.length} commesse`);
+    console.log(`📝 Datalist popolata con ${nomiCommesse.length} commesse ordinate`);
 }
 // NUOVO METODO: Mostra informazioni sui filtri applicati
 mostraInfoFiltri(commesseFiltrate, commesseTotali, filtroNome, filtroStato) {
@@ -6675,7 +6847,7 @@ async creaGraficiDashboard() {
         await this.aggiornaGraficoOreDipendenti(tutteLeOre, dipendenti);
         
         // GRAFICO ANDAMENTO MENSILE
-        this.creaGraficoAndamentoMensile(tutteLeOre);
+        this.creaGraficoAndamentoMensile(tutteLeOre, commesse);
         
         // Listener per filtri
         this.aggiungiListenerFiltriGrafici();
@@ -7896,7 +8068,8 @@ async creaGraficoOreDipendenti(tutteLeOre, dipendenti) {
 }
 
 // GRAFICO 4: Andamento Mensile Ore
-async creaGraficoAndamentoMensile(tutteLeOre) {
+// GRAFICO 4: Andamento Mensile Ore con confronto ore preventivate
+async creaGraficoAndamentoMensile(tutteLeOre, commesse) {
     const canvas = document.getElementById('chartAndamentoMensile');
     if (!canvas) return;
     
@@ -7905,9 +8078,11 @@ async creaGraficoAndamentoMensile(tutteLeOre) {
     }
     
     const mesi = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
-    const orePerMese = new Array(12).fill(0);
+    const oreLavoratePerMese = new Array(12).fill(0);
+    const orePreventivatePerMese = new Array(12).fill(0);
     const annoCorrente = new Date().getFullYear();
     
+    // 1. CALCOLA ORE LAVORATE PER MESE
     tutteLeOre.forEach(ore => {
         if (ore.data) {
             const parti = ore.data.split('-');
@@ -7916,63 +8091,199 @@ async creaGraficoAndamentoMensile(tutteLeOre) {
                 const anno = parseInt(parti[0]);
                 if (anno === annoCorrente && mese >= 0 && mese < 12) {
                     const oreLavorate = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-                    orePerMese[mese] += oreLavorate;
+                    oreLavoratePerMese[mese] += oreLavorate;
                 }
             }
         }
     });
     
+    // 2. CALCOLA ORE PREVENTIVATE PER MESE (dalle commesse)
+    for (const commessa of commesse) {
+        // Salta commesse senza preventivo
+        if (!commessa.valorePreventivo || commessa.valorePreventivo <= 0) continue;
+        
+        // Ottieni la data della commessa (dataInizio o dataCreazione)
+        let dataCommessa = commessa.dataInizio;
+        if (!dataCommessa && commessa.dataCreazione) {
+            dataCommessa = commessa.dataCreazione.split('T')[0];
+        }
+        
+        // Se la commessa ha una data, assegna le ore preventivate a quel mese
+        if (dataCommessa) {
+            const parti = dataCommessa.split('-');
+            if (parti.length >= 2) {
+                const mese = parseInt(parti[1]) - 1;
+                const anno = parseInt(parti[0]);
+                if (anno === annoCorrente && mese >= 0 && mese < 12) {
+                    // Usa le ore totali previste della commessa
+                    const orePreviste = parseFloat(commessa.oreTotaliPreviste) || 0;
+                    orePreventivatePerMese[mese] += orePreviste;
+                }
+            }
+        }
+    }
+    
+     // Calcola totali annuali
+    const totaleLavorate = oreLavoratePerMese.reduce((a, b) => a + b, 0);
+    const totalePreventivate = orePreventivatePerMese.reduce((a, b) => a + b, 0);
+    const differenza = totaleLavorate - totalePreventivate;
+    const percentuale = totalePreventivate > 0 ? (totaleLavorate / totalePreventivate) * 100 : 0;
+    
+    // Aggiungi sommario (opzionale - crea un elemento HTML)
+    this.aggiungiSommarioAndamento(totaleLavorate, totalePreventivate, differenza, percentuale);
+    // Arrotonda i valori per una migliore visualizzazione
+    const oreLavorateData = oreLavoratePerMese.map(ore => parseFloat(ore.toFixed(1)));
+    const orePreventivateData = orePreventivatePerMese.map(ore => parseFloat(ore.toFixed(1)));
+    
     // Verifica se ci sono dati
-    const hasData = orePerMese.some(ore => ore > 0);
+    const hasData = oreLavorateData.some(ore => ore > 0) || orePreventivateData.some(ore => ore > 0);
     if (!hasData) {
-        this.mostraMessaggioGraficoVuoto(canvas, `Nessuna ora registrata nel ${annoCorrente}`);
+        this.mostraMessaggioGraficoVuoto(canvas, `Nessun dato disponibile per il ${annoCorrente}`);
         return;
     }
+    
+    // Calcola il massimo per l'asse Y
+    const maxLavorate = Math.max(...oreLavorateData, 0);
+    const maxPreventivate = Math.max(...orePreventivateData, 0);
+    const yAxisMax = Math.ceil(Math.max(maxLavorate, maxPreventivate) * 1.1); // +10% margine
     
     const ctx = canvas.getContext('2d');
     window.chartAndamentoMensile = new Chart(ctx, {
         type: 'line',
         data: {
             labels: mesi,
-            datasets: [{
-                label: `Ore Lavorate ${annoCorrente}`,
-                data: orePerMese.map(ore => parseFloat(ore.toFixed(1))),
-                borderColor: 'rgba(46, 204, 113, 1)',
-                backgroundColor: 'rgba(46, 204, 113, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.3,
-                pointBackgroundColor: 'rgba(46, 204, 113, 1)',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2,
-                pointRadius: 4,
-                pointHoverRadius: 6
-            }]
+            datasets: [
+                {
+                    label: `Ore Lavorate ${annoCorrente}`,
+                    data: oreLavorateData,
+                    borderColor: 'rgba(46, 204, 113, 1)',
+                    backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: 'rgba(46, 204, 113, 1)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    yAxisID: 'y'
+                },
+                {
+                    label: `Ore Preventivate ${annoCorrente}`,
+                    data: orePreventivateData,
+                    borderColor: 'rgba(52, 152, 219, 1)',
+                    backgroundColor: 'rgba(52, 152, 219, 0.05)',
+                    borderWidth: 3,
+                    borderDash: [8, 4], // Linea tratteggiata per distinguere
+                    fill: false,
+                    tension: 0.3,
+                    pointBackgroundColor: 'rgba(52, 152, 219, 1)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    yAxisID: 'y'
+                }
+            ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
             plugins: {
-                legend: { position: 'top' },
+                legend: { 
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        boxWidth: 10
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: (context) => {
-                            return `${context.raw} ore`;
+                            const label = context.dataset.label || '';
+                            const value = context.raw;
+                            const oreFormattate = Utils.formattaOreDecimali(value);
+                            return `${label}: ${oreFormattate} ore (${value.toFixed(1)}h)`;
+                        },
+                        footer: (tooltipItems) => {
+                            // Mostra la differenza se entrambi i dataset sono presenti
+                            const lavorate = tooltipItems.find(i => i.dataset.label.includes('Lavorate'));
+                            const preventivate = tooltipItems.find(i => i.dataset.label.includes('Preventivate'));
+                            if (lavorate && preventivate) {
+                                const diff = lavorate.raw - preventivate.raw;
+                                const diffFormattata = Utils.formattaOreDecimali(Math.abs(diff));
+                                if (diff > 0) {
+                                    return `📈 Eccedenza: +${diffFormattata} ore`;
+                                } else if (diff < 0) {
+                                    return `📉 Sottoutilizzo: ${diffFormattata} ore`;
+                                }
+                                return '✓ In linea con il preventivo';
+                            }
+                            return '';
                         }
                     }
                 }
             },
             scales: {
                 y: {
-                    title: { display: true, text: 'Ore Lavorate' },
+                    title: { 
+                        display: true, 
+                        text: 'Ore',
+                        font: { weight: 'bold' }
+                    },
                     beginAtZero: true,
+                    max: yAxisMax,
                     ticks: {
-                        callback: (value) => value + 'h'
+                        callback: (value) => Utils.formattaOreDecimali(value),
+                        stepSize: 20
+                    },
+                    grid: {
+                        color: 'rgba(0,0,0,0.05)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Mese',
+                        font: { weight: 'bold' }
+                    },
+                    grid: {
+                        display: false
                     }
                 }
             }
         }
     });
+}
+// Metodo helper per aggiungere sommario
+aggiungiSommarioAndamento(totaleLavorate, totalePreventivate, differenza, percentuale) {
+    // Rimuovi sommario esistente
+    const existingSummary = document.getElementById('summaryAndamento');
+    if (existingSummary) existingSummary.remove();
+    
+    // Crea sommario
+    const summary = document.createElement('div');
+    summary.id = 'summaryAndamento';
+    summary.className = 'mt-3 p-2 bg-light rounded d-flex justify-content-around flex-wrap';
+    summary.style.fontSize = '0.8rem';
+    
+    const diffClass = differenza > 0 ? 'text-danger' : (differenza < 0 ? 'text-success' : 'text-muted');
+    const diffText = differenza > 0 ? 'Eccedenza' : (differenza < 0 ? 'Sottoutilizzo' : 'In linea');
+    
+    summary.innerHTML = `
+        <div><strong>📊 Totale Lavorate:</strong> ${Utils.formattaOreDecimali(totaleLavorate)} ore</div>
+        <div><strong>📋 Totale Preventivate:</strong> ${Utils.formattaOreDecimali(totalePreventivate)} ore</div>
+        <div class="${diffClass}"><strong>${diffText}:</strong> ${Utils.formattaOreDecimali(Math.abs(differenza))} ore (${percentuale.toFixed(1)}%)</div>
+    `;
+    
+    const canvas = document.getElementById('chartAndamentoMensile');
+    if (canvas && canvas.parentElement) {
+        canvas.parentElement.appendChild(summary);
+    }
 }
 
 // Aggiungi controlli scroll per i grafici
