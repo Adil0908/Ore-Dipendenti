@@ -1332,66 +1332,48 @@ async correggiDatiOreLavorate() {
 async handleCommessaForm(e) {
     e.preventDefault();
     try {
-        const nomeCommessa = document.getElementById('nomeCommessa').value.trim();
-        const cliente = document.getElementById('cliente').value.trim();
-        const valorePreventivoInput = document.getElementById('valorePreventivo').value;
-        const valorePreventivo = parseFloat(valorePreventivoInput);
+        const nomeCommessa = document.getElementById('nomeCommessa').value;
+        const cliente = document.getElementById('cliente').value;
+        const valorePreventivo = parseFloat(document.getElementById('valorePreventivo').value);
         const statoCommessa = document.getElementById('statoCommessa').value;
-        const dataCommessa = document.getElementById('dataCommessa').value; // NUOVO
-
-        // VALIDAZIONE MIGLIORATA
-        if (!nomeCommessa || !cliente) {
-            ErrorHandler.showNotification("Nome commessa e cliente sono obbligatori", 'error');
+        
+        if (!nomeCommessa || !cliente || !valorePreventivo) {
+            ErrorHandler.showNotification("Compila tutti i campi", 'error');
             return;
         }
 
-        if (!valorePreventivoInput || isNaN(valorePreventivo) || valorePreventivo <= 0) {
-            ErrorHandler.showNotification("Inserisci un valore preventivo valido", 'error');
-            return;
-        }
-
-        // VALIDAZIONE DATA
-        if (!dataCommessa) {
-            ErrorHandler.showNotification("Seleziona una data inizio per la commessa", 'error');
-            return;
-        }
-
-        // CALCOLO ORE AUTOMATICO
         const oreTotaliCommessa = this.calcolaOreDaPreventivo(valorePreventivo);
         
-        const datiCommessa = {
+        // AGGIUNGI DATA INIZIO
+        let dataInizio = null;
+        // Puoi aggiungere un campo data nel form o usare la data corrente
+        // Se hai un campo input type="date" con id="dataInizioCommessa"
+        const dataInizioInput = document.getElementById('dataInizioCommessa');
+        if (dataInizioInput && dataInizioInput.value) {
+            dataInizio = dataInizioInput.value;
+        } else {
+            // Usa la data corrente di default
+            dataInizio = new Date().toISOString().split('T')[0];
+        }
+        
+        await this.firebaseService.addDocument("commesse", {
             nomeCommessa: nomeCommessa,
             cliente: cliente,
             valorePreventivo: valorePreventivo,
             oreTotaliPreviste: oreTotaliCommessa,
             oreIntegrazione: 0,
+            dataInizio: dataInizio,  // NUOVO CAMPO
             stato: statoCommessa,
-            dataInizio: dataCommessa,  // NUOVO: salva la data
             dataCreazione: new Date().toISOString(),
             dataUltimaModifica: new Date().toISOString()
-        };
-
-        console.log('📝 Salvataggio commessa:', datiCommessa);
-
-        await this.firebaseService.addDocument("commesse", datiCommessa);
+        });
         
-        ErrorHandler.showNotification(
-            `Commessa "${nomeCommessa}" aggiunta con successo! (${oreTotaliCommessa} ore previste)`, 
-            'success'
-        );
-
-        // AGGIORNAMENTO VISUALIZZAZIONI
-        await Promise.all([
-            this.aggiornaTabellaCommesse(),
-            this.aggiornaMenuCommesse(),
-            this.aggiornaMonitorCommesse()
-        ]);
-
+        ErrorHandler.showNotification(`Commessa ${statoCommessa === 'attiva' ? 'attiva' : 'conclusa'} aggiunta con successo!`, 'success');
+        await this.aggiornaTabellaCommesse();
+        await this.aggiornaMenuCommesse();
+        await this.aggiornaMonitorCommesse();
+        
         e.target.reset();
-        
-        // Imposta data di default per il prossimo inserimento
-        document.getElementById('dataCommessa').value = new Date().toISOString().split('T')[0];
-
     } catch (error) {
         ErrorHandler.handleError(error, 'aggiunta commessa');
     }
@@ -1769,75 +1751,124 @@ async aggiornaTabellaCommesse(filtro = '') {
     const tbody = document.querySelector('#commesseTable tbody');
     if (!tbody) return;
 
-    tbody.innerHTML = '';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center">Caricamento...</td></tr>';
 
     try {
-        if (this.datiTotaliCommesse.length === 0 || filtro) {
-            this.datiTotaliCommesse = await this.firebaseService.getCollection("commesse");
-            
-            if (filtro) {
-                const filtroLowerCase = filtro.toLowerCase();
-                this.datiTotaliCommesse = this.datiTotaliCommesse.filter(commessa => 
-                    commessa.nomeCommessa.toLowerCase().includes(filtroLowerCase) ||
-                    commessa.cliente.toLowerCase().includes(filtroLowerCase)
-                );
-            }
-            
-            // ORDINA IN ORDINE CRESCENTE (A-Z)
-            this.datiTotaliCommesse.sort((a, b) => {
-                const nomeA = a.nomeCommessa.toLowerCase();
-                const nomeB = b.nomeCommessa.toLowerCase();
-                return nomeA.localeCompare(nomeB, 'it');
-            });
-            
-            this.paginazioneCommesse.aggiornaDati(this.datiTotaliCommesse);
+        // Carica le commesse
+        let commesseDaMostrare = await this.firebaseService.getCollection("commesse");
+        
+        // Applica filtro se presente
+        if (filtro && filtro.trim() !== '') {
+            const filtroLowerCase = filtro.toLowerCase();
+            commesseDaMostrare = commesseDaMostrare.filter(commessa => 
+                commessa.nomeCommessa.toLowerCase().includes(filtroLowerCase) ||
+                (commessa.cliente && commessa.cliente.toLowerCase().includes(filtroLowerCase))
+            );
         }
-
+        
+        // Ordina per nome commessa
+        commesseDaMostrare.sort((a, b) => {
+            const nomeA = (a.nomeCommessa || '').toLowerCase();
+            const nomeB = (b.nomeCommessa || '').toLowerCase();
+            return nomeA.localeCompare(nomeB, 'it');
+        });
+        
+        // Aggiorna i dati totali e la paginazione
+        this.datiTotaliCommesse = commesseDaMostrare;
+        this.paginazioneCommesse.aggiornaDati(this.datiTotaliCommesse);
+        
+        // Ottieni i dati della pagina corrente
         const datiPagina = this.paginazioneCommesse.getDatiPagina();
-
+        
+        // Pulisci tbody
+        tbody.innerHTML = '';
+        
         if (datiPagina.length === 0) {
-            const row = document.createElement('tr');
-            row.innerHTML = `<td colspan="6" class="text-center">Nessuna commessa trovata</td>`;
-            tbody.appendChild(row);
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Nessuna commessa trovata</td></tr>';
         } else {
             datiPagina.forEach(commessa => {
                 const row = document.createElement('tr');
                 const statoCorrente = commessa.stato || 'attiva';
                 
+                // Aggiungi classe per commessa conclusa
                 if (statoCorrente === 'conclusa') {
                     row.classList.add('commessa-conclusa');
                 }
                 
+                // Formatta la data inizio (se esiste)
+                let dataInizio = '-';
+                if (commessa.dataInizio) {
+                    try {
+                        const data = new Date(commessa.dataInizio);
+                        dataInizio = data.toLocaleDateString('it-IT', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                        });
+                    } catch (e) {
+                        dataInizio = commessa.dataInizio;
+                    }
+                }
+                
+                // Crea le celle nell'ordine CORRETTO (7 colonne)
                 row.innerHTML = `
-                    <td>${commessa.nomeCommessa}</td>
-                    <td>${commessa.cliente}</td>
-                    <td class="text-end">€ ${commessa.valorePreventivo?.toFixed(2) || '0.00'}</td>
-                    <td class="text-center">${Utils.formattaOreDecimali(commessa.oreTotaliPreviste || 0)} ore</td>
-                    <td class="text-center">
+                    <td style="vertical-align: middle;">
+                        <strong>${this.escapeHtml(commessa.nomeCommessa)}</strong>
+                        ${commessa.oreIntegrazione > 0 ? '<br><small class="text-warning">➕ +' + Utils.formattaOreDecimali(commessa.oreIntegrazione) + ' ore integrazione</small>' : ''}
+                    </td>
+                    <td style="vertical-align: middle;">${this.escapeHtml(commessa.cliente || 'N/D')}</td>
+                    <td class="text-end" style="vertical-align: middle;">
+                        <strong>€ ${(commessa.valorePreventivo || 0).toFixed(2)}</strong>
+                    </td>
+                    <td class="text-center" style="vertical-align: middle;">
+                        ${Utils.formattaOreDecimali(commessa.oreTotaliPreviste || 0)} ore
+                    </td>
+                    <td class="text-center" style="vertical-align: middle;">
+                        ${dataInizio}
+                    </td>
+                    <td class="text-center" style="vertical-align: middle;">
                         <span class="badge ${statoCorrente === 'attiva' ? 'badge-attiva' : 'badge-conclusa'}">
-                            ${statoCorrente === 'attiva' ? 'ATTIVA' : 'CONCLUSA'}
+                            ${statoCorrente === 'attiva' ? '🟢 ATTIVA' : '🔴 CONCLUSA'}
                         </span>
                     </td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-warning btnModificaCommessa" data-id="${commessa.id}">Modifica</button>
-                        <button class="btn btn-sm btn-secondary" onclick="app.cambiaStatoCommessa('${commessa.id}', '${statoCorrente}')">
+                    <td class="text-center" style="vertical-align: middle; min-width: 280px;">
+                        <button class="btn btn-sm btn-warning btnModificaCommessa me-1" data-id="${commessa.id}">
+                            <i class="fas fa-edit"></i> Modifica
+                        </button>
+                        <button class="btn btn-sm btn-secondary me-1" onclick="app.cambiaStatoCommessa('${commessa.id}', '${statoCorrente}')">
+                            <i class="fas ${statoCorrente === 'attiva' ? 'fa-lock' : 'fa-undo'}"></i>
                             ${statoCorrente === 'attiva' ? 'Concludi' : 'Riattiva'}
                         </button>
-                        <button class="btn btn-sm btn-danger btnEliminaCommessa" data-id="${commessa.id}">Elimina</button>
+                        <button class="btn btn-sm btn-danger btnEliminaCommessa" data-id="${commessa.id}">
+                            <i class="fas fa-trash"></i> Elimina
+                        </button>
                     </td>
                 `;
                 tbody.appendChild(row);
 
-                row.querySelector('.btnModificaCommessa').addEventListener('click', () => this.modificaCommessa(commessa.id));
-                row.querySelector('.btnEliminaCommessa').addEventListener('click', () => this.eliminaCommessa(commessa.id));
+                // Aggiungi event listeners
+                const modificaBtn = row.querySelector('.btnModificaCommessa');
+                if (modificaBtn) {
+                    modificaBtn.addEventListener('click', () => this.modificaCommessa(commessa.id));
+                }
+                
+                const eliminaBtn = row.querySelector('.btnEliminaCommessa');
+                if (eliminaBtn) {
+                    eliminaBtn.addEventListener('click', () => this.eliminaCommessa(commessa.id));
+                }
             });
         }
-
-        this.paginazioneCommesse.render(this.datiTotaliCommesse, () => this.aggiornaTabellaCommesse(filtro));
+        
+        // Renderizza la paginazione
+        if (this.paginazioneCommesse) {
+            this.paginazioneCommesse.render(this.datiTotaliCommesse, () => this.aggiornaTabellaCommesse(filtro));
+        }
+        
+        console.log(`✅ Tabella commesse aggiornata: ${datiPagina.length} commesse visualizzate`);
 
     } catch (error) {
-        console.error('Errore nel caricamento tabella commesse:', error);
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Errore nel caricamento dei dati</td></tr>`;
+        console.error('❌ Errore nel caricamento tabella commesse:', error);
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Errore nel caricamento dei dati</td></tr>';
     }
 }
 
