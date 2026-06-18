@@ -211,6 +211,14 @@
                                 <option value="">Tutti</option>
                             </select>
                         </div>
+                        <div class="col-md-2">
+                          <label for="filtroFatturato" class="form-label">Fatturato:</label>
+                         <select id="filtroFatturato" class="form-select">
+                             <option value="">Tutti</option>
+                              <option value="fatturato">Fatturato</option>
+                                <option value="da_fatturare">Da fatturare</option>
+                                </select>
+                            </div>
                         <div class="col-md-3 d-flex align-items-end gap-2">
                             <button id="btnAggiornaMonitor" class="btn btn-primary flex-fill">
                                 <i class="fas fa-sync-alt"></i> Aggiorna
@@ -622,6 +630,7 @@
                                     <th>Ore Totali Previste</th>
                                     <th>Data Inizio</th>
                                     <th>Stato</th>
+                                     <th>Fatturato</th>
                                     <th>Azioni</th>
                                 </tr>
                             </thead>
