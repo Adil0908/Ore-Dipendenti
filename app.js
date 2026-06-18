@@ -219,6 +219,10 @@ const NotificationService = {
 // 5. PAGINATION MANAGER
 // ============================================================
 
+// ============================================================
+// 5. PAGINATION MANAGER - VERSIONE CORRETTA
+// ============================================================
+
 class PaginationManager {
     constructor(containerId, righePerPagina = CONFIG.RIGHE_PER_PAGINA) {
         this.containerId = containerId;
@@ -227,121 +231,169 @@ class PaginationManager {
         this.paginaCorrente = 1;
         this.datiTotali = [];
         this.callbackAggiorna = null;
+        this._isRendering = false;
         
+        // Se il container non esiste, crealo
         if (!this.container) {
-            console.warn(`⚠️ Container paginazione non trovato: ${containerId}`);
+            console.warn(`⚠️ Container ${containerId} non trovato, creazione automatica...`);
+            this.container = document.createElement('div');
+            this.container.id = containerId;
+            this.container.className = 'mt-3';
+            
+            // Trova la tabella corrispondente
+            const tableMap = {
+                'paginationOre': 'orelavorateTable',
+                'paginationCommesse': 'commesseTable',
+                'paginationDipendenti': 'dipendentiTable',
+                'paginationFornitori': 'fornitoriTable'
+            };
+            
+            const tableId = tableMap[containerId];
+            if (tableId) {
+                const table = document.getElementById(tableId);
+                if (table && table.parentNode) {
+                    table.parentNode.insertBefore(this.container, table.nextSibling);
+                    console.log(`✅ Container ${containerId} creato automaticamente`);
+                }
+            }
         }
     }
 
     render(datiTotali, callbackAggiorna) {
-        if (!this.container) {
-            console.error(`❌ Container ${this.containerId} non trovato`);
+        // Evita render multipli simultanei
+        if (this._isRendering) {
+            console.log('⏳ Render già in corso, salto...');
             return;
         }
-        
-        this.datiTotali = datiTotali || [];
-        this.callbackAggiorna = callbackAggiorna;
-        
-        const numPagine = Math.ceil(this.datiTotali.length / this.righePerPagina);
-        
-        // Se non ci sono dati o una sola pagina, nascondi la paginazione
-        if (numPagine <= 1) {
-            this.container.innerHTML = '';
-            this.container.style.display = 'none';
-            return;
-        }
+        this._isRendering = true;
 
-        // Mostra il container
-        this.container.style.display = 'block';
+        try {
+            if (!this.container) {
+                console.error(`❌ Container ${this.containerId} non trovato`);
+                return;
+            }
+            
+            this.datiTotali = datiTotali || [];
+            this.callbackAggiorna = callbackAggiorna;
+            
+            const numPagine = Math.max(1, Math.ceil(this.datiTotali.length / this.righePerPagina));
+            
+            // Se non ci sono dati, nascondi
+            if (this.datiTotali.length === 0) {
+                this.container.innerHTML = '';
+                this.container.style.display = 'none';
+                this._isRendering = false;
+                return;
+            }
 
-        // Assicura che la pagina corrente sia valida
-        if (this.paginaCorrente > numPagine) {
-            this.paginaCorrente = numPagine;
-        }
+            // Se una sola pagina, nascondi
+            if (numPagine <= 1) {
+                this.container.innerHTML = '';
+                this.container.style.display = 'none';
+                this._isRendering = false;
+                return;
+            }
 
-        let html = `
-            <div class="pagination-controls d-flex justify-content-center align-items-center gap-2 flex-wrap">
-                <button class="btn btn-outline-secondary btn-sm btn-pagina-prec" 
-                        data-container="${this.containerId}"
-                        ${this.paginaCorrente === 1 ? 'disabled' : ''}>
-                    <i class="fas fa-chevron-left"></i> Prec
-                </button>
-                <div class="pagination-numbers d-flex gap-1" data-container="${this.containerId}">
-        `;
+            // Mostra il container
+            this.container.style.display = 'block';
 
-        // Calcola range di pagine da mostrare
-        let start = Math.max(1, this.paginaCorrente - 2);
-        let end = Math.min(numPagine, start + 4);
-        if (end - start < 4) {
-            start = Math.max(1, end - 4);
-        }
+            // Assicura che la pagina corrente sia valida
+            if (this.paginaCorrente < 1) this.paginaCorrente = 1;
+            if (this.paginaCorrente > numPagine) this.paginaCorrente = numPagine;
 
-        // Prima pagina
-        if (start > 1) {
-            html += `<button class="btn btn-sm btn-outline-primary btn-pagina-numero" data-pagina="1">1</button>`;
-            if (start > 2) html += `<span class="pagination-ellipsis px-1">…</span>`;
-        }
+            // Costruisci HTML
+            let html = `
+                <div class="pagination-controls d-flex justify-content-center align-items-center gap-2 flex-wrap">
+                    <button class="btn btn-outline-secondary btn-sm btn-pagina-prec" 
+                            data-container="${this.containerId}"
+                            ${this.paginaCorrente === 1 ? 'disabled' : ''}>
+                        <i class="fas fa-chevron-left"></i> Prec
+                    </button>
+                    <div class="pagination-numbers d-flex gap-1">
+            `;
 
-        // Pagine centrali
-        for (let i = start; i <= end; i++) {
-            html += `<button class="btn btn-sm ${i === this.paginaCorrente ? 'btn-primary' : 'btn-outline-primary'} btn-pagina-numero" 
-                            data-pagina="${i}">${i}</button>`;
-        }
+            // Mostra tutte le pagine (per semplicità e affidabilità)
+            for (let i = 1; i <= numPagine; i++) {
+                html += `<button class="btn btn-sm ${i === this.paginaCorrente ? 'btn-primary' : 'btn-outline-primary'} btn-pagina-numero" 
+                                data-pagina="${i}"
+                                data-container="${this.containerId}">${i}</button>`;
+            }
 
-        // Ultima pagina
-        if (end < numPagine) {
-            if (end < numPagine - 1) html += `<span class="pagination-ellipsis px-1">…</span>`;
-            html += `<button class="btn btn-sm btn-outline-primary btn-pagina-numero" data-pagina="${numPagine}">${numPagine}</button>`;
-        }
-
-        html += `
+            html += `
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm btn-pagina-succ" 
+                            data-container="${this.containerId}"
+                            ${this.paginaCorrente === numPagine ? 'disabled' : ''}>
+                        Succ <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <span class="pagination-info ms-2 text-muted small">
+                        ${this.datiTotali.length} record - Pagina ${this.paginaCorrente} di ${numPagine}
+                    </span>
                 </div>
-                <button class="btn btn-outline-secondary btn-sm btn-pagina-succ" 
-                        data-container="${this.containerId}"
-                        ${this.paginaCorrente === numPagine ? 'disabled' : ''}>
-                    Succ <i class="fas fa-chevron-right"></i>
-                </button>
-                <span class="pagination-info ms-2 text-muted small">
-                    ${this.datiTotali.length} record - Pagina ${this.paginaCorrente} di ${numPagine}
-                </span>
-            </div>
-        `;
+            `;
 
-        this.container.innerHTML = html;
+            this.container.innerHTML = html;
 
-        // 🔥 Event listeners con event delegation (più robusto)
-        this.container.querySelector('.btn-pagina-prec')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (this.paginaCorrente > 1) {
-                this.paginaCorrente--;
-                if (this.callbackAggiorna) {
-                    this.callbackAggiorna();
-                }
-            }
-        });
+            // Riferimenti per gli eventi
+            const self = this;
+            const container = this.container;
 
-        this.container.querySelector('.btn-pagina-succ')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (this.paginaCorrente < numPagine) {
-                this.paginaCorrente++;
-                if (this.callbackAggiorna) {
-                    this.callbackAggiorna();
-                }
-            }
-        });
-
-        this.container.querySelectorAll('.btn-pagina-numero').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const pagina = parseInt(btn.dataset.pagina);
-                if (pagina !== this.paginaCorrente) {
-                    this.paginaCorrente = pagina;
-                    if (this.callbackAggiorna) {
-                        this.callbackAggiorna();
+            // === PULSANTE PRECEDENTE ===
+            const btnPrec = container.querySelector('.btn-pagina-prec');
+            if (btnPrec) {
+                btnPrec.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (self.paginaCorrente > 1) {
+                        self.paginaCorrente--;
+                        console.log(`📄 ${self.containerId} - Pagina ${self.paginaCorrente}`);
+                        if (typeof self.callbackAggiorna === 'function') {
+                            self.callbackAggiorna();
+                        }
                     }
-                }
+                });
+            }
+
+            // === PULSANTE SUCCESSIVO ===
+            const btnSucc = container.querySelector('.btn-pagina-succ');
+            if (btnSucc) {
+                btnSucc.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (self.paginaCorrente < numPagine) {
+                        self.paginaCorrente++;
+                        console.log(`📄 ${self.containerId} - Pagina ${self.paginaCorrente}`);
+                        if (typeof self.callbackAggiorna === 'function') {
+                            self.callbackAggiorna();
+                        }
+                    }
+                });
+            }
+
+            // === PULSANTI NUMERI ===
+            const numeri = container.querySelectorAll('.btn-pagina-numero');
+            numeri.forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const pagina = parseInt(this.dataset.pagina);
+                    if (pagina !== self.paginaCorrente) {
+                        self.paginaCorrente = pagina;
+                        console.log(`📄 ${self.containerId} - Pagina ${self.paginaCorrente}`);
+                        if (typeof self.callbackAggiorna === 'function') {
+                            self.callbackAggiorna();
+                        }
+                    }
+                });
             });
-        });
+
+            console.log(`✅ ${this.containerId} - Render completato: pagina ${this.paginaCorrente} di ${numPagine}`);
+
+        } catch (error) {
+            console.error(`❌ Errore render ${this.containerId}:`, error);
+        } finally {
+            this._isRendering = false;
+        }
     }
 
     getDatiPagina() {
@@ -358,6 +410,11 @@ class PaginationManager {
 
     reset() {
         this.paginaCorrente = 1;
+        this.datiTotali = [];
+        if (this.container) {
+            this.container.innerHTML = '';
+            this.container.style.display = 'none';
+        }
     }
 }
 
@@ -442,14 +499,14 @@ class OreLavorateApp {
    // Nel metodo init() della classe OreLavorateApp
 async init() {
     try {
-        console.log('🚀 Avvio app...');
+         console.log('🚀 Avvio app...');
 
         const app = firebase.initializeApp(FIREBASE_CONFIG);
         const db = firebase.firestore(app);
         
         this.firebaseService = new FirebaseService(db);
 
-        // 🔥 Inizializza paginazione con ID corretti
+        // 🔥 VERIFICA CHE I CONTAINER ESISTANO PRIMA DI INIZIALIZZARE
         this.paginazione = {
             ore: new PaginationManager('paginationOre', CONFIG.RIGHE_PER_PAGINA),
             dipendenti: new PaginationManager('paginationDipendenti', CONFIG.RIGHE_PER_PAGINA),
@@ -459,7 +516,29 @@ async init() {
 
         // Verifica che i container esistano
         Object.entries(this.paginazione).forEach(([name, pag]) => {
-            console.log(`Paginazione ${name}:`, pag.container ? '✅' : '❌');
+            if (pag.container) {
+                console.log(`✅ Paginazione ${name}: container trovato`);
+            } else {
+                console.warn(`⚠️ Paginazione ${name}: container NON trovato!`);
+                // Crea container di fallback
+                const fallbackContainer = document.createElement('div');
+                fallbackContainer.id = `pagination${name.charAt(0).toUpperCase() + name.slice(1)}`;
+                fallbackContainer.className = 'mt-3';
+                
+                // Trova la tabella corrispondente e inserisci dopo
+                const tableMap = {
+                    ore: 'orelavorateTable',
+                    dipendenti: 'dipendentiTable',
+                    commesse: 'commesseTable',
+                    fornitori: 'fornitoriTable'
+                };
+                const table = document.getElementById(tableMap[name]);
+                if (table && table.parentNode) {
+                    table.parentNode.insertBefore(fallbackContainer, table.nextSibling);
+                    pag.container = fallbackContainer;
+                    console.log(`✅ Container ${name} creato automaticamente`);
+                }
+            }
         });
 
         this.setupEventListeners();
@@ -621,37 +700,123 @@ async mostraApplicazione() {
 
         const isAdmin = stateManager.currentUser?.ruolo === 'admin';
         
-        // 🔥 MOSTRA/NASCONDI SEZIONI IN MODO CHIARO
-        // Nascondi TUTTE le sezioni prima
+        // 🔥 IMPOSTA L'ATTRIBUTO SUL BODY PER IL CSS
+        document.body.setAttribute('data-user-role', isAdmin ? 'admin' : 'dipendente');
+        
+        // 🔥 METODO CORRETTO PER MOSTRARE/NASCONDERE LE SEZIONI
+        // 1. NASCONDI TUTTE LE SEZIONI
         document.querySelectorAll('.admin-only, .dipendente-only').forEach(el => {
             el.style.display = 'none';
+            el.style.visibility = 'hidden';
+            el.style.opacity = '0';
+            el.style.pointerEvents = 'none';
+            el.style.height = '0';
+            el.style.overflow = 'hidden';
+            el.style.padding = '0';
+            el.style.margin = '0';
+            el.removeAttribute('data-user-role');
         });
         
-        // Poi mostra SOLO quelle giuste
+        // 2. MOSTRA SOLO LE SEZIONI GIUSTE
         if (isAdmin) {
+            // Mostra solo sezioni admin
             document.querySelectorAll('.admin-only').forEach(el => {
                 el.style.display = 'block';
                 el.style.visibility = 'visible';
                 el.style.opacity = '1';
+                el.style.pointerEvents = 'auto';
+                el.style.height = 'auto';
+                el.style.overflow = 'visible';
+                el.style.padding = '';
+                el.style.margin = '';
+                el.setAttribute('data-user-role', 'admin');
             });
-            // 🔥 NASCONDI ESPLICITAMENTE le sezioni dipendenti
-            document.querySelectorAll('.dipendente-only').forEach(el => {
-                el.style.display = 'none';
-                el.style.visibility = 'hidden';
-                el.style.opacity = '0';
-            });
+            
+            // 🔥 NASCONDI ESPLICITAMENTE LA SEZIONE DIPENDENTI
+            const sezioneDipendenti = document.querySelector('.dipendente-only');
+            if (sezioneDipendenti) {
+                sezioneDipendenti.style.display = 'none';
+                sezioneDipendenti.style.visibility = 'hidden';
+                sezioneDipendenti.style.opacity = '0';
+                sezioneDipendenti.style.pointerEvents = 'none';
+                sezioneDipendenti.style.height = '0';
+                sezioneDipendenti.style.overflow = 'hidden';
+                sezioneDipendenti.style.padding = '0';
+                sezioneDipendenti.style.margin = '0';
+                sezioneDipendenti.setAttribute('data-user-role', 'admin');
+            }
+            
+            // 🔥 NASCONDI ANCHE IL FORM ORE
+            const oreForm = document.getElementById('oreForm');
+            if (oreForm) {
+                oreForm.style.display = 'none';
+                oreForm.style.visibility = 'hidden';
+                oreForm.style.opacity = '0';
+                oreForm.style.pointerEvents = 'none';
+                oreForm.style.height = '0';
+                oreForm.style.overflow = 'hidden';
+                oreForm.style.padding = '0';
+                oreForm.style.margin = '0';
+            }
+            
+            // Nascondi skeleton
+            const skeleton = document.getElementById('oreFormSkeleton');
+            if (skeleton) {
+                skeleton.style.display = 'none';
+            }
+            
+            // Nascondi fasce orarie
+            const fasce = document.getElementById('visualizzazioneFasce');
+            if (fasce) {
+                fasce.style.display = 'none';
+            }
+            
         } else {
+            // Dipendente - Mostra solo sezioni dipendenti
             document.querySelectorAll('.dipendente-only').forEach(el => {
                 el.style.display = 'block';
                 el.style.visibility = 'visible';
                 el.style.opacity = '1';
+                el.style.pointerEvents = 'auto';
+                el.style.height = 'auto';
+                el.style.overflow = 'visible';
+                el.style.padding = '';
+                el.style.margin = '';
+                el.setAttribute('data-user-role', 'dipendente');
             });
-            // 🔥 NASCONDI ESPLICITAMENTE le sezioni admin
+            
+            // 🔥 NASCONDI ESPLICITAMENTE LE SEZIONI ADMIN
             document.querySelectorAll('.admin-only').forEach(el => {
                 el.style.display = 'none';
                 el.style.visibility = 'hidden';
                 el.style.opacity = '0';
+                el.style.pointerEvents = 'none';
+                el.style.height = '0';
+                el.style.overflow = 'hidden';
+                el.style.padding = '0';
+                el.style.margin = '0';
+                el.setAttribute('data-user-role', 'dipendente');
             });
+            
+            // Mostra il form ore per i dipendenti
+            const oreForm = document.getElementById('oreForm');
+            if (oreForm) {
+                oreForm.style.display = 'flex';
+                oreForm.style.flexWrap = 'wrap';
+                oreForm.style.gap = '1rem';
+                oreForm.style.visibility = 'visible';
+                oreForm.style.opacity = '1';
+                oreForm.style.pointerEvents = 'auto';
+                oreForm.style.height = 'auto';
+                oreForm.style.overflow = 'visible';
+                oreForm.style.padding = '';
+                oreForm.style.margin = '';
+            }
+            
+            const skeleton = document.getElementById('oreFormSkeleton');
+            if (skeleton) {
+                skeleton.style.display = 'none';
+            }
         }
 
         // Aggiorna UI header
@@ -666,32 +831,13 @@ async mostraApplicazione() {
             userName.textContent = `👤 ${stateManager.currentUser?.name || 'Utente'}`;
         }
 
-        // Forza il form ore SOLO per i dipendenti
-        if (!isAdmin) {
-            const oreForm = document.getElementById('oreForm');
-            const skeleton = document.getElementById('oreFormSkeleton');
-            
-            if (oreForm) {
-                oreForm.style.display = 'flex';
-                oreForm.style.flexWrap = 'wrap';
-                oreForm.style.gap = '1rem';
-                oreForm.style.visibility = 'visible';
-                oreForm.style.opacity = '1';
-            }
-            if (skeleton) {
-                skeleton.style.display = 'none';
-            }
-        }
-
         // Per admin: carica dati admin
         if (isAdmin) {
             this.popolaAnniMonitor();
             this.popolaAnniFiltriGrafici();
             
-            // Mostra messaggio monitoraggio vuoto
             this.mostraMessaggioMonitoraggioVuoto();
             
-            // Carica SOLO le tabelle admin
             await Promise.all([
                 this.aggiornaTabellaCommesse(),
                 this.aggiornaTabellaDipendenti(),
@@ -706,7 +852,6 @@ async mostraApplicazione() {
                 this.aggiornaInfoUltimoBackup();
             }, 500);
             
-            // Filtra ore per oggi
             const oggi = new Date().toISOString().split('T')[0];
             this.filtraOrePerGiorno(oggi);
         }
@@ -714,7 +859,7 @@ async mostraApplicazione() {
         // Per tutti: aggiorna menu commesse
         await this.aggiornaMenuCommesse();
         
-        // Imposta data corrente (solo per dipendenti o per tutti?)
+        // Imposta data corrente
         const oggi = new Date().toISOString().split('T')[0];
         const dataInput = document.getElementById('oreData');
         if (dataInput) {
@@ -729,8 +874,8 @@ async mostraApplicazione() {
         NotificationService.success(`Benvenuto, ${stateManager.currentUser?.name || 'Utente'}!`);
         
         console.log('✅ Applicazione mostrata, ruolo:', stateManager.currentUser?.ruolo);
-        console.log('✅ Sezioni admin visibili:', document.querySelectorAll('.admin-only[style*="display: block"]').length);
-        console.log('✅ Sezioni dipendenti visibili:', document.querySelectorAll('.dipendente-only[style*="display: block"]').length);
+        console.log('✅ Admin sections visibili:', document.querySelectorAll('.admin-only[style*="display: block"]').length);
+        console.log('✅ Dipendente sections visibili:', document.querySelectorAll('.dipendente-only[style*="display: block"]').length);
         
     } catch (error) {
         console.error('Errore mostraApplicazione:', error);
@@ -1378,74 +1523,159 @@ async filtraOrePerGiorno(data) {
     // 7.9 TABELLA ORE LAVORATE
     // ============================================================
 
- async aggiornaTabellaOreLavorate(oreFiltrate = null) {
+async aggiornaTabellaOreLavorate(oreFiltrate = null) {
     const tbody = document.querySelector('#orelavorateTable tbody');
-    if (!tbody) return;
+    if (!tbody) {
+        console.error('❌ Tbody ore lavorate non trovato');
+        return;
+    }
 
     try {
-        let dati = oreFiltrate;
-        if (!dati) {
+        let dati;
+        
+        // 1. SE SONO PASSATI DATI FILTRATI, USALI
+        if (oreFiltrate !== null) {
+            dati = oreFiltrate;
+            stateManager.datiFiltrati = dati;
+            console.log(`📦 Uso dati filtrati: ${dati.length} record`);
+        } else {
+            // 2. ALTRIMENTI USA I FILTRI ATTIVI
             const filtri = this.getFiltriOreAttivi();
+            
+            // Verifica se ci sono filtri attivi
+            const hasFiltri = filtri.commessa || filtri.dipendente || 
+                             filtri.anno || filtri.mese || filtri.giorno || 
+                             filtri.nonConformita;
+            
+            if (!hasFiltri) {
+                // Se non ci sono filtri, usa la data corrente
+                const oggi = new Date().toISOString().split('T')[0];
+                filtri.anno = oggi.split('-')[0];
+                filtri.mese = oggi.split('-')[1];
+                filtri.giorno = oggi.split('-')[2];
+                
+                // Aggiorna i select
+                document.getElementById('filtroAnno').value = filtri.anno;
+                document.getElementById('filtroMese').value = filtri.mese;
+                this.popolaGiorni();
+                document.getElementById('filtroGiorno').value = filtri.giorno;
+            }
+            
             dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
+            stateManager.datiFiltrati = dati;
+            console.log(`🔄 Caricati ${dati.length} record con filtri`);
         }
 
-        stateManager.datiFiltrati = dati;
+        // 3. SALVA NELLO STATE
         stateManager.datiTotali.oreLavorate = dati;
         
-        // 🔥 Aggiorna i dati della paginazione
-        this.paginazione.ore.aggiornaDati(dati);
+        // 4. AGGIORNA I DATI DELLA PAGINAZIONE
+        this.paginazione.ore.datiTotali = dati;
 
+        // 5. OTTIENI I DATI DELLA PAGINA CORRENTE
         const datiPagina = this.paginazione.ore.getDatiPagina();
+        
+        console.log(`📊 Ore - Pagina ${this.paginazione.ore.paginaCorrente}: ${datiPagina.length} record su ${dati.length}`);
+
+        // 6. PULISCI LA TABELLA
         tbody.innerHTML = '';
 
+        // 7. MOSTRA MESSAGGIO SE VUOTO
         if (datiPagina.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="9" class="text-center py-3">Nessun dato trovato</td></tr>`;
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center py-4 text-muted">
+                        <i class="fas fa-clock fa-3x mb-3 d-block"></i>
+                        <h5>Nessuna ore lavorata trovata</h5>
+                        <p class="small">Registra le tue ore usando il form sopra</p>
+                    </td>
+                </tr>
+            `;
         } else {
+            // 8. POPOLA LA TABELLA
             datiPagina.forEach(ore => {
                 const oreLavorate = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
                 const row = document.createElement('tr');
+                
+                // Evidenzia le non conformità
+                if (ore.nonConformita) {
+                    row.style.backgroundColor = 'rgba(255, 193, 7, 0.1)';
+                }
+                
                 row.innerHTML = `
-                    <td>${Utils.escapeHtml(ore.commessa)}</td>
+                    <td><strong>${Utils.escapeHtml(ore.commessa)}</strong></td>
                     <td>${Utils.escapeHtml(ore.nomeDipendente)} ${Utils.escapeHtml(ore.cognomeDipendente)}</td>
                     <td>${ore.data || '-'}</td>
                     <td>${ore.oraInizio || '-'}</td>
                     <td>${ore.oraFine || '-'}</td>
                     <td>${Utils.escapeHtml(ore.descrizione || '-')}</td>
-                    <td>${ore.nonConformita ? '⚠️ Sì' : 'No'}</td>
-                    <td>${Utils.formattaOreDecimali(oreLavorate)}</td>
-                    <td>
-                        <button class="btn btn-sm btn-warning btn-modifica-ore" data-id="${ore.id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger btn-elimina-ore" data-id="${ore.id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                    <td class="text-center">
+                        ${ore.nonConformita ? '<span class="badge bg-warning text-dark">⚠️ Sì</span>' : '<span class="badge bg-secondary">No</span>'}
+                    </td>
+                    <td class="text-center"><strong>${Utils.formattaOreDecimali(oreLavorate)}</strong></td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button class="btn btn-warning btn-modifica-ore" 
+                                    data-id="${ore.id}" 
+                                    title="Modifica ore">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-danger btn-elimina-ore" 
+                                    data-id="${ore.id}" 
+                                    title="Elimina ore">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
 
-                row.querySelector('.btn-modifica-ore')?.addEventListener('click', () => this.modificaOreLavorate(ore.id));
-                row.querySelector('.btn-elimina-ore')?.addEventListener('click', () => this.eliminaOreLavorate(ore.id));
+                // EVENT LISTENERS
+                row.querySelector('.btn-modifica-ore')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.modificaOreLavorate(ore.id);
+                });
+                
+                row.querySelector('.btn-elimina-ore')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.eliminaOreLavorate(ore.id);
+                });
             });
 
-            // Totale
+            // 9. AGGIUNGI RIGA TOTALE
             const totale = this.calcolaTotaleGenerale(dati);
             const tr = document.createElement('tr');
             tr.className = 'table-info fw-bold';
             tr.innerHTML = `
-                <td colspan="7" class="text-end">Totale Generale</td>
-                <td>${Utils.formattaOreDecimali(totale)} ore</td>
+                <td colspan="7" class="text-end">TOTALE GENERALE</td>
+                <td class="text-center">${Utils.formattaOreDecimali(totale)} ore</td>
                 <td></td>
             `;
             tbody.appendChild(tr);
         }
 
-        // 🔥 Renderizza la paginazione
-        this.paginazione.ore.render(dati, () => this.aggiornaTabellaOreLavorate());
+        // 10. RENDERIZZA LA PAGINAZIONE
+        this.paginazione.ore.render(dati, () => {
+            console.log(`🔄 Callback paginazione ore - ricarico`);
+            this.aggiornaTabellaOreLavorate(stateManager.datiFiltrati);
+        });
+
+        console.log(`✅ Tabella ore aggiornata: ${dati.length} record, pagina ${this.paginazione.ore.paginaCorrente}`);
 
     } catch (error) {
-        console.error('Errore tabella ore:', error);
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">Errore nel caricamento</td></tr>`;
+        console.error('❌ Errore tabella ore:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2 d-block"></i>
+                    Errore nel caricamento: ${error.message}
+                    <br>
+                    <button class="btn btn-sm btn-primary mt-2" onclick="app.aggiornaTabellaOreLavorate()">
+                        <i class="fas fa-sync-alt"></i> Riprova
+                    </button>
+                </td>
+            </tr>
+        `;
     }
 }
 
@@ -1585,14 +1815,19 @@ async filtraOrePerGiorno(data) {
     // 7.10 TABELLA COMMESSE
     // ============================================================
 
-   async aggiornaTabellaCommesse() {
+async aggiornaTabellaCommesse() {
     const tbody = document.querySelector('#commesseTable tbody');
-    if (!tbody) return;
+    if (!tbody) {
+        console.error('❌ Tbody commesse non trovato');
+        return;
+    }
 
     try {
+        // 1. Carica i dati
         const filtro = document.getElementById('cercaCommessa')?.value.trim() || '';
         let commesse = await this.firebaseService.getCollection("commesse");
 
+        // 2. Applica filtro
         if (filtro) {
             const f = filtro.toLowerCase();
             commesse = commesse.filter(c => 
@@ -1601,50 +1836,89 @@ async filtraOrePerGiorno(data) {
             );
         }
 
-        commesse.sort((a, b) => (a.nomeCommessa || '').localeCompare(b.nomeCommessa || '', 'it'));
+        // 3. Ordina
+        commesse.sort((a, b) => {
+            const statoA = a.stato === 'attiva' ? 0 : 1;
+            const statoB = b.stato === 'attiva' ? 0 : 1;
+            if (statoA !== statoB) return statoA - statoB;
+            return (a.nomeCommessa || '').localeCompare(b.nomeCommessa || '', 'it');
+        });
 
+        // 4. Salva nello state
         stateManager.datiTotali.commesse = commesse;
         
-        // 🔥 Aggiorna i dati della paginazione
-        this.paginazione.commesse.aggiornaDati(commesse);
+        // 5. Aggiorna i dati della paginazione
+        this.paginazione.commesse.datiTotali = commesse;
 
+        // 6. Ottieni i dati della pagina corrente
         const datiPagina = this.paginazione.commesse.getDatiPagina();
+        
+        console.log(`📊 Commesse - Pagina ${this.paginazione.commesse.paginaCorrente}: ${datiPagina.length} record su ${commesse.length}`);
+
+        // 7. Popola la tabella
         tbody.innerHTML = '';
 
         if (datiPagina.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-3">Nessuna commessa trovata</td></tr>`;
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-4 text-muted">
+                        <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                        <h5>Nessuna commessa trovata</h5>
+                        <p class="small">Aggiungi una nuova commessa usando il form sopra</p>
+                    </td>
+                </tr>
+            `;
         } else {
             datiPagina.forEach(commessa => {
                 const stato = commessa.stato || 'attiva';
                 const row = document.createElement('tr');
-                if (stato === 'conclusa') row.classList.add('commessa-conclusa');
+                
+                if (stato === 'conclusa') {
+                    row.classList.add('commessa-conclusa');
+                }
 
                 const dataInizio = commessa.dataInizio || commessa.dataCreazione?.split('T')[0] || '';
+                const dataFormattata = dataInizio ? Utils.formattaDataItaliana(dataInizio) : '-';
+                const oreTotali = commessa.oreTotaliPreviste || 0;
+                const oreIntegrazione = commessa.oreIntegrazione || 0;
+                
+                // 🔥 GESTIONE FATTURATO
+                const fatturato = commessa.fatturato || 'da_fatturare';
+                const fatturatoBadge = this.getFatturatoBadge(fatturato);
                 
                 row.innerHTML = `
                     <td>
                         <strong>${Utils.escapeHtml(commessa.nomeCommessa)}</strong>
-                        ${commessa.oreIntegrazione > 0 ? `<br><small class="text-warning">➕ +${Utils.formattaOreDecimali(commessa.oreIntegrazione)} integrazione</small>` : ''}
+                        ${oreIntegrazione > 0 ? `<br><small class="text-warning">➕ +${Utils.formattaOreDecimali(oreIntegrazione)} integrazione</small>` : ''}
                     </td>
                     <td>${Utils.escapeHtml(commessa.cliente || 'N/D')}</td>
                     <td class="text-end">€ ${(commessa.valorePreventivo || 0).toFixed(2)}</td>
-                    <td class="text-center">${Utils.formattaOreDecimali(commessa.oreTotaliPreviste || 0)} ore</td>
-                    <td class="text-center">${dataInizio ? Utils.formattaDataItaliana(dataInizio) : '-'}</td>
+                    <td class="text-center">${Utils.formattaOreDecimali(oreTotali)} ore</td>
+                    <td class="text-center">${dataFormattata}</td>
                     <td class="text-center">
                         <span class="badge ${stato === 'attiva' ? 'badge-attiva' : 'badge-conclusa'}">
                             ${stato === 'attiva' ? '🟢 ATTIVA' : '🔴 CONCLUSA'}
                         </span>
                     </td>
                     <td class="text-center">
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-warning btn-modifica-commessa" data-id="${commessa.id}">
+                        <button class="btn btn-sm ${fatturato === 'fatturato' ? 'btn-success' : 'btn-outline-secondary'} btn-toggle-fatturato" 
+                                data-id="${commessa.id}" 
+                                data-fatturato="${fatturato}"
+                                title="${fatturato === 'fatturato' ? 'Segna come da fatturare' : 'Segna come fatturato'}">
+                            ${fatturatoBadge}
+                        </button>
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button class="btn btn-warning btn-modifica-commessa" data-id="${commessa.id}" title="Modifica">
                                 <i class="fas fa-edit"></i>
                             </button>
                             <button class="btn btn-secondary btn-cambia-stato-commessa" 
-                                    data-id="${commessa.id}" data-stato="${stato}">
+                                    data-id="${commessa.id}" data-stato="${stato}" 
+                                    title="${stato === 'attiva' ? 'Concludi' : 'Riattiva'}">
                                 ${stato === 'attiva' ? '🔒' : '↩️'}
                             </button>
-                            <button class="btn btn-danger btn-elimina-commessa" data-id="${commessa.id}">
+                            <button class="btn btn-danger btn-elimina-commessa" data-id="${commessa.id}" title="Elimina">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -1652,116 +1926,200 @@ async filtraOrePerGiorno(data) {
                 `;
                 tbody.appendChild(row);
 
+                // Event listeners
                 row.querySelector('.btn-modifica-commessa')?.addEventListener('click', () => this.modificaCommessa(commessa.id));
                 row.querySelector('.btn-cambia-stato-commessa')?.addEventListener('click', () => this.cambiaStatoCommessa(commessa.id, stato));
                 row.querySelector('.btn-elimina-commessa')?.addEventListener('click', () => this.eliminaCommessa(commessa.id));
+                
+                // 🔥 EVENT LISTENER PER FATTURATO
+                row.querySelector('.btn-toggle-fatturato')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const btn = e.currentTarget;
+                    this.toggleFatturato(btn.dataset.id, btn.dataset.fatturato);
+                });
             });
         }
 
-        // 🔥 Renderizza la paginazione
-        this.paginazione.commesse.render(commesse, () => this.aggiornaTabellaCommesse());
+        // 8. Renderizza la paginazione
+        this.paginazione.commesse.render(commesse, () => {
+            console.log(`🔄 Callback paginazione commesse - ricarico`);
+            this.aggiornaTabellaCommesse();
+        });
 
     } catch (error) {
-        console.error('Errore tabella commesse:', error);
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Errore nel caricamento</td></tr>`;
+        console.error('❌ Errore tabella commesse:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2 d-block"></i>
+                    Errore: ${error.message}
+                    <br>
+                    <button class="btn btn-sm btn-primary mt-2" onclick="app.aggiornaTabellaCommesse()">
+                        <i class="fas fa-sync-alt"></i> Riprova
+                    </button>
+                </td>
+            </tr>
+        `;
+    }
+}
+/**
+ * Restituisce il badge HTML per lo stato di fatturazione
+ */
+getFatturatoBadge(stato) {
+    if (stato === 'fatturato') {
+        return `<span class="badge bg-success">
+                    <i class="fas fa-check-circle"></i> Fatturato
+                </span>`;
+    } else {
+        return `<span class="badge bg-warning text-dark">
+                    <i class="fas fa-clock"></i> Da fatturare
+                </span>`;
+    }
+}
+/**
+ * Alterna lo stato di fatturazione di una commessa
+ */
+async toggleFatturato(commessaId, statoCorrente) {
+    try {
+        // Determina il nuovo stato
+        const nuovoStato = statoCorrente === 'fatturato' ? 'da_fatturare' : 'fatturato';
+        const etichetta = nuovoStato === 'fatturato' ? 'FATTURATO' : 'DA FATTURARE';
+        
+        // Chiedi conferma
+        if (!confirm(`Sei sicuro di voler segnare questa commessa come "${etichetta}"?`)) {
+            return;
+        }
+        
+        // Aggiorna su Firebase
+        await this.firebaseService.updateDocument("commesse", commessaId, {
+            fatturato: nuovoStato,
+            dataUltimaModifica: new Date().toISOString(),
+            ...(nuovoStato === 'fatturato' ? { dataFatturazione: new Date().toISOString() } : {})
+        });
+        
+        NotificationService.success(`Commessa segnata come ${etichetta}`);
+        
+        // Ricarica la tabella
+        await this.aggiornaTabellaCommesse();
+        await this.aggiornaMonitorCommesse();
+        
+    } catch (error) {
+        console.error('❌ Errore toggle fatturato:', error);
+        NotificationService.error('Errore durante l\'aggiornamento del fatturato');
     }
 }
 
-    async handleCommessaForm(e) {
-        e.preventDefault();
-        try {
-            const nomeCommessa = document.getElementById('nomeCommessa').value.trim();
-            const cliente = document.getElementById('cliente').value.trim();
-            const valorePreventivo = parseFloat(document.getElementById('valorePreventivo').value);
-            const statoCommessa = document.getElementById('statoCommessa').value;
-            const dataInizio = document.getElementById('dataCommessa').value;
+   async handleCommessaForm(e) {
+    e.preventDefault();
+    try {
+        const nomeCommessa = document.getElementById('nomeCommessa').value.trim();
+        const cliente = document.getElementById('cliente').value.trim();
+        const valorePreventivo = parseFloat(document.getElementById('valorePreventivo').value);
+        const statoCommessa = document.getElementById('statoCommessa').value;
+        const dataInizio = document.getElementById('dataCommessa').value;
 
-            if (!nomeCommessa || !cliente || !valorePreventivo || !dataInizio) {
-                NotificationService.error('Compila tutti i campi');
-                return;
-            }
-
-            const oreTotaliPreviste = valorePreventivo / CONFIG.TARIFFA_ORARIA;
-
-            await this.firebaseService.addDocument("commesse", {
-                nomeCommessa,
-                cliente,
-                valorePreventivo,
-                oreTotaliPreviste: parseFloat(oreTotaliPreviste.toFixed(2)),
-                oreIntegrazione: 0,
-                dataInizio,
-                stato: statoCommessa,
-                dataCreazione: new Date().toISOString(),
-                dataUltimaModifica: new Date().toISOString()
-            });
-
-            NotificationService.success('Commessa aggiunta con successo!');
-            await Promise.all([
-                this.aggiornaTabellaCommesse(),
-                this.aggiornaMenuCommesse(),
-                this.aggiornaMonitorCommesse()
-            ]);
-            
-            e.target.reset();
-
-        } catch (error) {
-            console.error('Errore aggiunta commessa:', error);
-            NotificationService.error('Errore durante l\'aggiunta');
+        if (!nomeCommessa || !cliente || !valorePreventivo || !dataInizio) {
+            NotificationService.error('Compila tutti i campi');
+            return;
         }
-    }
 
-    async modificaCommessa(id) {
-        try {
-            const docRef = this.firebaseService.db.collection("commesse").doc(id);
-            const docSnap = await docRef.get();
-            if (!docSnap.exists) {
-                NotificationService.error('Commessa non trovata');
-                return;
-            }
+        // 🔥 CHIEDI SE LA COMMESSA È FATTURATA
+        const fatturato = confirm("La commessa è già stata fatturata? (OK=Sì, Annulla=No)") ? 'fatturato' : 'da_fatturare';
 
-            const c = docSnap.data();
-            
-            const nome = prompt("Nome commessa:", c.nomeCommessa);
-            if (!nome) return;
-            
-            const cliente = prompt("Cliente:", c.cliente);
-            if (!cliente) return;
-            
-            const preventivo = parseFloat(prompt("Valore preventivo (€):", c.valorePreventivo));
-            if (isNaN(preventivo) || preventivo <= 0) {
-                NotificationService.error('Valore non valido');
-                return;
-            }
-            
-            const data = prompt("Data inizio (YYYY-MM-DD):", c.dataInizio || '');
-            if (!data) return;
-            
-            const stato = confirm("Commessa attiva? (OK=Attiva, Annulla=Conclusa)") ? 'attiva' : 'conclusa';
+        const oreTotaliPreviste = valorePreventivo / CONFIG.TARIFFA_ORARIA;
 
-            const oreTotali = preventivo / CONFIG.TARIFFA_ORARIA;
+        const dataCommessa = {
+            nomeCommessa,
+            cliente,
+            valorePreventivo,
+            oreTotaliPreviste: parseFloat(oreTotaliPreviste.toFixed(2)),
+            oreIntegrazione: 0,
+            dataInizio,
+            stato: statoCommessa,
+            fatturato: fatturato,  // 🔥 NUOVO CAMPO
+            dataCreazione: new Date().toISOString(),
+            dataUltimaModifica: new Date().toISOString()
+        };
 
-            await this.firebaseService.updateDocument("commesse", id, {
-                nomeCommessa: nome,
-                cliente: cliente,
-                valorePreventivo: preventivo,
-                oreTotaliPreviste: parseFloat(oreTotali.toFixed(2)),
-                dataInizio: data,
-                stato: stato,
-                dataUltimaModifica: new Date().toISOString()
-            });
-
-            NotificationService.success('Commessa modificata!');
-            await Promise.all([
-                this.aggiornaTabellaCommesse(),
-                this.aggiornaMenuCommesse(),
-                this.aggiornaMonitorCommesse()
-            ]);
-
-        } catch (error) {
-            console.error('Errore modifica:', error);
-            NotificationService.error('Errore durante la modifica');
+        // Se fatturato, aggiungi data fatturazione
+        if (fatturato === 'fatturato') {
+            dataCommessa.dataFatturazione = new Date().toISOString();
         }
+
+        await this.firebaseService.addDocument("commesse", dataCommessa);
+
+        NotificationService.success(`Commessa aggiunta con successo! (${fatturato === 'fatturato' ? '✅ Fatturata' : '⏳ Da fatturare'})`);
+        await Promise.all([
+            this.aggiornaTabellaCommesse(),
+            this.aggiornaMenuCommesse(),
+            this.aggiornaMonitorCommesse()
+        ]);
+        
+        e.target.reset();
+
+    } catch (error) {
+        console.error('Errore aggiunta commessa:', error);
+        NotificationService.error('Errore durante l\'aggiunta');
     }
+}
+
+ async modificaCommessa(id) {
+    try {
+        const docRef = this.firebaseService.db.collection("commesse").doc(id);
+        const docSnap = await docRef.get();
+        if (!docSnap.exists) {
+            NotificationService.error('Commessa non trovata');
+            return;
+        }
+
+        const c = docSnap.data();
+        
+        const nome = prompt("Nome commessa:", c.nomeCommessa);
+        if (!nome) return;
+        
+        const cliente = prompt("Cliente:", c.cliente);
+        if (!cliente) return;
+        
+        const preventivo = parseFloat(prompt("Valore preventivo (€):", c.valorePreventivo));
+        if (isNaN(preventivo) || preventivo <= 0) {
+            NotificationService.error('Valore non valido');
+            return;
+        }
+        
+        const data = prompt("Data inizio (YYYY-MM-DD):", c.dataInizio || '');
+        if (!data) return;
+        
+        const stato = confirm("Commessa attiva? (OK=Attiva, Annulla=Conclusa)") ? 'attiva' : 'conclusa';
+        
+        // 🔥 CHIEDI LO STATO FATTURATO
+        const fatturato = confirm("Commessa fatturata? (OK=Sì, Annulla=No)") ? 'fatturato' : 'da_fatturare';
+
+        const oreTotali = preventivo / CONFIG.TARIFFA_ORARIA;
+
+        await this.firebaseService.updateDocument("commesse", id, {
+            nomeCommessa: nome,
+            cliente: cliente,
+            valorePreventivo: preventivo,
+            oreTotaliPreviste: parseFloat(oreTotali.toFixed(2)),
+            dataInizio: data,
+            stato: stato,
+            fatturato: fatturato,
+            dataUltimaModifica: new Date().toISOString(),
+            ...(fatturato === 'fatturato' ? { dataFatturazione: new Date().toISOString() } : {})
+        });
+
+        NotificationService.success('Commessa modificata!');
+        await Promise.all([
+            this.aggiornaTabellaCommesse(),
+            this.aggiornaMenuCommesse(),
+            this.aggiornaMonitorCommesse()
+        ]);
+
+    } catch (error) {
+        console.error('Errore modifica:', error);
+        NotificationService.error('Errore durante la modifica');
+    }
+}
 
     async eliminaCommessa(id) {
         if (!confirm('Sei sicuro di voler eliminare questa commessa?\nQuesta azione è irreversibile!')) return;
@@ -1805,57 +2163,125 @@ async filtraOrePerGiorno(data) {
         }
     }
 
+
     // ============================================================
     // 7.11 TABELLA DIPENDENTI
     // ============================================================
 
- async aggiornaTabellaDipendenti() {
+async aggiornaTabellaDipendenti() {
     const tbody = document.querySelector('#dipendentiTable tbody');
-    if (!tbody) return;
+    if (!tbody) {
+        console.error('❌ Tbody dipendenti non trovato');
+        return;
+    }
 
     try {
-        const dipendenti = await this.firebaseService.getCollection("dipendenti");
+        // 1. RECUPERA DATI DA FIREBASE
+        let dipendenti = await this.firebaseService.getCollection("dipendenti");
+        
+        // 2. ORDINA DATI (prima admin, poi per cognome)
+        dipendenti.sort((a, b) => {
+            const ruoloA = a.ruolo === 'admin' ? 0 : 1;
+            const ruoloB = b.ruolo === 'admin' ? 0 : 1;
+            if (ruoloA !== ruoloB) return ruoloA - ruoloB;
+            return (a.cognome || '').localeCompare(b.cognome || '', 'it');
+        });
+
+        // 3. SALVA NELLO STATE
         stateManager.datiTotali.dipendenti = dipendenti;
         
-        // 🔥 Aggiorna i dati della paginazione
-        this.paginazione.dipendenti.aggiornaDati(dipendenti);
+        // 4. AGGIORNA I DATI DELLA PAGINAZIONE
+        this.paginazione.dipendenti.datiTotali = dipendenti;
 
+        // 5. OTTIENI I DATI DELLA PAGINA CORRENTE
         const datiPagina = this.paginazione.dipendenti.getDatiPagina();
+        
+        console.log(`📊 Dipendenti - Pagina ${this.paginazione.dipendenti.paginaCorrente}: ${datiPagina.length} record su ${dipendenti.length}`);
+
+        // 6. PULISCI LA TABELLA
         tbody.innerHTML = '';
 
+        // 7. MOSTRA MESSAGGIO SE VUOTO
         if (datiPagina.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3">Nessun dipendente trovato</td></tr>`;
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">
+                        <i class="fas fa-users fa-3x mb-3 d-block"></i>
+                        <h5>Nessun dipendente trovato</h5>
+                        <p class="small">Aggiungi un nuovo dipendente usando il form sopra</p>
+                    </td>
+                </tr>
+            `;
         } else {
+            // 8. POPOLA LA TABELLA
             datiPagina.forEach(d => {
                 const row = document.createElement('tr');
+                
+                // Mostra la password solo se non è hashata
+                const mostraPassword = d.passwordHash ? '••••••••' : (d.password || '-');
+                
                 row.innerHTML = `
-                    <td>${Utils.escapeHtml(d.nome)}</td>
+                    <td><strong>${Utils.escapeHtml(d.nome)}</strong></td>
                     <td>${Utils.escapeHtml(d.cognome)}</td>
                     <td>${Utils.escapeHtml(d.email)}</td>
-                    <td>${d.passwordHash ? '••••••••' : Utils.escapeHtml(d.password || '-')}</td>
-                    <td><span class="badge ${d.ruolo === 'admin' ? 'bg-danger' : 'bg-info'}">${d.ruolo || 'dipendente'}</span></td>
+                    <td><span class="font-monospace">${mostraPassword}</span></td>
                     <td>
-                        <button class="btn btn-sm btn-warning btn-modifica-dipendente" data-id="${d.id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger btn-elimina-dipendente" data-id="${d.id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <span class="badge ${d.ruolo === 'admin' ? 'bg-danger' : 'bg-info'}">
+                            ${d.ruolo || 'dipendente'}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button class="btn btn-warning btn-modifica-dipendente" 
+                                    data-id="${d.id}" 
+                                    title="Modifica dipendente">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-danger btn-elimina-dipendente" 
+                                    data-id="${d.id}" 
+                                    title="Elimina dipendente">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
 
-                row.querySelector('.btn-modifica-dipendente')?.addEventListener('click', () => this.modificaDipendente(d.id));
-                row.querySelector('.btn-elimina-dipendente')?.addEventListener('click', () => this.eliminaDipendente(d.id));
+                // EVENT LISTENERS
+                row.querySelector('.btn-modifica-dipendente')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.modificaDipendente(d.id);
+                });
+                
+                row.querySelector('.btn-elimina-dipendente')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.eliminaDipendente(d.id);
+                });
             });
         }
 
-        // 🔥 Renderizza la paginazione
-        this.paginazione.dipendenti.render(dipendenti, () => this.aggiornaTabellaDipendenti());
+        // 9. RENDERIZZA LA PAGINAZIONE
+        this.paginazione.dipendenti.render(dipendenti, () => {
+            console.log(`🔄 Callback paginazione dipendenti - ricarico`);
+            this.aggiornaTabellaDipendenti();
+        });
+
+        console.log(`✅ Tabella dipendenti aggiornata: ${dipendenti.length} record, pagina ${this.paginazione.dipendenti.paginaCorrente}`);
 
     } catch (error) {
-        console.error('Errore tabella dipendenti:', error);
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Errore nel caricamento</td></tr>`;
+        console.error('❌ Errore tabella dipendenti:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2 d-block"></i>
+                    Errore nel caricamento: ${error.message}
+                    <br>
+                    <button class="btn btn-sm btn-primary mt-2" onclick="app.aggiornaTabellaDipendenti()">
+                        <i class="fas fa-sync-alt"></i> Riprova
+                    </button>
+                </td>
+            </tr>
+        `;
     }
 }
 // ============================================================
@@ -2000,48 +2426,131 @@ refreshAllPaginazioni() {
         }
     }
 
-    async aggiornaTabellaFornitori() {
-        const tbody = document.querySelector('#fornitoriTable tbody');
-        if (!tbody) return;
+async aggiornaTabellaFornitori() {
+    const tbody = document.querySelector('#fornitoriTable tbody');
+    if (!tbody) {
+        console.error('❌ Tbody fornitori non trovato');
+        return;
+    }
 
-        try {
-            const datiPagina = this.paginazione.fornitori.getDatiPagina();
-            tbody.innerHTML = '';
+    try {
+        // 1. RECUPERA DATI
+        let fornitori = await this.firebaseService.getCollection("fornitoriLavorazioni");
+        
+        // 2. ORDINA DATI (più recenti prima)
+        fornitori.sort((a, b) => {
+            const dataA = a.data || a.dataCreazione || '';
+            const dataB = b.data || b.dataCreazione || '';
+            return dataB.localeCompare(dataA);
+        });
 
-            if (datiPagina.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center">Nessuna lavorazione fornitore registrata</td></tr>`;
-            } else {
-                datiPagina.forEach(f => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${Utils.escapeHtml(f.nomeFornitore)}</td>
-                        <td>${Utils.escapeHtml(f.commessa)}</td>
-                        <td class="text-end">€ ${(f.costo || 0).toFixed(2)}</td>
-                        <td>${Utils.escapeHtml(f.descrizione || '-')}</td>
-                        <td>${f.data || '-'}</td>
-                        <td>
-                            <button class="btn btn-sm btn-warning btn-modifica-fornitore" data-id="${f.id}">
+        // 3. SALVA NELLO STATE
+        stateManager.datiTotali.fornitori = fornitori;
+        
+        // 4. AGGIORNA I DATI DELLA PAGINAZIONE
+        this.paginazione.fornitori.datiTotali = fornitori;
+
+        // 5. OTTIENI I DATI DELLA PAGINA CORRENTE
+        const datiPagina = this.paginazione.fornitori.getDatiPagina();
+        
+        console.log(`📊 Fornitori - Pagina ${this.paginazione.fornitori.paginaCorrente}: ${datiPagina.length} record su ${fornitori.length}`);
+
+        // 6. PULISCI LA TABELLA
+        tbody.innerHTML = '';
+
+        // 7. MOSTRA MESSAGGIO SE VUOTO
+        if (datiPagina.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">
+                        <i class="fas fa-truck fa-3x mb-3 d-block"></i>
+                        <h5>Nessuna lavorazione fornitore registrata</h5>
+                        <p class="small">Aggiungi una lavorazione usando il form sopra</p>
+                    </td>
+                </tr>
+            `;
+        } else {
+            // 8. POPOLA LA TABELLA
+            datiPagina.forEach(f => {
+                const row = document.createElement('tr');
+                
+                // Formatta data
+                const dataFormattata = f.data ? Utils.formattaDataItaliana(f.data) : '-';
+                
+                row.innerHTML = `
+                    <td><strong>${Utils.escapeHtml(f.nomeFornitore)}</strong></td>
+                    <td>${Utils.escapeHtml(f.commessa)}</td>
+                    <td class="text-end"><strong>€ ${(f.costo || 0).toFixed(2)}</strong></td>
+                    <td>${Utils.escapeHtml(f.descrizione || '-')}</td>
+                    <td>${dataFormattata}</td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button class="btn btn-warning btn-modifica-fornitore" 
+                                    data-id="${f.id}" 
+                                    title="Modifica lavorazione">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn btn-sm btn-danger btn-elimina-fornitore" data-id="${f.id}">
+                            <button class="btn btn-danger btn-elimina-fornitore" 
+                                    data-id="${f.id}" 
+                                    title="Elimina lavorazione">
                                 <i class="fas fa-trash"></i>
                             </button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
 
-                    row.querySelector('.btn-modifica-fornitore')?.addEventListener('click', () => this.modificaLavorazioneFornitore(f.id));
-                    row.querySelector('.btn-elimina-fornitore')?.addEventListener('click', () => this.eliminaLavorazioneFornitore(f.id));
+                // EVENT LISTENERS
+                row.querySelector('.btn-modifica-fornitore')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.modificaLavorazioneFornitore(f.id);
                 });
-            }
+                
+                row.querySelector('.btn-elimina-fornitore')?.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.eliminaLavorazioneFornitore(f.id);
+                });
+            });
 
-            this.paginazione.fornitori.render(stateManager.datiTotali.fornitori, () => this.aggiornaTabellaFornitori());
-
-        } catch (error) {
-            console.error('Errore tabella fornitori:', error);
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Errore nel caricamento</td></tr>`;
+            // 9. AGGIUNGI RIGA TOTALE COSTI
+            const totaleCosti = fornitori.reduce((sum, f) => sum + (parseFloat(f.costo) || 0), 0);
+            const tr = document.createElement('tr');
+            tr.className = 'table-info fw-bold';
+            tr.innerHTML = `
+                <td colspan="2" class="text-end">TOTALE COSTI FORNITORI</td>
+                <td class="text-end"><strong>€ ${totaleCosti.toFixed(2)}</strong></td>
+                <td colspan="3"></td>
+            `;
+            tbody.appendChild(tr);
         }
+
+        // 10. RENDERIZZA LA PAGINAZIONE
+        this.paginazione.fornitori.render(fornitori, () => {
+            console.log(`🔄 Callback paginazione fornitori - ricarico`);
+            this.aggiornaTabellaFornitori();
+        });
+
+        console.log(`✅ Tabella fornitori aggiornata: ${fornitori.length} record, pagina ${this.paginazione.fornitori.paginaCorrente}`);
+
+    } catch (error) {
+        console.error('❌ Errore tabella fornitori:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2 d-block"></i>
+                    Errore nel caricamento: ${error.message}
+                    <br>
+                    <button class="btn btn-sm btn-primary mt-2" onclick="app.aggiornaTabellaFornitori()">
+                        <i class="fas fa-sync-alt"></i> Riprova
+                    </button>
+                </td>
+            </tr>
+        `;
     }
+}
+// Aggiungi alla classe OreLavorateApp
+
+
 
     async aggiungiLavorazioneFornitore(e) {
         e.preventDefault();
@@ -2186,7 +2695,7 @@ refreshAllPaginazioni() {
             const filtroStato = document.getElementById('filtroCommessaMonitor')?.value || '';
             const filtroAnno = document.getElementById('filtroAnnoMonitor')?.value || '';
             const filtroMese = document.getElementById('filtroMeseMonitor')?.value || '';
-
+            const filtroFatturato = document.getElementById('filtroFatturato')?.value || '';
             let commesseFiltrate = commesse.filter(c => c && c.nomeCommessa);
 
             if (filtroNome) {
@@ -2215,6 +2724,11 @@ refreshAllPaginazioni() {
                     return data && data.split('-')[1] === filtroMese;
                 });
             }
+            if (filtroFatturato) {
+                     commesseFiltrate = commesseFiltrate.filter(c => 
+                     (c.fatturato || 'da_fatturare') === filtroFatturato
+                        );
+                }
 
             commesseFiltrate.sort((a, b) => {
                 const statoA = a.stato === 'attiva' ? 0 : 1;
@@ -3639,100 +4153,172 @@ refreshAllPaginazioni() {
         }
     }
 
-    async generaPDFMonitoraggio() {
-        try {
-            if (typeof window.jspdf === 'undefined') {
-                await this.caricaLibreriePDF();
-            }
-
-            const { jsPDF } = window.jspdf;
-            if (!jsPDF) {
-                NotificationService.error('Librerie PDF non disponibili');
-                return;
-            }
-
-            const [commesse, tutteLeOre] = await Promise.all([
-                this.firebaseService.getCollection("commesse"),
-                this.firebaseService.getCollection("oreLavorate")
-            ]);
-
-            const filtroNome = document.getElementById('filtroNomeCommessa')?.value.trim() || '';
-            const filtroStato = document.getElementById('filtroCommessaMonitor')?.value || '';
-
-            let commesseFiltrate = commesse.filter(c => c && c.nomeCommessa);
-            if (filtroNome) {
-                commesseFiltrate = commesseFiltrate.filter(c => 
-                    c.nomeCommessa.toLowerCase().includes(filtroNome.toLowerCase())
-                );
-            }
-            if (filtroStato === 'attive') {
-                commesseFiltrate = commesseFiltrate.filter(c => c.stato === 'attiva' || !c.stato);
-            } else if (filtroStato === 'concluse') {
-                commesseFiltrate = commesseFiltrate.filter(c => c.stato === 'conclusa');
-            }
-
-            if (commesseFiltrate.length === 0) {
-                NotificationService.warning('Nessuna commessa da esportare');
-                return;
-            }
-
-            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-            const fornitori = stateManager.datiTotali.fornitori || [];
-
-            doc.setFillColor(37, 99, 235);
-            doc.rect(0, 0, 297, 30, 'F');
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(20);
-            doc.text('MONITORAGGIO COMMESSE', 148, 16, { align: 'center' });
-            doc.setFontSize(10);
-            doc.text(`Generato il: ${new Date().toLocaleString('it-IT')}`, 148, 24, { align: 'center' });
-            doc.setTextColor(0, 0, 0);
-
-            const tableData = commesseFiltrate.map(c => {
-                const stats = this.calcolaStatisticheCommessa(c, tutteLeOre, fornitori);
-                return [
-                    c.nomeCommessa,
-                    c.cliente || 'N/D',
-                    `€${stats.valorePreventivo.toFixed(0)}`,
-                    Utils.formattaOreDecimali(stats.oreLavorateTotali),
-                    Utils.formattaOreDecimali(stats.oreNonConformita),
-                    `€${stats.costoDipendenti.toFixed(0)}`,
-                    `€${stats.costiFornitori.toFixed(0)}`,
-                    `€${stats.costoTotale.toFixed(0)}`,
-                    `${stats.marginePercentuale.toFixed(1)}%`,
-                    c.stato === 'attiva' ? 'ATTIVA' : 'CONCLUSA'
-                ];
-            });
-
-            doc.autoTable({
-                startY: 40,
-                head: [['Commessa', 'Cliente', 'Preventivo', 'Ore Lav', 'Ore NC', 'Costo Dip.', 'Costo Forn.', 'Costo Tot.', 'Margine %', 'Stato']],
-                body: tableData,
-                theme: 'grid',
-                styles: { fontSize: 7, cellPadding: 2 },
-                headStyles: { fillColor: [37, 99, 235], textColor: 255 },
-                columnStyles: {
-                    0: { cellWidth: 35 },
-                    1: { cellWidth: 25 },
-                    2: { cellWidth: 20, halign: 'right' },
-                    3: { cellWidth: 18, halign: 'center' },
-                    4: { cellWidth: 18, halign: 'center' },
-                    5: { cellWidth: 22, halign: 'right' },
-                    6: { cellWidth: 22, halign: 'right' },
-                    7: { cellWidth: 22, halign: 'right' },
-                    8: { cellWidth: 20, halign: 'right' },
-                    9: { cellWidth: 20, halign: 'center' }
-                }
-            });
-
-            doc.save(`monitoraggio_${new Date().toISOString().split('T')[0]}.pdf`);
-            NotificationService.success('PDF monitoraggio generato con successo!');
-
-        } catch (error) {
-            console.error('Errore PDF monitoraggio:', error);
-            NotificationService.error('Errore durante la generazione PDF');
+   async generaPDFMonitoraggio() {
+    try {
+        if (typeof window.jspdf === 'undefined') {
+            await this.caricaLibreriePDF();
         }
+
+        const { jsPDF } = window.jspdf;
+        if (!jsPDF) {
+            NotificationService.error('Librerie PDF non disponibili');
+            return;
+        }
+
+        // 🔥 1. RECUPERA I DATI CON GLI STESSI FILTRI DEL MONITORAGGIO
+        const [commesse, tutteLeOre] = await Promise.all([
+            this.firebaseService.getCollection("commesse"),
+            this.firebaseService.getCollection("oreLavorate")
+        ]);
+
+        // 🔥 2. APPLICA GLI STESSI FILTRI DELLA TABELLA
+        const filtroNome = document.getElementById('filtroNomeCommessa')?.value?.trim() || '';
+        const filtroStato = document.getElementById('filtroCommessaMonitor')?.value || '';
+        const filtroAnno = document.getElementById('filtroAnnoMonitor')?.value || '';
+        const filtroMese = document.getElementById('filtroMeseMonitor')?.value || '';
+        const filtroFatturato = document.getElementById('filtroFatturato')?.value || '';
+
+        let commesseFiltrate = commesse.filter(c => c && c.nomeCommessa);
+
+        // Filtro nome
+        if (filtroNome) {
+            const f = filtroNome.toLowerCase();
+            commesseFiltrate = commesseFiltrate.filter(c => 
+                c.nomeCommessa.toLowerCase().includes(f)
+            );
+        }
+
+        // Filtro stato
+        if (filtroStato === 'attive') {
+            commesseFiltrate = commesseFiltrate.filter(c => c.stato === 'attiva' || !c.stato);
+        } else if (filtroStato === 'concluse') {
+            commesseFiltrate = commesseFiltrate.filter(c => c.stato === 'conclusa');
+        }
+
+        // Filtro anno
+        if (filtroAnno) {
+            commesseFiltrate = commesseFiltrate.filter(c => {
+                const data = c.dataInizio || c.dataCreazione;
+                return data && data.split('-')[0] === filtroAnno;
+            });
+        }
+
+        // Filtro mese
+        if (filtroMese) {
+            commesseFiltrate = commesseFiltrate.filter(c => {
+                const data = c.dataInizio || c.dataCreazione;
+                return data && data.split('-')[1] === filtroMese;
+            });
+        }
+
+        // Filtro fatturato
+        if (filtroFatturato) {
+            commesseFiltrate = commesseFiltrate.filter(c => 
+                (c.fatturato || 'da_fatturare') === filtroFatturato
+            );
+        }
+
+        if (commesseFiltrate.length === 0) {
+            NotificationService.warning('Nessuna commessa trovata con i filtri selezionati');
+            return;
+        }
+
+        // 🔥 3. CALCOLA LE STATISTICHE PER LE COMMESSE FILTRATE
+        const fornitori = stateManager.datiTotali.fornitori || [];
+        const tableData = [];
+
+        for (const c of commesseFiltrate) {
+            const stats = this.calcolaStatisticheCommessa(c, tutteLeOre, fornitori);
+            tableData.push([
+                c.nomeCommessa,
+                `€${stats.valorePreventivo.toFixed(2)}`,
+                Utils.formattaOreDecimali(stats.oreLavorateTotali),
+                Utils.formattaOreDecimali(stats.oreNonConformita),
+                stats.hasIntegrazione ? `+${Utils.formattaOreDecimali(stats.oreIntegrazione)}` : '-',
+                `€${stats.costoDipendenti.toFixed(2)}`,
+                stats.hasFornitori ? `€${stats.costiFornitori.toFixed(2)}` : '-',
+                `€${stats.costoTotale.toFixed(2)}`,
+                `${stats.marginePercentuale.toFixed(1)}%`,
+                c.stato === 'attiva' ? 'ATTIVA' : 'CONCLUSA'
+            ]);
+        }
+
+        // 🔥 4. CREA IL PDF
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+        // Intestazione
+        doc.setFillColor(37, 99, 235);
+        doc.rect(0, 0, 297, 30, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(20);
+        doc.text('MONITORAGGIO COMMESSE - DATI FILTRATI', 148, 16, { align: 'center' });
+        doc.setFontSize(10);
+        doc.text(`Generato il: ${new Date().toLocaleString('it-IT')}`, 148, 24, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+
+        // Info filtri
+        let filtroInfo = '';
+        const filtriAttivi = [];
+        if (filtroNome) filtriAttivi.push(`Commessa: "${filtroNome}"`);
+        if (filtroStato) filtriAttivi.push(`Stato: ${filtroStato === 'attive' ? 'Attive' : 'Concluse'}`);
+        if (filtroAnno) filtriAttivi.push(`Anno: ${filtroAnno}`);
+        if (filtroMese) {
+            const mesi = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
+                         'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+            filtriAttivi.push(`Mese: ${mesi[parseInt(filtroMese) - 1]}`);
+        }
+        if (filtroFatturato) {
+            filtriAttivi.push(`Fatturato: ${filtroFatturato === 'fatturato' ? 'Fatturato' : 'Da fatturare'}`);
+        }
+
+        if (filtriAttivi.length > 0) {
+            doc.setFontSize(9);
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Filtri: ${filtriAttivi.join(' • ')}`, 14, 38);
+        }
+
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(10);
+        doc.text(`Record: ${tableData.length} commesse`, 14, 45);
+
+        // Tabella
+        doc.autoTable({
+            startY: 50,
+            head: [['Commessa', 'Preventivo', 'Ore Lav', 'Ore NC', 'Integr.', 'Costo Dip.', 'Costo Forn.', 'Costo Tot.', 'Margine %', 'Stato']],
+            body: tableData,
+            theme: 'grid',
+            styles: { fontSize: 7, cellPadding: 2 },
+            headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+            columnStyles: {
+                0: { cellWidth: 30 },
+                1: { cellWidth: 20, halign: 'right' },
+                2: { cellWidth: 18, halign: 'center' },
+                3: { cellWidth: 18, halign: 'center' },
+                4: { cellWidth: 16, halign: 'center' },
+                5: { cellWidth: 22, halign: 'right' },
+                6: { cellWidth: 22, halign: 'right' },
+                7: { cellWidth: 22, halign: 'right' },
+                8: { cellWidth: 20, halign: 'right' },
+                9: { cellWidth: 18, halign: 'center' }
+            }
+        });
+
+        // Riepilogo
+        const finalY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(10);
+        doc.text(`📊 Riepilogo (${tableData.length} commesse)`, 14, finalY);
+
+        // Salva
+        const nomeFile = `monitoraggio_filtrato_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(nomeFile);
+        
+        NotificationService.success(`PDF generato con ${tableData.length} commesse filtrate!`);
+
+    } catch (error) {
+        console.error('❌ Errore PDF monitoraggio:', error);
+        NotificationService.error('Errore durante la generazione PDF: ' + error.message);
     }
+}
 
     async testGenerazionePDF() {
         try {
@@ -3780,6 +4366,89 @@ refreshAllPaginazioni() {
             document.head.appendChild(script);
         });
     }
+    // Aggiungi alla classe OreLavorateApp (prima dell'ultima parentesi graffa)
+
+// Metodo per forzare il refresh di tutte le tabelle
+refreshTutteLeTabelle() {
+    console.log('🔄 Refresh forzato di tutte le tabelle...');
+    
+    // Forza il refresh delle paginazioni
+    if (this.paginazione.ore) {
+        this.paginazione.ore.aggiornaDati(stateManager.datiTotali.oreLavorate || []);
+    }
+    if (this.paginazione.commesse) {
+        this.paginazione.commesse.aggiornaDati(stateManager.datiTotali.commesse || []);
+    }
+    if (this.paginazione.dipendenti) {
+        this.paginazione.dipendenti.aggiornaDati(stateManager.datiTotali.dipendenti || []);
+    }
+    if (this.paginazione.fornitori) {
+        this.paginazione.fornitori.aggiornaDati(stateManager.datiTotali.fornitori || []);
+    }
+    
+    // Ricarica tutte le tabelle
+    this.aggiornaTabellaOreLavorate(stateManager.datiFiltrati);
+    this.aggiornaTabellaCommesse();
+    this.aggiornaTabellaDipendenti();
+    this.aggiornaTabellaFornitori();
+    
+    console.log('✅ Refresh completato');
+}
+
+/**
+ * Ottiene i colori del tema corrente per i grafici
+ */
+getChartThemeColors() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    
+    return {
+        textColor: isDark ? '#e8edf5' : '#0f172a',
+        gridColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+        borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+        background: isDark ? '#1a2234' : '#ffffff'
+    };
+}
+
+// Metodo per diagnosticare lo stato delle paginazioni
+diagnosticaPaginazioni() {
+    console.log('=== DIAGNOSTICA PAGINAZIONI ===');
+    console.log('Stato Manager:', {
+        currentUser: stateManager.currentUser?.ruolo || 'nessuno',
+        datiTotali: {
+            oreLavorate: stateManager.datiTotali.oreLavorate?.length || 0,
+            commesse: stateManager.datiTotali.commesse?.length || 0,
+            dipendenti: stateManager.datiTotali.dipendenti?.length || 0,
+            fornitori: stateManager.datiTotali.fornitori?.length || 0
+        }
+    });
+    
+    const paginazioni = ['ore', 'commesse', 'dipendenti', 'fornitori'];
+    paginazioni.forEach(nome => {
+        const pag = this.paginazione[nome];
+        if (pag) {
+            const containerEsiste = pag.container !== null && pag.container !== undefined;
+            console.log(`📊 ${nome}:`, {
+                container: containerEsiste ? '✅' : '❌',
+                containerId: pag.containerId,
+                totale: pag.datiTotali?.length || 0,
+                pagina: pag.paginaCorrente || 1,
+                perPagina: pag.righePerPagina || 10,
+                visibile: pag.container?.style?.display || 'N/A'
+            });
+        } else {
+            console.log(`❌ ${nome}: NON INIZIALIZZATA`);
+        }
+    });
+    
+    // Verifica container HTML
+    console.log('🔍 Container HTML:');
+    ['paginationOre', 'paginationCommesse', 'paginationDipendenti', 'paginationFornitori'].forEach(id => {
+        const el = document.getElementById(id);
+        console.log(`  ${id}: ${el ? '✅' : '❌'}`);
+    });
+    
+    console.log('✅ Diagnostica completata');
+}
 }
 
 // ============================================================
