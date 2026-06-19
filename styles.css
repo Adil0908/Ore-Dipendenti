@@ -1754,3 +1754,126 @@ textarea.form-control {
     padding: 0 !important;
     margin: 0 !important;
 }
+/* ========================================
+   LOGO STYLES - UNION14
+   ======================================== */
+
+/* Logo nella navbar */
+.logo-img {
+    height: 40px;
+    width: auto;
+    border-radius: 6px;
+    transition: var(--transition);
+    object-fit: contain;
+}
+
+.logo-img:hover {
+    transform: scale(1.05);
+    filter: brightness(1.05);
+}
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    padding: 0;
+}
+
+.navbar-brand .brand-text {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.navbar-brand .brand-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.navbar-brand .brand-title i {
+    color: var(--primary);
+}
+
+/* Logo nel login */
+.login-logo-container {
+    margin-bottom: 16px;
+    text-align: center;
+    padding: 10px 0;
+}
+
+.login-logo-img {
+    max-width: 180px;
+    height: auto;
+    border-radius: 12px;
+    transition: var(--transition);
+}
+
+.login-logo-img:hover {
+    transform: scale(1.05);
+}
+
+/* Dark mode per il logo */
+[data-theme="dark"] .logo-img {
+    filter: brightness(0.9) contrast(1.1);
+}
+
+[data-theme="dark"] .login-logo-img {
+    filter: brightness(0.9) contrast(1.1);
+}
+
+/* Responsive logo */
+@media (max-width: 992px) {
+    .logo-img {
+        height: 35px;
+    }
+    .login-logo-img {
+        max-width: 150px;
+    }
+}
+
+@media (max-width: 768px) {
+    .logo-img {
+        height: 30px;
+    }
+    .login-logo-img {
+        max-width: 120px;
+    }
+    .navbar-brand .brand-title {
+        font-size: 0.95rem;
+    }
+    .navbar-brand .brand-text .badge {
+        font-size: 10px;
+        padding: 2px 8px;
+    }
+}
+
+@media (max-width: 576px) {
+    .logo-img {
+        height: 24px;
+    }
+    .login-logo-img {
+        max-width: 90px;
+    }
+    .navbar-brand .brand-title {
+        font-size: 0.8rem;
+    }
+    .navbar-brand .brand-text .badge {
+        font-size: 8px;
+        padding: 2px 6px;
+    }
+}
+
+/* Logo nel footer (se lo aggiungi) */
+.footer-logo {
+    height: 30px;
+    width: auto;
+    opacity: 0.7;
+    transition: var(--transition);
+}
+
+.footer-logo:hover {
+    opacity: 1;
+}
