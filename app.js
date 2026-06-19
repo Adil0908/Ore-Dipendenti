@@ -559,8 +559,17 @@ async init() {
 
 // SOSTITUISCI il metodo migraPasswordDipendenti con questo:
 
+// SOSTITUISCI il metodo migraPasswordDipendenti con questo:
+
 async migraPasswordDipendenti() {
     try {
+        // Verifica che Firebase sia disponibile
+        if (!this.firebaseService || !this.firebaseService.db) {
+            console.error('Firebase non disponibile');
+            NotificationService.error('Firebase non disponibile');
+            return 0;
+        }
+
         const dipendenti = await this.firebaseService.getCollection("dipendenti");
         let migrati = 0;
         
@@ -569,17 +578,24 @@ async migraPasswordDipendenti() {
             if (d.password && !d.passwordHash) {
                 const hash = await Utils.hashPassword(d.password);
                 
-                // CORREZIONE: usa FieldValue.delete() invece di undefined
-                await this.firebaseService.db
-                    .collection("dipendenti")
-                    .doc(d.id)
-                    .update({
-                        passwordHash: hash,
-                        password: firebase.firestore.FieldValue.delete()
-                    });
-                    
-                migrati++;
-                console.log(`✅ Migrato: ${d.email}`);
+                // CORREZIONE: usa un campo con valore null invece di FieldValue.delete()
+                // perché FieldValue potrebbe non essere definito
+                const updateData = {
+                    passwordHash: hash,
+                    password: null // Firebase interpreterà null come "elimina campo"
+                };
+                
+                try {
+                    await this.firebaseService.db
+                        .collection("dipendenti")
+                        .doc(d.id)
+                        .update(updateData);
+                        
+                    migrati++;
+                    console.log(`✅ Migrato: ${d.email}`);
+                } catch (updateError) {
+                    console.error(`Errore migrazione ${d.email}:`, updateError);
+                }
             }
         }
         
@@ -1018,86 +1034,104 @@ async verificaSessione() {
     // 7.3 EVENT LISTENERS
     // ============================================================
 
-setupEventListeners() {
-    // Login
-    document.getElementById('btnLogin')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.gestisciLogin();
-    });
-    
-    document.getElementById('inputPassword')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            this.gestisciLogin();
-        }
-    });
-
-    // Logout
-    document.getElementById('logoutButton')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.logout();
-    });
-
-    // 🔥 FORMS
-    const commessaForm = document.getElementById('commessaForm');
-    if (commessaForm) {
-        commessaForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.handleCommessaForm(e);
+    setupEventListeners() {
+        // Login
+        document.getElementById('btnLogin')?.addEventListener('click', () => this.gestisciLogin());
+        document.getElementById('inputPassword')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.gestisciLogin();
         });
-    }
 
-    const dipendentiForm = document.getElementById('dipendentiForm');
-    if (dipendentiForm) {
-        dipendentiForm.addEventListener('submit', (e) => {
+        // Logout
+        document.getElementById('logoutButton')?.addEventListener('click', () => this.logout());
+
+        // Forms
+        document.getElementById('oreForm')?.addEventListener('submit', (e) => this.handleOreForm(e));
+        document.getElementById('commessaForm')?.addEventListener('submit', (e) => this.handleCommessaForm(e));
+        document.getElementById('dipendentiForm')?.addEventListener('submit', (e) => this.handleDipendentiForm(e));
+        document.getElementById('fornitoreForm')?.addEventListener('submit', (e) => this.aggiungiLavorazioneFornitore(e));
+
+        // Filtri ore
+        document.getElementById('filtraOreLavorate')?.addEventListener('submit', (e) => {
             e.preventDefault();
-            this.handleDipendentiForm(e);
+            this.applicaFiltriOre();
         });
-    }
+        document.getElementById('btnResetFiltri')?.addEventListener('click', () => this.resetFiltriOre());
+        document.getElementById('btnScaricaPDF')?.addEventListener('click', () => this.generaPDFFiltrato());
+        document.getElementById('btnMostraTutti')?.addEventListener('click', () => this.mostraTuttiOre());
 
-    const fornitoreForm = document.getElementById('fornitoreForm');
-    if (fornitoreForm) {
-        fornitoreForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.aggiungiLavorazioneFornitore(e);
+        // Filtri monitoraggio
+        document.getElementById('filtroNomeCommessa')?.addEventListener('input', () => {
+            clearTimeout(this.filtroTimeout);
+            this.filtroTimeout = setTimeout(() => this.aggiornaMonitorCommesse(), 400);
         });
-    }
+        document.getElementById('filtroCommessaMonitor')?.addEventListener('change', () => this.aggiornaMonitorCommesse());
+        document.getElementById('filtroAnnoMonitor')?.addEventListener('change', () => this.aggiornaMonitorCommesse());
+        document.getElementById('filtroMeseMonitor')?.addEventListener('change', () => this.aggiornaMonitorCommesse());
 
-    const oreForm = document.getElementById('oreForm');
-    if (oreForm) {
-        oreForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.handleOreForm(e);
+        document.getElementById('btnAggiornaMonitor')?.addEventListener('click', () => this.aggiornaMonitorCommesse());
+        document.getElementById('btnResetFiltriMonitor')?.addEventListener('click', () => this.resetFiltriMonitor());
+        document.getElementById('btnScaricaPDFMonitor')?.addEventListener('click', () => this.generaPDFMonitoraggio());
+        document.getElementById('filtroAnno')?.addEventListener('change', () => this.popolaGiorni());
+        document.getElementById('filtroMese')?.addEventListener('change', () => this.popolaGiorni());
+
+        // Grafici
+        document.getElementById('btnAggiornaGrafici')?.addEventListener('click', () => this.creaGraficiDashboard());
+        document.getElementById('btnEsportaGrafici')?.addEventListener('click', () => this.esportaGraficiPNG());
+
+        // Backup
+        document.getElementById('btnBackupDati')?.addEventListener('click', () => this.eseguiBackupDati());
+        document.getElementById('btnRipristinoDati')?.addEventListener('click', () => {
+            document.getElementById('fileBackupInput')?.click();
         });
-    }
-
-    // 🔥 FILTRI ORE
-    const filtraOreForm = document.getElementById('filtraOreLavorate');
-    if (filtraOreForm) {
-        filtraOreForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.applicaFiltriOre(e);  // ✅ PASSIAMO L'EVENTO
+        document.getElementById('fileBackupInput')?.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                this.ripristinaDaBackup(e.target.files[0]);
+                e.target.value = '';
+            }
         });
-    }
 
-    // 🔥 LISTENER PER IL CHECKBOX NON CONFORMITÀ - AGGIUNGI QUESTO!
-    const checkboxNC = document.getElementById('filtroNonConformita');
-    if (checkboxNC) {
-        checkboxNC.addEventListener('change', (e) => {
-            console.log('🔄 Checkbox NC cambiato:', e.target.checked);
-            // Applica i filtri automaticamente quando il checkbox cambia
-            this.applicaFiltriOre(e);
+        // Ricerca commesse
+        document.getElementById('btnCercaCommessa')?.addEventListener('click', () => this.aggiornaTabellaCommesse());
+        document.getElementById('btnResetCercaCommessa')?.addEventListener('click', () => {
+            document.getElementById('cercaCommessa').value = '';
+            this.aggiornaTabellaCommesse();
         });
+
+        // Report mensili
+        document.getElementById('btnMostraTabella')?.addEventListener('click', () => this.mostraTabellaMensile());
+
+        // PDF rubrica
+        document.getElementById('btnScaricaPDFDipendenti')?.addEventListener('click', () => this.generaPDFRubricaDipendenti());
+
+        // Diagnostica
+        document.getElementById('btnDiagnosticaCommesse')?.addEventListener('click', () => this.diagnosticaCommesse());
+        document.getElementById('btnDebugCommesse')?.addEventListener('click', () => this.debugCommesse());
+        document.getElementById('btnTestPDF')?.addEventListener('click', () => this.testGenerazionePDF());
+
+        // Filtri grafici
+        document.getElementById('btnApplicaFiltriMargini')?.addEventListener('click', () => this.applicaFiltriMarginiGrafico());
+        document.getElementById('btnResetFiltriMargini')?.addEventListener('click', () => this.resetFiltriMarginiGrafico());
+        document.getElementById('btnApplicaFiltriOreDipendenti')?.addEventListener('click', () => this.applicaFiltriOreDipendentiGrafico());
+        document.getElementById('btnResetFiltriOreDipendenti')?.addEventListener('click', () => this.resetFiltriOreDipendentiGrafico());
+
+        // Paginazione grafici
+        document.getElementById('btnPrecMargini')?.addEventListener('click', () => this.paginaMarginiPrec());
+        document.getElementById('btnSuccMargini')?.addEventListener('click', () => this.paginaMarginiSucc());
+        document.getElementById('btnPrecOreDipendenti')?.addEventListener('click', () => this.paginaOreDipendentiPrec());
+        document.getElementById('btnSuccOreDipendenti')?.addEventListener('click', () => this.paginaOreDipendentiSucc());
+
+        // Data input per fasce orarie
+        document.getElementById('oreData')?.addEventListener('change', (e) => {
+            this.aggiornaVisualizzazioneFasce(e.target.value);
+        });
+
+        // Controlli pausa pranzo
+        document.getElementById('oreInizio')?.addEventListener('change', () => this.controllaPausaPranzo());
+        document.getElementById('oreFine')?.addEventListener('change', () => this.controllaPausaPranzo());
+
+        // Dark mode
+        document.getElementById('darkModeToggle')?.addEventListener('click', () => this.toggleDarkMode());
     }
-
-    // 🔥 BOTTONI FILTRI
-    document.getElementById('btnResetFiltri')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.resetFiltriOre();
-    });
-
-    // ... resto del codice ...
-}
 
     // ============================================================
     // 7.4 DARK MODE
@@ -1217,7 +1251,7 @@ async filtraOrePerGiorno(data) {
     // ============================================================
 
     async handleOreForm(e) {
-        
+        e.preventDefault();
         if (this.salvataggioInCorso) return;
         this.salvataggioInCorso = true;
 
@@ -1258,50 +1292,6 @@ async filtraOrePerGiorno(data) {
             this.salvataggioInCorso = false;
         }
     }
-async applicaFiltriOre(e) {
-    // e.preventDefault() è già chiamato nel listener
-    try {
-        // 🔥 LEGGI IL CHECKBOX CORRETTAMENTE
-        const checkboxNC = document.getElementById('filtroNonConformita');
-        const nonConformita = checkboxNC ? checkboxNC.checked : false;
-        
-        const filtri = {
-            commessa: document.getElementById('filtroCommessa')?.value.trim() || '',
-            dipendente: document.getElementById('filtroDipendente')?.value.trim() || '',
-            anno: document.getElementById('filtroAnno')?.value || '',
-            mese: document.getElementById('filtroMese')?.value || '',
-            giorno: document.getElementById('filtroGiorno')?.value || '',
-            nonConformita: nonConformita  // 🔥 VALORE CORRETTO
-        };
-        
-        console.log('🔍 Filtri applicati:', filtri);
-        console.log('🔍 Non conformità:', nonConformita);
-        
-        // Se non ci sono filtri attivi, usa la data corrente
-        if (!filtri.anno && !filtri.mese && !filtri.giorno) {
-            const oggi = new Date().toISOString().split('T')[0];
-            filtri.anno = oggi.split('-')[0];
-            filtri.mese = oggi.split('-')[1];
-            filtri.giorno = oggi.split('-')[2];
-            
-            document.getElementById('filtroAnno').value = filtri.anno;
-            document.getElementById('filtroMese').value = filtri.mese;
-            this.popolaGiorni();
-            document.getElementById('filtroGiorno').value = filtri.giorno;
-        }
-        
-        const dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
-        stateManager.datiFiltrati = dati;
-        await this.aggiornaTabellaOreLavorate(dati);
-        
-        const msgNC = nonConformita ? ' (solo non conformità)' : '';
-        NotificationService.success(`${dati.length} record trovati${msgNC}`);
-        
-    } catch (error) {
-        console.error('❌ Errore filtri:', error);
-        NotificationService.error('Errore nell\'applicazione dei filtri: ' + error.message);
-    }
-}
 
     getOreFormData() {
         const nomeCompleto = stateManager.currentUser.name.split(' ');
@@ -1705,43 +1695,58 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
     }
 }
 
-   getFiltriOreAttivi() {
-    // 🔥 LEGGI IL CHECKBOX CORRETTAMENTE
-    const checkboxNC = document.getElementById('filtroNonConformita');
-    const nonConformita = checkboxNC ? checkboxNC.checked : false;
-    
-    return {
-        commessa: document.getElementById('filtroCommessa')?.value.trim() || '',
-        dipendente: document.getElementById('filtroDipendente')?.value.trim() || '',
-        anno: document.getElementById('filtroAnno')?.value || '',
-        mese: document.getElementById('filtroMese')?.value || '',
-        giorno: document.getElementById('filtroGiorno')?.value || '',
-        nonConformita: nonConformita
-    };
-}
-
-
-
-    async resetFiltriOre(e) {
-    if (e) e.preventDefault();
-    
-    document.getElementById('filtroCommessa').value = '';
-    document.getElementById('filtroDipendente').value = '';
-    document.getElementById('filtroAnno').value = new Date().getFullYear().toString();
-    document.getElementById('filtroMese').value = '';
-    document.getElementById('filtroGiorno').value = '';
-    
-    // 🔥 RESETTA IL CHECKBOX
-    const checkboxNC = document.getElementById('filtroNonConformita');
-    if (checkboxNC) {
-        checkboxNC.checked = false;
+    getFiltriOreAttivi() {
+        return {
+            commessa: document.getElementById('filtroCommessa')?.value.trim() || '',
+            dipendente: document.getElementById('filtroDipendente')?.value.trim() || '',
+            anno: document.getElementById('filtroAnno')?.value || '',
+            mese: document.getElementById('filtroMese')?.value || '',
+            giorno: document.getElementById('filtroGiorno')?.value || '',
+            nonConformita: document.getElementById('filtroNonConformita')?.checked || false
+        };
     }
 
-    stateManager.datiFiltrati = null;
-    const dati = await this.firebaseService.getCollection("oreLavorate");
-    await this.aggiornaTabellaOreLavorate(dati);
-    NotificationService.info('Filtri resettati');
+    async applicaFiltriOre() {
+    try {
+        const filtri = this.getFiltriOreAttivi();
+        
+        // 🔥 Se non ci sono filtri attivi, usa la data corrente
+        if (!filtri.anno && !filtri.mese && !filtri.giorno) {
+            const oggi = new Date().toISOString().split('T')[0];
+            filtri.anno = oggi.split('-')[0];
+            filtri.mese = oggi.split('-')[1];
+            filtri.giorno = oggi.split('-')[2];
+            
+            // Aggiorna i select
+            document.getElementById('filtroAnno').value = filtri.anno;
+            document.getElementById('filtroMese').value = filtri.mese;
+            this.popolaGiorni();
+            document.getElementById('filtroGiorno').value = filtri.giorno;
+        }
+        
+        const dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
+        stateManager.datiFiltrati = dati;
+        await this.aggiornaTabellaOreLavorate(dati);
+        NotificationService.success(`${dati.length} record trovati per ${filtri.giorno}/${filtri.mese}/${filtri.anno}`);
+    } catch (error) {
+        console.error('Errore filtri:', error);
+        NotificationService.error('Errore nell\'applicazione dei filtri');
+    }
 }
+
+    async resetFiltriOre() {
+        document.getElementById('filtroCommessa').value = '';
+        document.getElementById('filtroDipendente').value = '';
+        document.getElementById('filtroAnno').value = new Date().getFullYear().toString();
+        document.getElementById('filtroMese').value = '';
+        document.getElementById('filtroGiorno').value = '';
+        document.getElementById('filtroNonConformita').checked = false;
+
+        stateManager.datiFiltrati = null;
+        const dati = await this.firebaseService.getCollection("oreLavorate");
+        await this.aggiornaTabellaOreLavorate(dati);
+        NotificationService.info('Filtri resettati');
+    }
 
     async mostraTuttiOre() {
         stateManager.datiFiltrati = null;
@@ -2020,8 +2025,8 @@ async toggleFatturato(commessaId, statoCorrente) {
     }
 }
 
-   async handleCommessaForm(e) {
-    
+async handleCommessaForm(e) {
+    e.preventDefault();
     try {
         const nomeCommessa = document.getElementById('nomeCommessa').value.trim();
         const cliente = document.getElementById('cliente').value.trim();
@@ -2039,15 +2044,16 @@ async toggleFatturato(commessaId, statoCorrente) {
 
         const oreTotaliPreviste = valorePreventivo / CONFIG.TARIFFA_ORARIA;
 
+        // 🔥 AGGIUNGI oreIntegrazione (inizialmente 0)
         const dataCommessa = {
             nomeCommessa,
             cliente,
             valorePreventivo,
             oreTotaliPreviste: parseFloat(oreTotaliPreviste.toFixed(2)),
-            oreIntegrazione: 0,
+            oreIntegrazione: 0, // 🔥 CAMPO AGGIUNTO
             dataInizio,
             stato: statoCommessa,
-            fatturato: fatturato,  // 🔥 NUOVO CAMPO
+            fatturato: fatturato,
             dataCreazione: new Date().toISOString(),
             dataUltimaModifica: new Date().toISOString()
         };
@@ -2074,7 +2080,7 @@ async toggleFatturato(commessaId, statoCorrente) {
     }
 }
 
- async modificaCommessa(id) {
+async modificaCommessa(id) {
     try {
         const docRef = this.firebaseService.db.collection("commesse").doc(id);
         const docSnap = await docRef.get();
@@ -2107,17 +2113,25 @@ async toggleFatturato(commessaId, statoCorrente) {
 
         const oreTotali = preventivo / CONFIG.TARIFFA_ORARIA;
 
-        await this.firebaseService.updateDocument("commesse", id, {
+        // 🔥 MANTIENI ORE INTEGRAZIONE ESISTENTI
+        const updateData = {
             nomeCommessa: nome,
             cliente: cliente,
             valorePreventivo: preventivo,
             oreTotaliPreviste: parseFloat(oreTotali.toFixed(2)),
+            // 🔥 MANTIENI IL VALORE ESISTENTE DI ORE INTEGRAZIONE
+            oreIntegrazione: c.oreIntegrazione || 0,
             dataInizio: data,
             stato: stato,
             fatturato: fatturato,
-            dataUltimaModifica: new Date().toISOString(),
-            ...(fatturato === 'fatturato' ? { dataFatturazione: new Date().toISOString() } : {})
-        });
+            dataUltimaModifica: new Date().toISOString()
+        };
+
+        if (fatturato === 'fatturato') {
+            updateData.dataFatturazione = new Date().toISOString();
+        }
+
+        await this.firebaseService.updateDocument("commesse", id, updateData);
 
         NotificationService.success('Commessa modificata!');
         await Promise.all([
@@ -2334,7 +2348,7 @@ refreshAllPaginazioni() {
     console.log('✅ Refresh paginazioni completato');
 }
     async handleDipendentiForm(e) {
-        
+        e.preventDefault();
         try {
             const nome = document.getElementById('dipendenteNome').value.trim();
             const cognome = document.getElementById('dipendenteCognome').value.trim();
@@ -2564,7 +2578,7 @@ async aggiornaTabellaFornitori() {
 
 
     async aggiungiLavorazioneFornitore(e) {
-        
+        e.preventDefault();
         if (this.salvataggioInCorso) return;
         this.salvataggioInCorso = true;
 
@@ -3801,89 +3815,522 @@ async aggiornaTabellaFornitori() {
     // 7.20 REPORT MENSILE
     // ============================================================
 
-    async mostraTabellaMensile() {
-        const meseSelect = document.getElementById('selettoreMese');
-        const mese = parseInt(meseSelect.value);
-        const nomeMese = CONFIG.MESI[mese];
-        
-        const container = document.getElementById('tabelleMensili');
-        container.style.display = 'block';
-        container.innerHTML = `<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Caricamento...</div>`;
+   async mostraTabellaMensile() {
+    const meseSelect = document.getElementById('selettoreMese');
+    const mese = parseInt(meseSelect.value);
+    const nomeMese = CONFIG.MESI[mese];
+    
+    const container = document.getElementById('tabelleMensili');
+    container.style.display = 'block';
+    container.innerHTML = `<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Caricamento...</div>`;
 
-        try {
-            await this.generaTabellaMensile(mese + 1, nomeMese);
-        } catch (error) {
-            console.error('Errore report mensile:', error);
-            container.innerHTML = `<div class="alert alert-danger">Errore nel caricamento del report</div>`;
-        }
+    try {
+        await this.generaTabellaMensile(mese + 1, nomeMese);
+    } catch (error) {
+        console.error('Errore report mensile:', error);
+        container.innerHTML = `<div class="alert alert-danger">Errore nel caricamento del report</div>`;
     }
+}
 
-    async generaTabellaMensile(meseNumero, nomeMese) {
-        const container = document.getElementById('tabelleMensili');
-        const datiOre = await this.firebaseService.getCollection("oreLavorate");
-        
-        const datiPerDipendente = {};
-        const annoCorrente = new Date().getFullYear();
+ async generaTabellaMensile(meseNumero, nomeMese) {
+    const container = document.getElementById('tabelleMensili');
+    const datiOre = await this.firebaseService.getCollection("oreLavorate");
+    
+    const datiPerDipendente = {};
+    const annoCorrente = new Date().getFullYear();
 
-        datiOre.forEach(ore => {
-            const data = new Date(ore.data);
-            if (data.getMonth() + 1 === meseNumero && data.getFullYear() === annoCorrente) {
-                const key = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
-                if (!datiPerDipendente[key]) {
-                    datiPerDipendente[key] = { giorni: new Array(31).fill(0), totale: 0 };
-                }
-                const giorno = data.getDate() - 1;
-                const oreLav = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
-                datiPerDipendente[key].giorni[giorno] += oreLav;
-                datiPerDipendente[key].totale += oreLav;
+    datiOre.forEach(ore => {
+        const data = new Date(ore.data);
+        if (data.getMonth() + 1 === meseNumero && data.getFullYear() === annoCorrente) {
+            const key = `${ore.nomeDipendente} ${ore.cognomeDipendente}`;
+            if (!datiPerDipendente[key]) {
+                datiPerDipendente[key] = { giorni: new Array(31).fill(0), totale: 0 };
             }
-        });
+            const giorno = data.getDate() - 1;
+            const oreLav = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+            datiPerDipendente[key].giorni[giorno] += oreLav;
+            datiPerDipendente[key].totale += oreLav;
+        }
+    });
 
-        let html = `
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h3 class="mb-0">${nomeMese} ${annoCorrente}</h3>
-                    <button class="btn btn-success btn-sm" id="btnScaricaCSV-${meseNumero}">
-                        <i class="fas fa-download"></i> Scarica CSV
+    // Calcola statistiche
+    let totaleGenerale = 0;
+    const dipendentiConOre = Object.keys(datiPerDipendente).filter(nome => {
+        const tot = datiPerDipendente[nome].totale;
+        if (tot > 0) totaleGenerale += tot;
+        return tot > 0;
+    });
+
+    const giorniNelMese = new Date(annoCorrente, meseNumero, 0).getDate();
+
+    // Ordina dipendenti per totale ore (decrescente)
+    const dipendentiOrdinati = Object.entries(datiPerDipendente)
+        .filter(([_, dati]) => dati.totale > 0)
+        .sort((a, b) => b[1].totale - a[1].totale);
+
+    // 🔥 CALCOLA I TOTALI PER GIORNO (PRIMA DI USARLI)
+    let totaliGiorno = [];
+    for (let i = 0; i < giorniNelMese; i++) {
+        let tot = 0;
+        Object.values(datiPerDipendente).forEach(d => {
+            tot += d.giorni[i] || 0;
+        });
+        totaliGiorno.push(tot);
+    }
+    
+    // 🔥 CALCOLA IL TOTALE FINALE
+    const totaleFinale = totaliGiorno.reduce((a, b) => a + b, 0);
+
+    let html = `
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2" style="background: linear-gradient(135deg, #0f172a, #1e293b); color: white;">
+                <div>
+                    <h3 class="mb-0"><i class="fas fa-calendar-alt"></i> ${nomeMese} ${annoCorrente}</h3>
+                    <small class="text-light opacity-75">
+                        <i class="fas fa-users"></i> ${dipendentiConOre.length} dipendenti attivi • 
+                        <i class="fas fa-clock"></i> ${Utils.formattaOreDecimali(totaleGenerale)} ore totali
+                    </small>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-success btn-sm" id="btnScaricaPDF-${meseNumero}">
+                        <i class="fas fa-file-pdf"></i> Scarica PDF Report
+                    </button>
+                    <button class="btn btn-outline-light btn-sm" id="btnScaricaCSV-${meseNumero}">
+                        <i class="fas fa-file-csv"></i> CSV
                     </button>
                 </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-sm">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Dipendente</th>
-                                    ${Array.from({ length: 31 }, (_, i) => `<th class="text-center">${i + 1}</th>`).join('')}
-                                    <th class="text-center">Totale</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-        `;
+            </div>
+            <div class="card-body" style="padding: 0; overflow-x: auto;">
+                <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                    <table class="table table-bordered table-sm table-striped" style="margin: 0; font-size: 0.85rem;">
+                        <thead style="position: sticky; top: 0; z-index: 10;">
+                            <tr class="table-dark">
+                                <th style="min-width: 150px; position: sticky; left: 0; z-index: 11; background: #0f172a; color: white;">Dipendente</th>
+                                ${Array.from({ length: giorniNelMese }, (_, i) => {
+                                    const data = new Date(annoCorrente, meseNumero - 1, i + 1);
+                                    const giorniSettimana = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+                                    const giornoSett = giorniSettimana[data.getDay()];
+                                    const isWeekend = giornoSett === 'Dom' || giornoSett === 'Sab';
+                                    return `<th class="text-center ${isWeekend ? 'bg-secondary text-white' : ''}" style="min-width: 45px; font-size: 0.7rem;">${i + 1}<br><small>${giornoSett}</small></th>`;
+                                }).join('')}
+                                <th class="text-center" style="min-width: 80px; background: #1e293b; color: white;">Totale</th>
+                                <th class="text-center" style="min-width: 70px; background: #1e293b; color: white;">%</th>
+                                <th class="text-center" style="min-width: 80px; background: #1e293b; color: white;">Media/G</th>
+                                <th class="text-center" style="min-width: 60px; background: #1e293b; color: white;">Giorni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+    `;
 
-        Object.entries(datiPerDipendente).forEach(([dipendente, dati]) => {
-            html += `<tr>
-                <td><strong>${dipendente}</strong></td>
-                ${dati.giorni.map(ore => 
-                    `<td class="text-center ${ore > 0 ? 'table-success' : ''}">${ore > 0 ? Utils.formattaOreDecimali(ore) : ''}</td>`
-                ).join('')}
-                <td class="text-center table-primary"><strong>${Utils.formattaOreDecimali(dati.totale)}</strong></td>
-            </tr>`;
-        });
+    // Riga per ogni dipendente
+    dipendentiOrdinati.forEach(([dipendente, dati], index) => {
+        const totaleDipendente = dati.totale;
+        const giorniLavorati = dati.giorni.filter(ore => ore > 0).length;
+        const mediaGiornaliera = giorniLavorati > 0 ? totaleDipendente / giorniLavorati : 0;
+        const percentuale = totaleGenerale > 0 ? (totaleDipendente / totaleGenerale) * 100 : 0;
+        
+        const colori = ['#f8fafc', '#ffffff', '#f1f5f9', '#e2e8f0'];
+        const bgColor = colori[index % colori.length];
+        
+        html += `<tr style="background: ${bgColor};">`;
+        html += `<td style="position: sticky; left: 0; z-index: 5; background: ${bgColor}; font-weight: 600; min-width: 150px;">
+                    <i class="fas fa-user-circle text-primary"></i> ${dipendente}
+                    ${index === 0 ? ' <span class="badge bg-warning text-dark">🏆 Top</span>' : ''}
+                </td>`;
+        
+        // Dati giornalieri
+        for (let i = 0; i < giorniNelMese; i++) {
+            const ore = dati.giorni[i] || 0;
+            const data = new Date(annoCorrente, meseNumero - 1, i + 1);
+            const giorniSettimana = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+            const isWeekend = giorniSettimana[data.getDay()] === 'Dom' || giorniSettimana[data.getDay()] === 'Sab';
+            
+            if (ore > 0) {
+                const isOvertime = ore > 8;
+                const className = isOvertime ? 'text-danger fw-bold' : (isWeekend ? 'text-primary' : '');
+                html += `<td class="text-center ${className}" style="font-size: 0.8rem;">
+                            ${Utils.formattaOreDecimali(ore)}
+                            ${isOvertime ? '<sup style="color: #dc2626;">*</sup>' : ''}
+                        </td>`;
+            } else {
+                const isWeekendDay = isWeekend;
+                html += `<td class="text-center text-muted" style="font-size: 0.7rem; ${isWeekendDay ? 'background: #f1f5f9;' : ''}">
+                            ${isWeekendDay ? '—' : ''}
+                        </td>`;
+            }
+        }
+        
+        // Totali e statistiche
+        html += `<td class="text-center fw-bold" style="background: #dbeafe;">${Utils.formattaOreDecimali(totaleDipendente)}</td>`;
+        html += `<td class="text-center">${percentuale.toFixed(1)}%</td>`;
+        html += `<td class="text-center">${Utils.formattaOreDecimali(mediaGiornaliera)}</td>`;
+        html += `<td class="text-center">${giorniLavorati}</td>`;
+        html += `</tr>`;
+    });
 
-        html += `
-                            </tbody>
-                        </table>
+    // RIGA TOTALE
+    if (dipendentiOrdinati.length > 0) {
+        html += `<tr style="background: #0f172a; color: white; font-weight: bold;">`;
+        html += `<td style="position: sticky; left: 0; z-index: 5; background: #0f172a; color: white;">
+                    <i class="fas fa-calculator"></i> TOTALE
+                </td>`;
+        
+        // Totali per giorno (usa i totali già calcolati)
+        for (let i = 0; i < giorniNelMese; i++) {
+            const tot = totaliGiorno[i] || 0;
+            html += `<td class="text-center" style="font-size: 0.8rem;">${tot > 0 ? Utils.formattaOreDecimali(tot) : ''}</td>`;
+        }
+        
+        const mediaFinale = giorniNelMese > 0 ? totaleFinale / giorniNelMese : 0;
+        const giorniLavoratiTotali = Object.values(datiPerDipendente).reduce((sum, d) => sum + d.giorni.filter(o => o > 0).length, 0);
+        
+        html += `<td class="text-center" style="background: #1e293b;">${Utils.formattaOreDecimali(totaleFinale)}</td>`;
+        html += `<td class="text-center" style="background: #1e293b;">100%</td>`;
+        html += `<td class="text-center" style="background: #1e293b;">${Utils.formattaOreDecimali(mediaFinale)}</td>`;
+        html += `<td class="text-center" style="background: #1e293b;">${giorniLavoratiTotali}</td>`;
+        html += `</tr>`;
+    }
+
+    html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-light">
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i> 
+                            <span class="text-danger">*</span> Ore oltre le 8h giornaliere
+                            <span class="ms-3"><span class="badge bg-warning text-dark">🏆</span> Top performer del mese</span>
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <small class="text-muted">
+                            <i class="fas fa-calendar-check"></i> ${giorniNelMese} giorni • 
+                            <i class="fas fa-users"></i> ${dipendentiOrdinati.length} dipendenti • 
+                            <i class="fas fa-clock"></i> ${Utils.formattaOreDecimali(totaleFinale)} ore totali
+                        </small>
                     </div>
                 </div>
             </div>
-        `;
+        </div>
+    `;
 
-        container.innerHTML = html;
+    container.innerHTML = html;
 
-        document.getElementById(`btnScaricaCSV-${meseNumero}`)?.addEventListener('click', () => {
-            this.scaricaCSV(nomeMese, meseNumero, datiPerDipendente);
+    // Eventi pulsanti
+    document.getElementById(`btnScaricaPDF-${meseNumero}`)?.addEventListener('click', () => {
+        this.generaPDFMensile(nomeMese, meseNumero, datiPerDipendente, annoCorrente);
+    });
+
+    document.getElementById(`btnScaricaCSV-${meseNumero}`)?.addEventListener('click', () => {
+        this.scaricaCSV(nomeMese, meseNumero, datiPerDipendente);
+    });
+}
+async generaPDFMensile(nomeMese, meseNumero, datiPerDipendente, annoCorrente) {
+    try {
+        // Carica librerie PDF
+        if (typeof window.jspdf === 'undefined') {
+            await this.caricaLibreriePDF();
+        }
+
+        const { jsPDF } = window.jspdf;
+        if (!jsPDF) {
+            NotificationService.error('Librerie PDF non disponibili');
+            return;
+        }
+
+        // Prepara i dati
+        const giorniNelMese = new Date(annoCorrente, meseNumero, 0).getDate();
+        const giorniSettimana = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+        const giorniSettimanaCompleti = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+
+        // Ordina dipendenti per totale (decrescente)
+        const dipendentiOrdinati = Object.entries(datiPerDipendente)
+            .filter(([_, dati]) => dati.totale > 0)
+            .sort((a, b) => b[1].totale - a[1].totale);
+
+        // Calcola totali
+        let totaleGenerale = 0;
+        dipendentiOrdinati.forEach(([_, dati]) => {
+            totaleGenerale += dati.totale;
         });
+
+        // Determina orientamento pagina
+        const isLandscape = giorniNelMese > 20;
+        const doc = new jsPDF({ 
+            orientation: isLandscape ? 'landscape' : 'portrait', 
+            unit: 'mm', 
+            format: 'a4' 
+        });
+
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 10;
+        const contentWidth = pageWidth - (margin * 2);
+
+        // ============================================
+        // 1. INTESTAZIONE PRINCIPALE
+        // ============================================
+        
+        // Sfondo header
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, pageWidth, 35, 'F');
+
+        // Titolo
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.text('📊 REPORT MENSILE ORE LAVORATE', pageWidth / 2, 16, { align: 'center' });
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${nomeMese} ${annoCorrente}`, pageWidth / 2, 24, { align: 'center' });
+
+        // Info in basso nell'header
+        doc.setFontSize(9);
+        doc.setTextColor(200, 200, 200);
+        const infoText = `Generato il: ${new Date().toLocaleString('it-IT')}  •  ${dipendentiOrdinati.length} dipendenti  •  ${Utils.formattaOreDecimali(totaleGenerale)} ore totali`;
+        doc.text(infoText, pageWidth / 2, 31, { align: 'center' });
+
+        // ============================================
+        // 2. STATISTICHE RIASSUNTIVE
+        // ============================================
+        
+        let yPos = 42;
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+
+        // Calcola statistiche
+        const totaleGiorniLavorati = Object.values(datiPerDipendente).reduce((sum, d) => 
+            sum + d.giorni.filter(o => o > 0).length, 0
+        );
+        const mediaPerDipendente = dipendentiOrdinati.length > 0 ? totaleGenerale / dipendentiOrdinati.length : 0;
+        const mediaGiornaliera = giorniNelMese > 0 ? totaleGenerale / giorniNelMese : 0;
+        const maxOreDipendente = dipendentiOrdinati.length > 0 ? dipendentiOrdinati[0][1].totale : 0;
+        const maxOreNome = dipendentiOrdinati.length > 0 ? dipendentiOrdinati[0][0] : '';
+
+        // Riquadro statistiche
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(margin, yPos - 2, contentWidth, 20, 2, 2, 'F');
+        
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        const stats = [
+            { label: '👥 Dipendenti', value: dipendentiOrdinati.length },
+            { label: '⏱️ Ore Totali', value: Utils.formattaOreDecimali(totaleGenerale) },
+            { label: '📊 Media/Dip.', value: Utils.formattaOreDecimali(mediaPerDipendente) },
+            { label: '📅 Media/Giorno', value: Utils.formattaOreDecimali(mediaGiornaliera) },
+            { label: '🏆 Top Performer', value: `${maxOreNome} (${Utils.formattaOreDecimali(maxOreDipendente)}h)` },
+            { label: '📆 Giorni Lavorati', value: totaleGiorniLavorati }
+        ];
+
+        const colWidth = contentWidth / stats.length;
+        stats.forEach((stat, index) => {
+            const x = margin + (index * colWidth);
+            doc.text(stat.label, x + 2, yPos + 5);
+            doc.setFont('helvetica', 'bold');
+            doc.text(stat.value.toString(), x + 2, yPos + 13);
+            doc.setFont('helvetica', 'normal');
+        });
+
+        yPos += 24;
+
+        // ============================================
+        // 3. TABELLA PRINCIPALE
+        // ============================================
+        
+        // Prepara i dati per la tabella
+        const tableData = [];
+        
+        // Intestazione
+        const headerRow = ['Dipendente'];
+        for (let i = 1; i <= giorniNelMese; i++) {
+            const data = new Date(annoCorrente, meseNumero - 1, i);
+            const giornoSett = giorniSettimana[data.getDay()];
+            headerRow.push(`${i} ${giornoSett}`);
+        }
+        headerRow.push('Totale', '%', 'Media/G', 'Giorni');
+        tableData.push(headerRow);
+
+        // Righe dipendenti
+        dipendentiOrdinati.forEach(([dipendente, dati], index) => {
+            const row = [dipendente];
+            const totaleDipendente = dati.totale;
+            const giorniLavorati = dati.giorni.filter(ore => ore > 0).length;
+            const mediaGiornaliera = giorniLavorati > 0 ? totaleDipendente / giorniLavorati : 0;
+            const percentuale = totaleGenerale > 0 ? (totaleDipendente / totaleGenerale) * 100 : 0;
+
+            // Dati giornalieri
+            for (let i = 0; i < giorniNelMese; i++) {
+                const ore = dati.giorni[i] || 0;
+                if (ore > 0) {
+                    row.push(Utils.formattaOreDecimali(ore));
+                } else {
+                    row.push('');
+                }
+            }
+
+            // Totali
+            row.push(Utils.formattaOreDecimali(totaleDipendente));
+            row.push(percentuale.toFixed(1) + '%');
+            row.push(Utils.formattaOreDecimali(mediaGiornaliera));
+            row.push(giorniLavorati);
+            tableData.push(row);
+        });
+
+        // Riga totale
+        const totalRow = ['TOTALE'];
+        let totaliGiorno = [];
+        for (let i = 0; i < giorniNelMese; i++) {
+            let tot = 0;
+            Object.values(datiPerDipendente).forEach(d => {
+                tot += d.giorni[i] || 0;
+            });
+            totaliGiorno.push(tot);
+            totalRow.push(tot > 0 ? Utils.formattaOreDecimali(tot) : '');
+        }
+        const totaleFinale = totaliGiorno.reduce((a, b) => a + b, 0);
+        const mediaFinale = totaleFinale / giorniNelMese;
+        const giorniLavoratiTotali = Object.values(datiPerDipendente).reduce((sum, d) => 
+            sum + d.giorni.filter(o => o > 0).length, 0
+        );
+        
+        totalRow.push(Utils.formattaOreDecimali(totaleFinale));
+        totalRow.push('100%');
+        totalRow.push(Utils.formattaOreDecimali(mediaFinale));
+        totalRow.push(giorniLavoratiTotali);
+        tableData.push(totalRow);
+
+        // ============================================
+        // 4. GENERA LA TABELLA NEL PDF
+        // ============================================
+        
+        // Calcola le larghezze delle colonne
+        const colCount = tableData[0].length;
+        const colWidths = new Array(colCount).fill(contentWidth / colCount);
+        
+        // Colonna dipendente più larga
+        colWidths[0] = Math.min(45, contentWidth * 0.12);
+        
+        // Giorni - dimensioni variabili
+        for (let i = 1; i <= giorniNelMese; i++) {
+            colWidths[i] = Math.min(12, contentWidth * 0.035);
+        }
+        
+        // Colonne finali
+        const startFinal = giorniNelMese + 1;
+        colWidths[startFinal] = Math.min(18, contentWidth * 0.06); // Totale
+        colWidths[startFinal + 1] = Math.min(16, contentWidth * 0.05); // %
+        colWidths[startFinal + 2] = Math.min(18, contentWidth * 0.06); // Media
+        colWidths[startFinal + 3] = Math.min(14, contentWidth * 0.045); // Giorni
+
+        // Calcola altezza riga
+        const rowHeight = 6;
+        const fontSize = 7;
+
+        // Genera la tabella
+        doc.autoTable({
+            startY: yPos,
+            head: [tableData[0]],
+            body: tableData.slice(1),
+            theme: 'grid',
+            styles: {
+                fontSize: fontSize,
+                cellPadding: 1.5,
+                lineWidth: 0.2,
+                valign: 'middle'
+            },
+            headStyles: {
+                fillColor: [15, 23, 42],
+                textColor: [255, 255, 255],
+                fontSize: 6.5,
+                fontStyle: 'bold',
+                halign: 'center'
+            },
+            columnStyles: {
+                0: { 
+                    fontStyle: 'bold', 
+                    halign: 'left',
+                    cellWidth: colWidths[0]
+                }
+            },
+            didDrawCell: (data) => {
+                // Colora la riga totale
+                if (data.row.index === tableData.length - 2) {
+                    data.cell.styles.fillColor = [15, 23, 42];
+                    data.cell.styles.textColor = [255, 255, 255];
+                    data.cell.styles.fontStyle = 'bold';
+                }
+                
+                // Colora il top performer
+                if (data.row.index === 0 && data.column.index === 0) {
+                    // Aggiungi un'icona al top performer nella prima riga
+                }
+                
+                // Evidenzia le celle con ore > 8
+                if (data.column.index > 0 && data.column.index <= giorniNelMese && data.cell.raw) {
+                    const ore = parseFloat(data.cell.raw.replace(':', '.'));
+                    if (ore > 8) {
+                        data.cell.styles.textColor = [220, 38, 38];
+                        data.cell.styles.fontStyle = 'bold';
+                    }
+                }
+            },
+            didParseCell: (data) => {
+                // Allinea al centro le celle dei giorni
+                if (data.column.index > 0 && data.column.index <= giorniNelMese) {
+                    data.cell.styles.halign = 'center';
+                }
+                // Allinea a destra le celle numeriche finali
+                if (data.column.index > giorniNelMese) {
+                    data.cell.styles.halign = 'center';
+                }
+            }
+        });
+
+        // ============================================
+        // 5. PIÈ DI PAGINA
+        // ============================================
+        
+        const finalY = doc.lastAutoTable.finalY + 8;
+        
+        // Legenda
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 100, 100);
+        doc.text('Legenda:', margin, finalY);
+        doc.setTextColor(220, 38, 38);
+        doc.text('●', margin + 18, finalY - 0.5);
+        doc.setTextColor(100, 100, 100);
+        doc.text('Ore oltre le 8h giornaliere', margin + 23, finalY);
+        
+        // Badge top performer
+        doc.setTextColor(234, 179, 8);
+        doc.text('●', margin + 85, finalY - 0.5);
+        doc.setTextColor(100, 100, 100);
+        doc.text('Top performer del mese', margin + 90, finalY);
+        
+        // Info copyright
+        doc.setFontSize(6);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Union14 - Sistema Gestione Ore Lavorative v2.0  •  ${new Date().toLocaleString('it-IT')}`, 
+                pageWidth - margin, finalY, { align: 'right' });
+
+        // ============================================
+        // 6. SALVA PDF
+        // ============================================
+        
+        doc.save(`report_mensile_${nomeMese}_${annoCorrente}.pdf`);
+        NotificationService.success('📄 PDF Report generato con successo!');
+
+    } catch (error) {
+        console.error('Errore PDF mensile:', error);
+        NotificationService.error('Errore durante la generazione PDF: ' + error.message);
     }
+}
 
     async scaricaCSV(nomeMese, meseNumero, datiPerDipendente) {
         try {
@@ -4164,7 +4611,7 @@ async aggiornaTabellaFornitori() {
         }
     }
 
-   async generaPDFMonitoraggio() {
+async generaPDFMonitoraggio() {
     try {
         if (typeof window.jspdf === 'undefined') {
             await this.caricaLibreriePDF();
@@ -4176,13 +4623,13 @@ async aggiornaTabellaFornitori() {
             return;
         }
 
-        // 🔥 1. RECUPERA I DATI CON GLI STESSI FILTRI DEL MONITORAGGIO
+        // 🔥 RECUPERA I DATI CON GLI STESSI FILTRI DEL MONITORAGGIO
         const [commesse, tutteLeOre] = await Promise.all([
             this.firebaseService.getCollection("commesse"),
             this.firebaseService.getCollection("oreLavorate")
         ]);
 
-        // 🔥 2. APPLICA GLI STESSI FILTRI DELLA TABELLA
+        // 🔥 APPLICA GLI STESSI FILTRI DELLA TABELLA
         const filtroNome = document.getElementById('filtroNomeCommessa')?.value?.trim() || '';
         const filtroStato = document.getElementById('filtroCommessaMonitor')?.value || '';
         const filtroAnno = document.getElementById('filtroAnnoMonitor')?.value || '';
@@ -4234,9 +4681,12 @@ async aggiornaTabellaFornitori() {
             return;
         }
 
-        // 🔥 3. CALCOLA LE STATISTICHE PER LE COMMESSE FILTRATE
+        // 🔥 CALCOLA LE STATISTICHE PER LE COMMESSE FILTRATE
         const fornitori = stateManager.datiTotali.fornitori || [];
         const tableData = [];
+        let totalePreventivo = 0;
+        let totaleCosto = 0;
+        let totaleMargine = 0;
 
         for (const c of commesseFiltrate) {
             const stats = this.calcolaStatisticheCommessa(c, tutteLeOre, fornitori);
@@ -4252,9 +4702,13 @@ async aggiornaTabellaFornitori() {
                 `${stats.marginePercentuale.toFixed(1)}%`,
                 c.stato === 'attiva' ? 'ATTIVA' : 'CONCLUSA'
             ]);
+            
+            totalePreventivo += stats.valorePreventivo;
+            totaleCosto += stats.costoTotale;
+            totaleMargine += stats.margineEuro;
         }
 
-        // 🔥 4. CREA IL PDF
+        // 🔥 CREA IL PDF
         const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
         // Intestazione
@@ -4318,6 +4772,10 @@ async aggiornaTabellaFornitori() {
         const finalY = doc.lastAutoTable.finalY + 10;
         doc.setFontSize(10);
         doc.text(`📊 Riepilogo (${tableData.length} commesse)`, 14, finalY);
+        doc.text(`Totale Preventivi: €${totalePreventivo.toFixed(2)}`, 14, finalY + 6);
+        doc.text(`Totale Costi: €${totaleCosto.toFixed(2)}`, 14, finalY + 12);
+        doc.text(`Margine Totale: €${totaleMargine.toFixed(2)}`, 14, finalY + 18);
+        doc.text(`Margine Medio: ${(totalePreventivo > 0 ? (totaleMargine / totalePreventivo * 100) : 0).toFixed(1)}%`, 14, finalY + 24);
 
         // Salva
         const nomeFile = `monitoraggio_filtrato_${new Date().toISOString().split('T')[0]}.pdf`;
