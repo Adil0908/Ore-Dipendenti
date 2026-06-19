@@ -1019,27 +1019,12 @@ async verificaSessione() {
     // ============================================================
 
 setupEventListeners() {
-    // 🔥 PREVIENE LO SCROLL PER TUTTI I FORM
-    document.querySelectorAll('form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        });
-    });
-
-    // 🔥 PREVIENE LO SCROLL PER TUTTI I BOTTONI CON href="#"
-    document.querySelectorAll('a[href="#"]').forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        });
-    });
-
     // Login
     document.getElementById('btnLogin')?.addEventListener('click', (e) => {
         e.preventDefault();
         this.gestisciLogin();
     });
+    
     document.getElementById('inputPassword')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -1053,263 +1038,67 @@ setupEventListeners() {
         this.logout();
     });
 
-    // Forms
-    document.getElementById('commessaForm')?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.handleCommessaForm(e);
-    });
+    // 🔥 FORMS
+    const commessaForm = document.getElementById('commessaForm');
+    if (commessaForm) {
+        commessaForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleCommessaForm(e);
+        });
+    }
 
-    document.getElementById('dipendentiForm')?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.handleDipendentiForm(e);
-    });
+    const dipendentiForm = document.getElementById('dipendentiForm');
+    if (dipendentiForm) {
+        dipendentiForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleDipendentiForm(e);
+        });
+    }
 
-    document.getElementById('fornitoreForm')?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.aggiungiLavorazioneFornitore(e);
-    });
+    const fornitoreForm = document.getElementById('fornitoreForm');
+    if (fornitoreForm) {
+        fornitoreForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.aggiungiLavorazioneFornitore(e);
+        });
+    }
 
-    document.getElementById('oreForm')?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.handleOreForm(e);
-    });
+    const oreForm = document.getElementById('oreForm');
+    if (oreForm) {
+        oreForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleOreForm(e);
+        });
+    }
 
-    document.getElementById('filtraOreLavorate')?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.applicaFiltriOre();
-    });
+    // 🔥 FILTRI ORE
+    const filtraOreForm = document.getElementById('filtraOreLavorate');
+    if (filtraOreForm) {
+        filtraOreForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.applicaFiltriOre(e);  // ✅ PASSIAMO L'EVENTO
+        });
+    }
 
+    // 🔥 LISTENER PER IL CHECKBOX NON CONFORMITÀ - AGGIUNGI QUESTO!
+    const checkboxNC = document.getElementById('filtroNonConformita');
+    if (checkboxNC) {
+        checkboxNC.addEventListener('change', (e) => {
+            console.log('🔄 Checkbox NC cambiato:', e.target.checked);
+            // Applica i filtri automaticamente quando il checkbox cambia
+            this.applicaFiltriOre(e);
+        });
+    }
+
+    // 🔥 BOTTONI FILTRI
     document.getElementById('btnResetFiltri')?.addEventListener('click', (e) => {
         e.preventDefault();
-        e.stopPropagation();
         this.resetFiltriOre();
     });
 
-    document.getElementById('btnScaricaPDF')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.generaPDFFiltrato();
-    });
-
-    document.getElementById('btnMostraTutti')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.mostraTuttiOre();
-    });
-
-    // Filtri monitoraggio
-    document.getElementById('filtroNomeCommessa')?.addEventListener('input', () => {
-        clearTimeout(this.filtroTimeout);
-        this.filtroTimeout = setTimeout(() => this.aggiornaMonitorCommesse(), 400);
-    });
-
-    document.getElementById('filtroCommessaMonitor')?.addEventListener('change', (e) => {
-        e.preventDefault();
-        this.aggiornaMonitorCommesse();
-    });
-
-    document.getElementById('filtroAnnoMonitor')?.addEventListener('change', (e) => {
-        e.preventDefault();
-        this.aggiornaMonitorCommesse();
-    });
-
-    document.getElementById('filtroMeseMonitor')?.addEventListener('change', (e) => {
-        e.preventDefault();
-        this.aggiornaMonitorCommesse();
-    });
-
-    document.getElementById('filtroFatturato')?.addEventListener('change', (e) => {
-        e.preventDefault();
-        this.aggiornaMonitorCommesse();
-    });
-
-    document.getElementById('btnAggiornaMonitor')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.aggiornaMonitorCommesse();
-    });
-
-    document.getElementById('btnResetFiltriMonitor')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.resetFiltriMonitor();
-    });
-
-    document.getElementById('btnScaricaPDFMonitor')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.generaPDFMonitoraggio();
-    });
-
-    document.getElementById('filtroAnno')?.addEventListener('change', (e) => {
-        e.preventDefault();
-        this.popolaGiorni();
-    });
-
-    document.getElementById('filtroMese')?.addEventListener('change', (e) => {
-        e.preventDefault();
-        this.popolaGiorni();
-    });
-
-    // Grafici
-    document.getElementById('btnAggiornaGrafici')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.creaGraficiDashboard();
-    });
-
-    document.getElementById('btnEsportaGrafici')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.esportaGraficiPNG();
-    });
-
-    // Backup
-    document.getElementById('btnBackupDati')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.eseguiBackupDati();
-    });
-
-    document.getElementById('btnRipristinoDati')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        document.getElementById('fileBackupInput')?.click();
-    });
-
-    document.getElementById('fileBackupInput')?.addEventListener('change', (e) => {
-        if (e.target.files && e.target.files[0]) {
-            this.ripristinaDaBackup(e.target.files[0]);
-            e.target.value = '';
-        }
-    });
-
-    // 🔥 RICERCA COMMESSE - CORRETTA CON e.preventDefault()
-    document.getElementById('btnCercaCommessa')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.aggiornaTabellaCommesse();
-    });
-
-    document.getElementById('btnResetCercaCommessa')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        document.getElementById('cercaCommessa').value = '';
-        this.aggiornaTabellaCommesse();
-    });
-
-    // Report mensili
-    document.getElementById('btnMostraTabella')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.mostraTabellaMensile();
-    });
-
-    // PDF rubrica
-    document.getElementById('btnScaricaPDFDipendenti')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.generaPDFRubricaDipendenti();
-    });
-
-    // Diagnostica
-    document.getElementById('btnDiagnosticaCommesse')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.diagnosticaCommesse();
-    });
-
-    document.getElementById('btnDebugCommesse')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.debugCommesse();
-    });
-
-    document.getElementById('btnTestPDF')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.testGenerazionePDF();
-    });
-
-    // Filtri grafici
-    document.getElementById('btnApplicaFiltriMargini')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.applicaFiltriMarginiGrafico();
-    });
-
-    document.getElementById('btnResetFiltriMargini')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.resetFiltriMarginiGrafico();
-    });
-
-    document.getElementById('btnApplicaFiltriOreDipendenti')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.applicaFiltriOreDipendentiGrafico();
-    });
-
-    document.getElementById('btnResetFiltriOreDipendenti')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.resetFiltriOreDipendentiGrafico();
-    });
-
-    // Paginazione grafici
-    document.getElementById('btnPrecMargini')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.paginaMarginiPrec();
-    });
-
-    document.getElementById('btnSuccMargini')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.paginaMarginiSucc();
-    });
-
-    document.getElementById('btnPrecOreDipendenti')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.paginaOreDipendentiPrec();
-    });
-
-    document.getElementById('btnSuccOreDipendenti')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.paginaOreDipendentiSucc();
-    });
-
-    // Data input per fasce orarie
-    document.getElementById('oreData')?.addEventListener('change', (e) => {
-        e.preventDefault();
-        this.aggiornaVisualizzazioneFasce(e.target.value);
-    });
-
-    // Controlli pausa pranzo
-    document.getElementById('oreInizio')?.addEventListener('change', (e) => {
-        e.preventDefault();
-        this.controllaPausaPranzo();
-    });
-
-    document.getElementById('oreFine')?.addEventListener('change', (e) => {
-        e.preventDefault();
-        this.controllaPausaPranzo();
-    });
-
-    // Dark mode
-    document.getElementById('darkModeToggle')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.toggleDarkMode();
-    });
+    // ... resto del codice ...
 }
+
     // ============================================================
     // 7.4 DARK MODE
     // ============================================================
@@ -1428,7 +1217,7 @@ async filtraOrePerGiorno(data) {
     // ============================================================
 
     async handleOreForm(e) {
-        e.preventDefault();
+        
         if (this.salvataggioInCorso) return;
         this.salvataggioInCorso = true;
 
@@ -1469,6 +1258,50 @@ async filtraOrePerGiorno(data) {
             this.salvataggioInCorso = false;
         }
     }
+async applicaFiltriOre(e) {
+    // e.preventDefault() è già chiamato nel listener
+    try {
+        // 🔥 LEGGI IL CHECKBOX CORRETTAMENTE
+        const checkboxNC = document.getElementById('filtroNonConformita');
+        const nonConformita = checkboxNC ? checkboxNC.checked : false;
+        
+        const filtri = {
+            commessa: document.getElementById('filtroCommessa')?.value.trim() || '',
+            dipendente: document.getElementById('filtroDipendente')?.value.trim() || '',
+            anno: document.getElementById('filtroAnno')?.value || '',
+            mese: document.getElementById('filtroMese')?.value || '',
+            giorno: document.getElementById('filtroGiorno')?.value || '',
+            nonConformita: nonConformita  // 🔥 VALORE CORRETTO
+        };
+        
+        console.log('🔍 Filtri applicati:', filtri);
+        console.log('🔍 Non conformità:', nonConformita);
+        
+        // Se non ci sono filtri attivi, usa la data corrente
+        if (!filtri.anno && !filtri.mese && !filtri.giorno) {
+            const oggi = new Date().toISOString().split('T')[0];
+            filtri.anno = oggi.split('-')[0];
+            filtri.mese = oggi.split('-')[1];
+            filtri.giorno = oggi.split('-')[2];
+            
+            document.getElementById('filtroAnno').value = filtri.anno;
+            document.getElementById('filtroMese').value = filtri.mese;
+            this.popolaGiorni();
+            document.getElementById('filtroGiorno').value = filtri.giorno;
+        }
+        
+        const dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
+        stateManager.datiFiltrati = dati;
+        await this.aggiornaTabellaOreLavorate(dati);
+        
+        const msgNC = nonConformita ? ' (solo non conformità)' : '';
+        NotificationService.success(`${dati.length} record trovati${msgNC}`);
+        
+    } catch (error) {
+        console.error('❌ Errore filtri:', error);
+        NotificationService.error('Errore nell\'applicazione dei filtri: ' + error.message);
+    }
+}
 
     getOreFormData() {
         const nomeCompleto = stateManager.currentUser.name.split(' ');
@@ -1872,58 +1705,43 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
     }
 }
 
-    getFiltriOreAttivi() {
-        return {
-            commessa: document.getElementById('filtroCommessa')?.value.trim() || '',
-            dipendente: document.getElementById('filtroDipendente')?.value.trim() || '',
-            anno: document.getElementById('filtroAnno')?.value || '',
-            mese: document.getElementById('filtroMese')?.value || '',
-            giorno: document.getElementById('filtroGiorno')?.value || '',
-            nonConformita: document.getElementById('filtroNonConformita')?.checked || false
-        };
-    }
-
-    async applicaFiltriOre() {
-    try {
-        const filtri = this.getFiltriOreAttivi();
-        
-        // 🔥 Se non ci sono filtri attivi, usa la data corrente
-        if (!filtri.anno && !filtri.mese && !filtri.giorno) {
-            const oggi = new Date().toISOString().split('T')[0];
-            filtri.anno = oggi.split('-')[0];
-            filtri.mese = oggi.split('-')[1];
-            filtri.giorno = oggi.split('-')[2];
-            
-            // Aggiorna i select
-            document.getElementById('filtroAnno').value = filtri.anno;
-            document.getElementById('filtroMese').value = filtri.mese;
-            this.popolaGiorni();
-            document.getElementById('filtroGiorno').value = filtri.giorno;
-        }
-        
-        const dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
-        stateManager.datiFiltrati = dati;
-        await this.aggiornaTabellaOreLavorate(dati);
-        NotificationService.success(`${dati.length} record trovati per ${filtri.giorno}/${filtri.mese}/${filtri.anno}`);
-    } catch (error) {
-        console.error('Errore filtri:', error);
-        NotificationService.error('Errore nell\'applicazione dei filtri');
-    }
+   getFiltriOreAttivi() {
+    // 🔥 LEGGI IL CHECKBOX CORRETTAMENTE
+    const checkboxNC = document.getElementById('filtroNonConformita');
+    const nonConformita = checkboxNC ? checkboxNC.checked : false;
+    
+    return {
+        commessa: document.getElementById('filtroCommessa')?.value.trim() || '',
+        dipendente: document.getElementById('filtroDipendente')?.value.trim() || '',
+        anno: document.getElementById('filtroAnno')?.value || '',
+        mese: document.getElementById('filtroMese')?.value || '',
+        giorno: document.getElementById('filtroGiorno')?.value || '',
+        nonConformita: nonConformita
+    };
 }
 
-    async resetFiltriOre() {
-        document.getElementById('filtroCommessa').value = '';
-        document.getElementById('filtroDipendente').value = '';
-        document.getElementById('filtroAnno').value = new Date().getFullYear().toString();
-        document.getElementById('filtroMese').value = '';
-        document.getElementById('filtroGiorno').value = '';
-        document.getElementById('filtroNonConformita').checked = false;
 
-        stateManager.datiFiltrati = null;
-        const dati = await this.firebaseService.getCollection("oreLavorate");
-        await this.aggiornaTabellaOreLavorate(dati);
-        NotificationService.info('Filtri resettati');
+
+    async resetFiltriOre(e) {
+    if (e) e.preventDefault();
+    
+    document.getElementById('filtroCommessa').value = '';
+    document.getElementById('filtroDipendente').value = '';
+    document.getElementById('filtroAnno').value = new Date().getFullYear().toString();
+    document.getElementById('filtroMese').value = '';
+    document.getElementById('filtroGiorno').value = '';
+    
+    // 🔥 RESETTA IL CHECKBOX
+    const checkboxNC = document.getElementById('filtroNonConformita');
+    if (checkboxNC) {
+        checkboxNC.checked = false;
     }
+
+    stateManager.datiFiltrati = null;
+    const dati = await this.firebaseService.getCollection("oreLavorate");
+    await this.aggiornaTabellaOreLavorate(dati);
+    NotificationService.info('Filtri resettati');
+}
 
     async mostraTuttiOre() {
         stateManager.datiFiltrati = null;
@@ -2203,7 +2021,7 @@ async toggleFatturato(commessaId, statoCorrente) {
 }
 
    async handleCommessaForm(e) {
-    e.preventDefault();
+    
     try {
         const nomeCommessa = document.getElementById('nomeCommessa').value.trim();
         const cliente = document.getElementById('cliente').value.trim();
@@ -2516,7 +2334,7 @@ refreshAllPaginazioni() {
     console.log('✅ Refresh paginazioni completato');
 }
     async handleDipendentiForm(e) {
-        e.preventDefault();
+        
         try {
             const nome = document.getElementById('dipendenteNome').value.trim();
             const cognome = document.getElementById('dipendenteCognome').value.trim();
@@ -2746,7 +2564,7 @@ async aggiornaTabellaFornitori() {
 
 
     async aggiungiLavorazioneFornitore(e) {
-        e.preventDefault();
+        
         if (this.salvataggioInCorso) return;
         this.salvataggioInCorso = true;
 
