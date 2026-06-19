@@ -1877,3 +1877,30 @@ textarea.form-control {
 .footer-logo:hover {
     opacity: 1;
 }
+/* ========================================
+   PREVIENE SCROLL INDESIDERATO
+   ======================================== */
+
+/* Impedisce lo scroll quando si clicca su bottoni */
+button, 
+a, 
+input[type="button"], 
+input[type="submit"] {
+    scroll-margin: 0 !important;
+}
+
+/* Impedisce il focus scroll */
+*:focus {
+    scroll-margin: 0 !important;
+    outline-offset: 2px;
+}
+
+/* Per i bottoni con href="#" */
+a[href="#"] {
+    scroll-behavior: auto !important;
+}
+
+/* Per i form */
+form {
+    scroll-margin: 0 !important;
+}
