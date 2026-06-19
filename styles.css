@@ -1878,18 +1878,21 @@ textarea.form-control {
     opacity: 1;
 }
 /* ========================================
-   PREVIENE SCROLL INDESIDERATO
+   PREVIENE SCROLL INDESIDERATO - SOLO CSS
    ======================================== */
 
-/* Impedisce lo scroll quando si clicca su bottoni */
-button, 
-a, 
-input[type="button"], 
-input[type="submit"] {
+/* Impedisce lo scroll quando si clicca su input, select, textarea */
+input, 
+select, 
+textarea, 
+button,
+a,
+[role="button"] {
     scroll-margin: 0 !important;
+    scroll-behavior: auto !important;
 }
 
-/* Impedisce il focus scroll */
+/* Impedisce il focus scroll per TUTTI gli elementi */
 *:focus {
     scroll-margin: 0 !important;
     outline-offset: 2px;
@@ -1903,4 +1906,117 @@ a[href="#"] {
 /* Per i form */
 form {
     scroll-margin: 0 !important;
+}
+
+/* Previene lo scroll su click per tutti gli elementi interattivi */
+button, 
+a, 
+input[type="button"], 
+input[type="submit"],
+input[type="reset"],
+[role="button"],
+[type="button"],
+[type="submit"] {
+    scroll-behavior: auto !important;
+    scroll-margin: 0 !important;
+}
+
+/* Fix per il calendario - mantiene il comportamento nativo */
+input[type="date"] {
+    scroll-margin: 0 !important;
+    cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+}
+
+/* Fix per il selettore orario */
+input[type="time"] {
+    scroll-margin: 0 !important;
+    cursor: pointer;
+}
+
+/* Assicura che i campi form non causino scroll */
+.form-control,
+.form-select,
+.form-check-input {
+    scroll-margin: 0 !important;
+}
+
+/* Per i campi con autofocus */
+:focus {
+    scroll-margin: 0 !important;
+}
+
+/* Per i bottoni della paginazione */
+.pagination-controls .btn {
+    scroll-margin: 0 !important;
+}
+/* ========================================
+   GESTIONE SEZIONI PER RUOLO
+   ======================================== */
+
+/* Stato base: nascosto */
+.admin-only,
+.dipendente-only {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    transition: opacity 0.3s ease, height 0.3s ease;
+}
+
+/* Stato visibile per admin */
+[data-user-role="admin"] .admin-only {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: var(--spacing-md) !important;
+    margin: var(--spacing-md) 0 !important;
+}
+
+/* Stato visibile per dipendente */
+[data-user-role="dipendente"] .dipendente-only {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: var(--spacing-md) !important;
+    margin: var(--spacing-md) 0 !important;
+}
+
+/* Nasconde il form ore per admin */
+[data-user-role="admin"] .dipendente-only #oreForm {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Mostra il form ore per dipendente */
+[data-user-role="dipendente"] .dipendente-only #oreForm {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: var(--spacing-md) !important;
+    margin: var(--spacing-md) 0 !important;
+    flex-wrap: wrap !important;
+    gap: 1rem !important;
 }
