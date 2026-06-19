@@ -19,7 +19,7 @@
 </head>
 <body>
     <!-- Skip Link per Accessibilità -->
-    <a href="#main-content" class="skip-link">Salta al contenuto principale</a>
+    <a href="#appcontent" class="skip-link">Salta al contenuto principale</a>
 
     <!-- Dark Mode Toggle -->
     <button class="dark-mode-toggle" id="darkModeToggle" aria-label="Attiva/Disattiva modalità scura">
@@ -63,26 +63,28 @@
     </div>
 
     <!-- APP CONTENT -->
-    <div id="appContent" style="display: none;" class="container-fluid" role="main" id="main-content">
+    <div id="appContent" style="display: none;" class="container-fluid" role="main" id="main">
         <!-- NAVBAR -->
-        <nav class="navbar navbar-light mb-4" role="navigation" aria-label="Navigazione principale">
-            <div class="container-fluid">
-                 <div class="d-flex align-items-center gap-3">
-            <!-- 🔥 LOGO -->
+       <!-- Versione corretta -->
+<nav class="navbar navbar-light mb-4" role="navigation" aria-label="Navigazione principale">
+    <div class="container-fluid">
+        <div class="d-flex align-items-center gap-3">
             <a class="navbar-brand d-flex align-items-center gap-2" href="#">
                 <img src="logo.png" alt="Union14 Logo" height="40" class="logo-img">
                 <span class="navbar-brand">
                     <i class="fas fa-clock"></i> Gestione Ore Lavorative
                     <span class="badge bg-primary ms-2" id="userRoleBadge"></span>
                 </span>
-                <div class="d-flex align-items-center gap-3">
-                    <span class="text-muted small" id="userNameDisplay"></span>
-                    <button id="logoutButton" class="btn btn-outline-danger">
-                        <i class="fas fa-sign-out-alt"></i> Logout
-                    </button>
-                </div>
+            </a>
+            <div class="d-flex align-items-center gap-3">
+                <span class="text-muted small" id="userNameDisplay"></span>
+                <button id="logoutButton" class="btn btn-outline-danger">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
             </div>
-        </nav>
+        </div>
+    </div>
+</nav>
 
         <!-- SEZIONE DIPENDENTI -->
         <div class="dipendente-only card mb-4">
