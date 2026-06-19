@@ -1018,105 +1018,298 @@ async verificaSessione() {
     // 7.3 EVENT LISTENERS
     // ============================================================
 
-    setupEventListeners() {
-        // Login
-        document.getElementById('btnLogin')?.addEventListener('click', () => this.gestisciLogin());
-        document.getElementById('inputPassword')?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.gestisciLogin();
-        });
-
-        // Logout
-        document.getElementById('logoutButton')?.addEventListener('click', () => this.logout());
-
-        // Forms
-        document.getElementById('oreForm')?.addEventListener('submit', (e) => this.handleOreForm(e));
-        document.getElementById('commessaForm')?.addEventListener('submit', (e) => this.handleCommessaForm(e));
-        document.getElementById('dipendentiForm')?.addEventListener('submit', (e) => this.handleDipendentiForm(e));
-        document.getElementById('fornitoreForm')?.addEventListener('submit', (e) => this.aggiungiLavorazioneFornitore(e));
-
-        // Filtri ore
-        document.getElementById('filtraOreLavorate')?.addEventListener('submit', (e) => {
+setupEventListeners() {
+    // 🔥 PREVIENE LO SCROLL PER TUTTI I FORM
+    document.querySelectorAll('form').forEach(form => {
+        form.addEventListener('submit', function(e) {
             e.preventDefault();
-            this.applicaFiltriOre();
+            e.stopPropagation();
         });
-        document.getElementById('btnResetFiltri')?.addEventListener('click', () => this.resetFiltriOre());
-        document.getElementById('btnScaricaPDF')?.addEventListener('click', () => this.generaPDFFiltrato());
-        document.getElementById('btnMostraTutti')?.addEventListener('click', () => this.mostraTuttiOre());
+    });
 
-        // Filtri monitoraggio
-        document.getElementById('filtroNomeCommessa')?.addEventListener('input', () => {
-            clearTimeout(this.filtroTimeout);
-            this.filtroTimeout = setTimeout(() => this.aggiornaMonitorCommesse(), 400);
+    // 🔥 PREVIENE LO SCROLL PER TUTTI I BOTTONI CON href="#"
+    document.querySelectorAll('a[href="#"]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
         });
-        document.getElementById('filtroCommessaMonitor')?.addEventListener('change', () => this.aggiornaMonitorCommesse());
-        document.getElementById('filtroAnnoMonitor')?.addEventListener('change', () => this.aggiornaMonitorCommesse());
-        document.getElementById('filtroMeseMonitor')?.addEventListener('change', () => this.aggiornaMonitorCommesse());
+    });
 
-        document.getElementById('btnAggiornaMonitor')?.addEventListener('click', () => this.aggiornaMonitorCommesse());
-        document.getElementById('btnResetFiltriMonitor')?.addEventListener('click', () => this.resetFiltriMonitor());
-        document.getElementById('btnScaricaPDFMonitor')?.addEventListener('click', () => this.generaPDFMonitoraggio());
-        document.getElementById('filtroAnno')?.addEventListener('change', () => this.popolaGiorni());
-        document.getElementById('filtroMese')?.addEventListener('change', () => this.popolaGiorni());
+    // Login
+    document.getElementById('btnLogin')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.gestisciLogin();
+    });
+    document.getElementById('inputPassword')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this.gestisciLogin();
+        }
+    });
 
-        // Grafici
-        document.getElementById('btnAggiornaGrafici')?.addEventListener('click', () => this.creaGraficiDashboard());
-        document.getElementById('btnEsportaGrafici')?.addEventListener('click', () => this.esportaGraficiPNG());
+    // Logout
+    document.getElementById('logoutButton')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.logout();
+    });
 
-        // Backup
-        document.getElementById('btnBackupDati')?.addEventListener('click', () => this.eseguiBackupDati());
-        document.getElementById('btnRipristinoDati')?.addEventListener('click', () => {
-            document.getElementById('fileBackupInput')?.click();
-        });
-        document.getElementById('fileBackupInput')?.addEventListener('change', (e) => {
-            if (e.target.files && e.target.files[0]) {
-                this.ripristinaDaBackup(e.target.files[0]);
-                e.target.value = '';
-            }
-        });
+    // Forms
+    document.getElementById('commessaForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.handleCommessaForm(e);
+    });
 
-        // Ricerca commesse
-        document.getElementById('btnCercaCommessa')?.addEventListener('click', () => this.aggiornaTabellaCommesse());
-        document.getElementById('btnResetCercaCommessa')?.addEventListener('click', () => {
-            document.getElementById('cercaCommessa').value = '';
-            this.aggiornaTabellaCommesse();
-        });
+    document.getElementById('dipendentiForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.handleDipendentiForm(e);
+    });
 
-        // Report mensili
-        document.getElementById('btnMostraTabella')?.addEventListener('click', () => this.mostraTabellaMensile());
+    document.getElementById('fornitoreForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.aggiungiLavorazioneFornitore(e);
+    });
 
-        // PDF rubrica
-        document.getElementById('btnScaricaPDFDipendenti')?.addEventListener('click', () => this.generaPDFRubricaDipendenti());
+    document.getElementById('oreForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.handleOreForm(e);
+    });
 
-        // Diagnostica
-        document.getElementById('btnDiagnosticaCommesse')?.addEventListener('click', () => this.diagnosticaCommesse());
-        document.getElementById('btnDebugCommesse')?.addEventListener('click', () => this.debugCommesse());
-        document.getElementById('btnTestPDF')?.addEventListener('click', () => this.testGenerazionePDF());
+    document.getElementById('filtraOreLavorate')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.applicaFiltriOre();
+    });
 
-        // Filtri grafici
-        document.getElementById('btnApplicaFiltriMargini')?.addEventListener('click', () => this.applicaFiltriMarginiGrafico());
-        document.getElementById('btnResetFiltriMargini')?.addEventListener('click', () => this.resetFiltriMarginiGrafico());
-        document.getElementById('btnApplicaFiltriOreDipendenti')?.addEventListener('click', () => this.applicaFiltriOreDipendentiGrafico());
-        document.getElementById('btnResetFiltriOreDipendenti')?.addEventListener('click', () => this.resetFiltriOreDipendentiGrafico());
+    document.getElementById('btnResetFiltri')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.resetFiltriOre();
+    });
 
-        // Paginazione grafici
-        document.getElementById('btnPrecMargini')?.addEventListener('click', () => this.paginaMarginiPrec());
-        document.getElementById('btnSuccMargini')?.addEventListener('click', () => this.paginaMarginiSucc());
-        document.getElementById('btnPrecOreDipendenti')?.addEventListener('click', () => this.paginaOreDipendentiPrec());
-        document.getElementById('btnSuccOreDipendenti')?.addEventListener('click', () => this.paginaOreDipendentiSucc());
+    document.getElementById('btnScaricaPDF')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.generaPDFFiltrato();
+    });
 
-        // Data input per fasce orarie
-        document.getElementById('oreData')?.addEventListener('change', (e) => {
-            this.aggiornaVisualizzazioneFasce(e.target.value);
-        });
+    document.getElementById('btnMostraTutti')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.mostraTuttiOre();
+    });
 
-        // Controlli pausa pranzo
-        document.getElementById('oreInizio')?.addEventListener('change', () => this.controllaPausaPranzo());
-        document.getElementById('oreFine')?.addEventListener('change', () => this.controllaPausaPranzo());
+    // Filtri monitoraggio
+    document.getElementById('filtroNomeCommessa')?.addEventListener('input', () => {
+        clearTimeout(this.filtroTimeout);
+        this.filtroTimeout = setTimeout(() => this.aggiornaMonitorCommesse(), 400);
+    });
 
-        // Dark mode
-        document.getElementById('darkModeToggle')?.addEventListener('click', () => this.toggleDarkMode());
-    }
+    document.getElementById('filtroCommessaMonitor')?.addEventListener('change', (e) => {
+        e.preventDefault();
+        this.aggiornaMonitorCommesse();
+    });
 
+    document.getElementById('filtroAnnoMonitor')?.addEventListener('change', (e) => {
+        e.preventDefault();
+        this.aggiornaMonitorCommesse();
+    });
+
+    document.getElementById('filtroMeseMonitor')?.addEventListener('change', (e) => {
+        e.preventDefault();
+        this.aggiornaMonitorCommesse();
+    });
+
+    document.getElementById('filtroFatturato')?.addEventListener('change', (e) => {
+        e.preventDefault();
+        this.aggiornaMonitorCommesse();
+    });
+
+    document.getElementById('btnAggiornaMonitor')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.aggiornaMonitorCommesse();
+    });
+
+    document.getElementById('btnResetFiltriMonitor')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.resetFiltriMonitor();
+    });
+
+    document.getElementById('btnScaricaPDFMonitor')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.generaPDFMonitoraggio();
+    });
+
+    document.getElementById('filtroAnno')?.addEventListener('change', (e) => {
+        e.preventDefault();
+        this.popolaGiorni();
+    });
+
+    document.getElementById('filtroMese')?.addEventListener('change', (e) => {
+        e.preventDefault();
+        this.popolaGiorni();
+    });
+
+    // Grafici
+    document.getElementById('btnAggiornaGrafici')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.creaGraficiDashboard();
+    });
+
+    document.getElementById('btnEsportaGrafici')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.esportaGraficiPNG();
+    });
+
+    // Backup
+    document.getElementById('btnBackupDati')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.eseguiBackupDati();
+    });
+
+    document.getElementById('btnRipristinoDati')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('fileBackupInput')?.click();
+    });
+
+    document.getElementById('fileBackupInput')?.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+            this.ripristinaDaBackup(e.target.files[0]);
+            e.target.value = '';
+        }
+    });
+
+    // 🔥 RICERCA COMMESSE - CORRETTA CON e.preventDefault()
+    document.getElementById('btnCercaCommessa')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.aggiornaTabellaCommesse();
+    });
+
+    document.getElementById('btnResetCercaCommessa')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('cercaCommessa').value = '';
+        this.aggiornaTabellaCommesse();
+    });
+
+    // Report mensili
+    document.getElementById('btnMostraTabella')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.mostraTabellaMensile();
+    });
+
+    // PDF rubrica
+    document.getElementById('btnScaricaPDFDipendenti')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.generaPDFRubricaDipendenti();
+    });
+
+    // Diagnostica
+    document.getElementById('btnDiagnosticaCommesse')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.diagnosticaCommesse();
+    });
+
+    document.getElementById('btnDebugCommesse')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.debugCommesse();
+    });
+
+    document.getElementById('btnTestPDF')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.testGenerazionePDF();
+    });
+
+    // Filtri grafici
+    document.getElementById('btnApplicaFiltriMargini')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.applicaFiltriMarginiGrafico();
+    });
+
+    document.getElementById('btnResetFiltriMargini')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.resetFiltriMarginiGrafico();
+    });
+
+    document.getElementById('btnApplicaFiltriOreDipendenti')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.applicaFiltriOreDipendentiGrafico();
+    });
+
+    document.getElementById('btnResetFiltriOreDipendenti')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.resetFiltriOreDipendentiGrafico();
+    });
+
+    // Paginazione grafici
+    document.getElementById('btnPrecMargini')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.paginaMarginiPrec();
+    });
+
+    document.getElementById('btnSuccMargini')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.paginaMarginiSucc();
+    });
+
+    document.getElementById('btnPrecOreDipendenti')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.paginaOreDipendentiPrec();
+    });
+
+    document.getElementById('btnSuccOreDipendenti')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.paginaOreDipendentiSucc();
+    });
+
+    // Data input per fasce orarie
+    document.getElementById('oreData')?.addEventListener('change', (e) => {
+        e.preventDefault();
+        this.aggiornaVisualizzazioneFasce(e.target.value);
+    });
+
+    // Controlli pausa pranzo
+    document.getElementById('oreInizio')?.addEventListener('change', (e) => {
+        e.preventDefault();
+        this.controllaPausaPranzo();
+    });
+
+    document.getElementById('oreFine')?.addEventListener('change', (e) => {
+        e.preventDefault();
+        this.controllaPausaPranzo();
+    });
+
+    // Dark mode
+    document.getElementById('darkModeToggle')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.toggleDarkMode();
+    });
+}
     // ============================================================
     // 7.4 DARK MODE
     // ============================================================
