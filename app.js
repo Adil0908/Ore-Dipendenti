@@ -1034,23 +1034,83 @@ async verificaSessione() {
     // ============================================================
     // 7.3 EVENT LISTENERS
     // ============================================================
+setupEventListeners() {
+    console.log('🔄 Setup event listeners - VERSIONE PULITA');
 
-    setupEventListeners() {
-        // Login
-        document.getElementById('btnLogin')?.addEventListener('click', () => this.gestisciLogin());
-        document.getElementById('inputPassword')?.addEventListener('keypress', (e) => {
+    // === LOGIN ===
+    const btnLogin = document.getElementById('btnLogin');
+    if (btnLogin) {
+        // Rimuovi listener precedenti
+        const newBtnLogin = btnLogin.cloneNode(true);
+        btnLogin.parentNode.replaceChild(newBtnLogin, btnLogin);
+        newBtnLogin.addEventListener('click', () => this.gestisciLogin());
+    }
+
+    const inputPassword = document.getElementById('inputPassword');
+    if (inputPassword) {
+        const newInput = inputPassword.cloneNode(true);
+        inputPassword.parentNode.replaceChild(newInput, inputPassword);
+        newInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.gestisciLogin();
         });
+    }
 
-        // Logout
-        document.getElementById('logoutButton')?.addEventListener('click', () => this.logout());
+    // === LOGOUT ===
+    const logoutBtn = document.getElementById('logoutButton');
+    if (logoutBtn) {
+        const newLogout = logoutBtn.cloneNode(true);
+        logoutBtn.parentNode.replaceChild(newLogout, logoutBtn);
+        newLogout.addEventListener('click', () => this.logout());
+    }
 
-        // Forms
-        document.getElementById('oreForm')?.addEventListener('submit', (e) => this.handleOreForm(e));
-        document.getElementById('commessaForm')?.addEventListener('submit', (e) => this.handleCommessaForm(e));
-        document.getElementById('dipendentiForm')?.addEventListener('submit', (e) => this.handleDipendentiForm(e));
-        document.getElementById('fornitoreForm')?.addEventListener('submit', (e) => this.aggiungiLavorazioneFornitore(e));
-   // === PULSANTI FILTRI ORE ===
+    // === FORM ORE - UNICO LISTENER ===
+    const oreForm = document.getElementById('oreForm');
+    if (oreForm) {
+        const newOreForm = oreForm.cloneNode(true);
+        oreForm.parentNode.replaceChild(newOreForm, oreForm);
+        newOreForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.handleOreForm(e);
+        });
+    }
+
+    // === FORM COMMESSA ===
+    const commessaForm = document.getElementById('commessaForm');
+    if (commessaForm) {
+        const newCommessaForm = commessaForm.cloneNode(true);
+        commessaForm.parentNode.replaceChild(newCommessaForm, commessaForm);
+        newCommessaForm.addEventListener('submit', (e) => this.handleCommessaForm(e));
+    }
+
+    // === FORM DIPENDENTI ===
+    const dipendentiForm = document.getElementById('dipendentiForm');
+    if (dipendentiForm) {
+        const newDipendentiForm = dipendentiForm.cloneNode(true);
+        dipendentiForm.parentNode.replaceChild(newDipendentiForm, dipendentiForm);
+        newDipendentiForm.addEventListener('submit', (e) => this.handleDipendentiForm(e));
+    }
+
+    // === FORM FORNITORI ===
+    const fornitoreForm = document.getElementById('fornitoreForm');
+    if (fornitoreForm) {
+        const newFornitoreForm = fornitoreForm.cloneNode(true);
+        fornitoreForm.parentNode.replaceChild(newFornitoreForm, fornitoreForm);
+        newFornitoreForm.addEventListener('submit', (e) => this.aggiungiLavorazioneFornitore(e));
+    }
+
+    // === FILTRI ORE ===
+    const filtraOre = document.getElementById('filtraOreLavorate');
+    if (filtraOre) {
+        const newFiltraOre = filtraOre.cloneNode(true);
+        filtraOre.parentNode.replaceChild(newFiltraOre, filtraOre);
+        newFiltraOre.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.applicaFiltriOre();
+        });
+    }
+
+    // === PULSANTE RESET FILTRI ===
     const btnResetFiltri = document.getElementById('btnResetFiltri');
     if (btnResetFiltri) {
         const newBtn = btnResetFiltri.cloneNode(true);
@@ -1058,6 +1118,7 @@ async verificaSessione() {
         newBtn.addEventListener('click', () => this.resetFiltriOre());
     }
 
+    // === PULSANTE MOSTRA TUTTI ===
     const btnMostraTutti = document.getElementById('btnMostraTutti');
     if (btnMostraTutti) {
         const newBtn = btnMostraTutti.cloneNode(true);
@@ -1065,27 +1126,24 @@ async verificaSessione() {
         newBtn.addEventListener('click', () => this.mostraTuttiOre());
     }
 
-    // === 🔥 PULSANTE PDF - UNICO LISTENER ===
+    // === 🔥 PULSANTE PDF - UNICO LISTENER (RIMOSSO IL DOPPIONE) ===
     const btnPDF = document.getElementById('btnScaricaPDF');
     if (btnPDF) {
-        // Rimuovi TUTTI i listener clonando
         const newBtnPDF = btnPDF.cloneNode(true);
         btnPDF.parentNode.replaceChild(newBtnPDF, btnPDF);
         
-        // Aggiungi un solo listener
         newBtnPDF.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            console.log('🔄 [PDF] Pulsante cliccato - UNICA VOLTA');
+            console.log('🔄 [PDF] Pulsante cliccato');
             
-            // Disabilita il pulsante
+            if (this.disabled) return;
+            
             this.disabled = true;
             this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generazione...';
             
-            // Chiama la funzione
             if (app && typeof app.generaPDFFiltrato === 'function') {
                 app.generaPDFFiltrato().finally(() => {
-                    // Riabilita dopo il completamento
                     this.disabled = false;
                     this.innerHTML = '<i class="fas fa-file-pdf"></i> Scarica PDF (come visualizzato)';
                 });
@@ -1096,81 +1154,269 @@ async verificaSessione() {
             }
         });
     }
-  
 
-        // Filtri monitoraggio
-        document.getElementById('filtroNomeCommessa')?.addEventListener('input', () => {
+    // === MONITORAGGIO ===
+    const btnAggiornaMonitor = document.getElementById('btnAggiornaMonitor');
+    if (btnAggiornaMonitor) {
+        const newBtn = btnAggiornaMonitor.cloneNode(true);
+        btnAggiornaMonitor.parentNode.replaceChild(newBtn, btnAggiornaMonitor);
+        newBtn.addEventListener('click', () => this.aggiornaMonitorCommesse());
+    }
+
+    const btnResetFiltriMonitor = document.getElementById('btnResetFiltriMonitor');
+    if (btnResetFiltriMonitor) {
+        const newBtn = btnResetFiltriMonitor.cloneNode(true);
+        btnResetFiltriMonitor.parentNode.replaceChild(newBtn, btnResetFiltriMonitor);
+        newBtn.addEventListener('click', () => this.resetFiltriMonitor());
+    }
+
+    const btnScaricaPDFMonitor = document.getElementById('btnScaricaPDFMonitor');
+    if (btnScaricaPDFMonitor) {
+        const newBtn = btnScaricaPDFMonitor.cloneNode(true);
+        btnScaricaPDFMonitor.parentNode.replaceChild(newBtn, btnScaricaPDFMonitor);
+        newBtn.addEventListener('click', () => this.generaPDFMonitoraggio());
+    }
+
+    // === FILTRI MONITORAGGIO (input/change) ===
+    const filtroNome = document.getElementById('filtroNomeCommessa');
+    if (filtroNome) {
+        const newFiltro = filtroNome.cloneNode(true);
+        filtroNome.parentNode.replaceChild(newFiltro, filtroNome);
+        newFiltro.addEventListener('input', () => {
             clearTimeout(this.filtroTimeout);
             this.filtroTimeout = setTimeout(() => this.aggiornaMonitorCommesse(), 400);
         });
-        document.getElementById('filtroCommessaMonitor')?.addEventListener('change', () => this.aggiornaMonitorCommesse());
-        document.getElementById('filtroAnnoMonitor')?.addEventListener('change', () => this.aggiornaMonitorCommesse());
-        document.getElementById('filtroMeseMonitor')?.addEventListener('change', () => this.aggiornaMonitorCommesse());
+    }
 
-        document.getElementById('btnAggiornaMonitor')?.addEventListener('click', () => this.aggiornaMonitorCommesse());
-        document.getElementById('btnResetFiltriMonitor')?.addEventListener('click', () => this.resetFiltriMonitor());
-        document.getElementById('btnScaricaPDFMonitor')?.addEventListener('click', () => this.generaPDFMonitoraggio());
-        document.getElementById('filtroAnno')?.addEventListener('change', () => this.popolaGiorni());
-        document.getElementById('filtroMese')?.addEventListener('change', () => this.popolaGiorni());
+    const filtroCommessaMonitor = document.getElementById('filtroCommessaMonitor');
+    if (filtroCommessaMonitor) {
+        const newFiltro = filtroCommessaMonitor.cloneNode(true);
+        filtroCommessaMonitor.parentNode.replaceChild(newFiltro, filtroCommessaMonitor);
+        newFiltro.addEventListener('change', () => this.aggiornaMonitorCommesse());
+    }
 
-        // Grafici
-        document.getElementById('btnAggiornaGrafici')?.addEventListener('click', () => this.creaGraficiDashboard());
-        document.getElementById('btnEsportaGrafici')?.addEventListener('click', () => this.esportaGraficiPNG());
+    const filtroAnnoMonitor = document.getElementById('filtroAnnoMonitor');
+    if (filtroAnnoMonitor) {
+        const newFiltro = filtroAnnoMonitor.cloneNode(true);
+        filtroAnnoMonitor.parentNode.replaceChild(newFiltro, filtroAnnoMonitor);
+        newFiltro.addEventListener('change', () => this.aggiornaMonitorCommesse());
+    }
 
-        // Backup
-        document.getElementById('btnBackupDati')?.addEventListener('click', () => this.eseguiBackupDati());
-        document.getElementById('btnRipristinoDati')?.addEventListener('click', () => {
+    const filtroMeseMonitor = document.getElementById('filtroMeseMonitor');
+    if (filtroMeseMonitor) {
+        const newFiltro = filtroMeseMonitor.cloneNode(true);
+        filtroMeseMonitor.parentNode.replaceChild(newFiltro, filtroMeseMonitor);
+        newFiltro.addEventListener('change', () => this.aggiornaMonitorCommesse());
+    }
+
+    // === FILTRI ANNO/MESE/GIORNO ===
+    const filtroAnno = document.getElementById('filtroAnno');
+    if (filtroAnno) {
+        const newFiltro = filtroAnno.cloneNode(true);
+        filtroAnno.parentNode.replaceChild(newFiltro, filtroAnno);
+        newFiltro.addEventListener('change', () => this.popolaGiorni());
+    }
+
+    const filtroMese = document.getElementById('filtroMese');
+    if (filtroMese) {
+        const newFiltro = filtroMese.cloneNode(true);
+        filtroMese.parentNode.replaceChild(newFiltro, filtroMese);
+        newFiltro.addEventListener('change', () => this.popolaGiorni());
+    }
+
+    // === GRAFICI ===
+    const btnAggiornaGrafici = document.getElementById('btnAggiornaGrafici');
+    if (btnAggiornaGrafici) {
+        const newBtn = btnAggiornaGrafici.cloneNode(true);
+        btnAggiornaGrafici.parentNode.replaceChild(newBtn, btnAggiornaGrafici);
+        newBtn.addEventListener('click', () => this.creaGraficiDashboard());
+    }
+
+    const btnEsportaGrafici = document.getElementById('btnEsportaGrafici');
+    if (btnEsportaGrafici) {
+        const newBtn = btnEsportaGrafici.cloneNode(true);
+        btnEsportaGrafici.parentNode.replaceChild(newBtn, btnEsportaGrafici);
+        newBtn.addEventListener('click', () => this.esportaGraficiPNG());
+    }
+
+    // === BACKUP ===
+    const btnBackupDati = document.getElementById('btnBackupDati');
+    if (btnBackupDati) {
+        const newBtn = btnBackupDati.cloneNode(true);
+        btnBackupDati.parentNode.replaceChild(newBtn, btnBackupDati);
+        newBtn.addEventListener('click', () => this.eseguiBackupDati());
+    }
+
+    const btnRipristinoDati = document.getElementById('btnRipristinoDati');
+    if (btnRipristinoDati) {
+        const newBtn = btnRipristinoDati.cloneNode(true);
+        btnRipristinoDati.parentNode.replaceChild(newBtn, btnRipristinoDati);
+        newBtn.addEventListener('click', () => {
             document.getElementById('fileBackupInput')?.click();
         });
-        document.getElementById('fileBackupInput')?.addEventListener('change', (e) => {
+    }
+
+    const fileBackupInput = document.getElementById('fileBackupInput');
+    if (fileBackupInput) {
+        const newInput = fileBackupInput.cloneNode(true);
+        fileBackupInput.parentNode.replaceChild(newInput, fileBackupInput);
+        newInput.addEventListener('change', (e) => {
             if (e.target.files && e.target.files[0]) {
                 this.ripristinaDaBackup(e.target.files[0]);
                 e.target.value = '';
             }
         });
+    }
 
-        // Ricerca commesse
-        document.getElementById('btnCercaCommessa')?.addEventListener('click', () => this.aggiornaTabellaCommesse());
-        document.getElementById('btnResetCercaCommessa')?.addEventListener('click', () => {
+    // === RICERCA COMMESSE ===
+    const btnCercaCommessa = document.getElementById('btnCercaCommessa');
+    if (btnCercaCommessa) {
+        const newBtn = btnCercaCommessa.cloneNode(true);
+        btnCercaCommessa.parentNode.replaceChild(newBtn, btnCercaCommessa);
+        newBtn.addEventListener('click', () => this.aggiornaTabellaCommesse());
+    }
+
+    const btnResetCercaCommessa = document.getElementById('btnResetCercaCommessa');
+    if (btnResetCercaCommessa) {
+        const newBtn = btnResetCercaCommessa.cloneNode(true);
+        btnResetCercaCommessa.parentNode.replaceChild(newBtn, btnResetCercaCommessa);
+        newBtn.addEventListener('click', () => {
             document.getElementById('cercaCommessa').value = '';
             this.aggiornaTabellaCommesse();
         });
+    }
 
-        // Report mensili
-        document.getElementById('btnMostraTabella')?.addEventListener('click', () => this.mostraTabellaMensile());
+    // === REPORT MENSILI ===
+    const btnMostraTabella = document.getElementById('btnMostraTabella');
+    if (btnMostraTabella) {
+        const newBtn = btnMostraTabella.cloneNode(true);
+        btnMostraTabella.parentNode.replaceChild(newBtn, btnMostraTabella);
+        newBtn.addEventListener('click', () => this.mostraTabellaMensile());
+    }
 
-        // PDF rubrica
-        document.getElementById('btnScaricaPDFDipendenti')?.addEventListener('click', () => this.generaPDFRubricaDipendenti());
+    // === PDF RUBRICA ===
+    const btnScaricaPDFDipendenti = document.getElementById('btnScaricaPDFDipendenti');
+    if (btnScaricaPDFDipendenti) {
+        const newBtn = btnScaricaPDFDipendenti.cloneNode(true);
+        btnScaricaPDFDipendenti.parentNode.replaceChild(newBtn, btnScaricaPDFDipendenti);
+        newBtn.addEventListener('click', () => this.generaPDFRubricaDipendenti());
+    }
 
-        // Diagnostica
-        document.getElementById('btnDiagnosticaCommesse')?.addEventListener('click', () => this.diagnosticaCommesse());
-        document.getElementById('btnDebugCommesse')?.addEventListener('click', () => this.debugCommesse());
-        document.getElementById('btnTestPDF')?.addEventListener('click', () => this.testGenerazionePDF());
+    // === DIAGNOSTICA ===
+    const btnDiagnostica = document.getElementById('btnDiagnosticaCommesse');
+    if (btnDiagnostica) {
+        const newBtn = btnDiagnostica.cloneNode(true);
+        btnDiagnostica.parentNode.replaceChild(newBtn, btnDiagnostica);
+        newBtn.addEventListener('click', () => this.diagnosticaCommesse());
+    }
 
-        // Filtri grafici
-        document.getElementById('btnApplicaFiltriMargini')?.addEventListener('click', () => this.applicaFiltriMarginiGrafico());
-        document.getElementById('btnResetFiltriMargini')?.addEventListener('click', () => this.resetFiltriMarginiGrafico());
-        document.getElementById('btnApplicaFiltriOreDipendenti')?.addEventListener('click', () => this.applicaFiltriOreDipendentiGrafico());
-        document.getElementById('btnResetFiltriOreDipendenti')?.addEventListener('click', () => this.resetFiltriOreDipendentiGrafico());
+    const btnDebug = document.getElementById('btnDebugCommesse');
+    if (btnDebug) {
+        const newBtn = btnDebug.cloneNode(true);
+        btnDebug.parentNode.replaceChild(newBtn, btnDebug);
+        newBtn.addEventListener('click', () => this.debugCommesse());
+    }
 
-        // Paginazione grafici
-        document.getElementById('btnPrecMargini')?.addEventListener('click', () => this.paginaMarginiPrec());
-        document.getElementById('btnSuccMargini')?.addEventListener('click', () => this.paginaMarginiSucc());
-        document.getElementById('btnPrecOreDipendenti')?.addEventListener('click', () => this.paginaOreDipendentiPrec());
-        document.getElementById('btnSuccOreDipendenti')?.addEventListener('click', () => this.paginaOreDipendentiSucc());
+    const btnTestPDF = document.getElementById('btnTestPDF');
+    if (btnTestPDF) {
+        const newBtn = btnTestPDF.cloneNode(true);
+        btnTestPDF.parentNode.replaceChild(newBtn, btnTestPDF);
+        newBtn.addEventListener('click', () => this.testGenerazionePDF());
+    }
 
-        // Data input per fasce orarie
-        document.getElementById('oreData')?.addEventListener('change', (e) => {
+    // === FILTRI GRAFICI ===
+    const btnApplicaFiltriMargini = document.getElementById('btnApplicaFiltriMargini');
+    if (btnApplicaFiltriMargini) {
+        const newBtn = btnApplicaFiltriMargini.cloneNode(true);
+        btnApplicaFiltriMargini.parentNode.replaceChild(newBtn, btnApplicaFiltriMargini);
+        newBtn.addEventListener('click', () => this.applicaFiltriMarginiGrafico());
+    }
+
+    const btnResetFiltriMargini = document.getElementById('btnResetFiltriMargini');
+    if (btnResetFiltriMargini) {
+        const newBtn = btnResetFiltriMargini.cloneNode(true);
+        btnResetFiltriMargini.parentNode.replaceChild(newBtn, btnResetFiltriMargini);
+        newBtn.addEventListener('click', () => this.resetFiltriMarginiGrafico());
+    }
+
+    const btnApplicaFiltriOreDipendenti = document.getElementById('btnApplicaFiltriOreDipendenti');
+    if (btnApplicaFiltriOreDipendenti) {
+        const newBtn = btnApplicaFiltriOreDipendenti.cloneNode(true);
+        btnApplicaFiltriOreDipendenti.parentNode.replaceChild(newBtn, btnApplicaFiltriOreDipendenti);
+        newBtn.addEventListener('click', () => this.applicaFiltriOreDipendentiGrafico());
+    }
+
+    const btnResetFiltriOreDipendenti = document.getElementById('btnResetFiltriOreDipendenti');
+    if (btnResetFiltriOreDipendenti) {
+        const newBtn = btnResetFiltriOreDipendenti.cloneNode(true);
+        btnResetFiltriOreDipendenti.parentNode.replaceChild(newBtn, btnResetFiltriOreDipendenti);
+        newBtn.addEventListener('click', () => this.resetFiltriOreDipendentiGrafico());
+    }
+
+    // === PAGINAZIONE GRAFICI ===
+    const btnPrecMargini = document.getElementById('btnPrecMargini');
+    if (btnPrecMargini) {
+        const newBtn = btnPrecMargini.cloneNode(true);
+        btnPrecMargini.parentNode.replaceChild(newBtn, btnPrecMargini);
+        newBtn.addEventListener('click', () => this.paginaMarginiPrec());
+    }
+
+    const btnSuccMargini = document.getElementById('btnSuccMargini');
+    if (btnSuccMargini) {
+        const newBtn = btnSuccMargini.cloneNode(true);
+        btnSuccMargini.parentNode.replaceChild(newBtn, btnSuccMargini);
+        newBtn.addEventListener('click', () => this.paginaMarginiSucc());
+    }
+
+    const btnPrecOreDipendenti = document.getElementById('btnPrecOreDipendenti');
+    if (btnPrecOreDipendenti) {
+        const newBtn = btnPrecOreDipendenti.cloneNode(true);
+        btnPrecOreDipendenti.parentNode.replaceChild(newBtn, btnPrecOreDipendenti);
+        newBtn.addEventListener('click', () => this.paginaOreDipendentiPrec());
+    }
+
+    const btnSuccOreDipendenti = document.getElementById('btnSuccOreDipendenti');
+    if (btnSuccOreDipendenti) {
+        const newBtn = btnSuccOreDipendenti.cloneNode(true);
+        btnSuccOreDipendenti.parentNode.replaceChild(newBtn, btnSuccOreDipendenti);
+        newBtn.addEventListener('click', () => this.paginaOreDipendentiSucc());
+    }
+
+    // === DATA INPUT FASCE ORARIE ===
+    const oreData = document.getElementById('oreData');
+    if (oreData) {
+        const newInput = oreData.cloneNode(true);
+        oreData.parentNode.replaceChild(newInput, oreData);
+        newInput.addEventListener('change', (e) => {
             this.aggiornaVisualizzazioneFasce(e.target.value);
         });
-
-        // Controlli pausa pranzo
-        document.getElementById('oreInizio')?.addEventListener('change', () => this.controllaPausaPranzo());
-        document.getElementById('oreFine')?.addEventListener('change', () => this.controllaPausaPranzo());
-
-        // Dark mode
-        document.getElementById('darkModeToggle')?.addEventListener('click', () => this.toggleDarkMode());
     }
+
+    // === PAUSA PRANZO ===
+    const oreInizio = document.getElementById('oreInizio');
+    if (oreInizio) {
+        const newInput = oreInizio.cloneNode(true);
+        oreInizio.parentNode.replaceChild(newInput, oreInizio);
+        newInput.addEventListener('change', () => this.controllaPausaPranzo());
+    }
+
+    const oreFine = document.getElementById('oreFine');
+    if (oreFine) {
+        const newInput = oreFine.cloneNode(true);
+        oreFine.parentNode.replaceChild(newInput, oreFine);
+        newInput.addEventListener('change', () => this.controllaPausaPranzo());
+    }
+
+    // === DARK MODE ===
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    if (darkModeToggle) {
+        const newBtn = darkModeToggle.cloneNode(true);
+        darkModeToggle.parentNode.replaceChild(newBtn, darkModeToggle);
+        newBtn.addEventListener('click', () => this.toggleDarkMode());
+    }
+
+    console.log('✅ Event listeners configurati con successo (nessun doppione)');
+}
 
     // ============================================================
     // 7.4 DARK MODE
@@ -1289,63 +1535,68 @@ async filtraOrePerGiorno(data) {
     // 7.6 GESTIONE ORE (FORM)
     // ============================================================
 
-    async handleOreForm(e) {
-        e.preventDefault();
-        // 🔥 PREVIENE DOPPIO SALVATAGGIO
+async handleOreForm(e) {
+    // 🔥 PREVIENE DOPPIO SALVATAGGIO
     if (this.salvataggioInCorso) {
         console.log('⚠️ Salvataggio già in corso, salto...');
         return;
     }
     
-        this.salvataggioInCorso = true;
-        // Disabilita il pulsante submit
+    // 🔥 PREVIENE EVENTI MULTIPLI
+    e.preventDefault();
+    e.stopPropagation();
+    
+    this.salvataggioInCorso = true;
+    
+    // Disabilita il pulsante submit
     const submitBtn = e.target.querySelector('button[type="submit"]');
     if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvataggio...';
     }
 
-        try {
-            if (!stateManager.currentUser || stateManager.currentUser.ruolo !== 'dipendente') {
-                NotificationService.error('Accesso non autorizzato');
-                return;
-            }
+    try {
+        if (!stateManager.currentUser || stateManager.currentUser.ruolo !== 'dipendente') {
+            NotificationService.error('Accesso non autorizzato');
+            return;
+        }
 
-            const formData = this.getOreFormData();
-            if (!this.validateOreForm(formData)) return;
+        const formData = this.getOreFormData();
+        if (!this.validateOreForm(formData)) return;
 
-            const controllo = await this.controllaOrariGiornata(
-                formData.data, 
-                formData.oraInizio, 
-                formData.oraFine
-            );
-            
-            if (!controllo.valido) {
-                NotificationService.error(controllo.errore);
-                return;
-            }
+        const controllo = await this.controllaOrariGiornata(
+            formData.data, 
+            formData.oraInizio, 
+            formData.oraFine
+        );
+        
+        if (!controllo.valido) {
+            NotificationService.error(controllo.errore);
+            return;
+        }
 
-            await this.firebaseService.addDocument("oreLavorate", formData);
-            NotificationService.success('Ore lavorate aggiunte con successo!');
-            
-            await this.aggiornaTabellaOreLavorate();
-            e.target.reset();
-            
-            const oggi = new Date().toISOString().split('T')[0];
-            document.getElementById('oreData').value = oggi;
-            await this.aggiornaVisualizzazioneFasce(oggi);
+        await this.firebaseService.addDocument("oreLavorate", formData);
+        NotificationService.success('Ore lavorate aggiunte con successo!');
+        
+        await this.aggiornaTabellaOreLavorate();
+        e.target.reset();
+        
+        const oggi = new Date().toISOString().split('T')[0];
+        document.getElementById('oreData').value = oggi;
+        await this.aggiornaVisualizzazioneFasce(oggi);
 
-        } catch (error) {
-            console.error('Errore salvataggio ore:', error);
-            NotificationService.error('Errore durante il salvataggio');
-        } finally {
-            this.salvataggioInCorso = false;
-             if (submitBtn) {
+    } catch (error) {
+        console.error('Errore salvataggio ore:', error);
+        NotificationService.error('Errore durante il salvataggio');
+    } finally {
+        // 🔥 RESETTA IL FLAG E RIABILITA IL PULSANTE
+        this.salvataggioInCorso = false;
+        if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="fas fa-save"></i> Salva Ore Lavorate';
         }
-        }
     }
+}
 
     getOreFormData() {
         const nomeCompleto = stateManager.currentUser.name.split(' ');
@@ -4651,13 +4902,14 @@ async generaPDFMensile(nomeMese, meseNumero, datiPerDipendente, annoCorrente) {
     // ============================================================
 
 async generaPDFFiltrato() {
-    // 🔥 IMPEDISCI GENERAZIONI MULTIPLE
+    // 🔥 PREVIENE GENERAZIONI MULTIPLE
     if (this._generazionePDFInCorso) {
         console.log('⚠️ [PDF] Generazione già in corso, salto...');
         return;
     }
     
     this._generazionePDFInCorso = true;
+    console.log('🔄 [PDF] Inizio generazione...');
     
     try {
         if (typeof window.jspdf === 'undefined') {
@@ -4918,6 +5170,7 @@ async generaPDFFiltrato() {
         this._generazionePDFInCorso = false;
         console.log('✅ [PDF] Generazione completata, flag resettato');
     }
+     this._generazionePDFInCorso = false;
 }
 // ============================================================
 // 7.26 FILTRI ATTIVI (per il PDF)
