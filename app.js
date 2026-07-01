@@ -497,7 +497,7 @@ class OreLavorateApp {
     }
 
    // Nel metodo init() della classe OreLavorateApp
-async init() {
+   async init() {
     try {
          console.log('🚀 Avvio app...');
 
@@ -1550,54 +1550,75 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
         let dati;
         
         // 1. SE SONO PASSATI DATI FILTRATI, USALI
-        if (oreFiltrate !== null) {
+        if (oreFiltrate !== null && Array.isArray(oreFiltrate)) {
             dati = oreFiltrate;
             stateManager.datiFiltrati = dati;
-            console.log(`📦 Uso dati filtrati: ${dati.length} record`);
+            console.log(`📦 Uso dati passati: ${dati.length} record`);
         } else {
-            // 2. ALTRIMENTI USA I FILTRI ATTIVI
-            const filtri = this.getFiltriOreAttivi();
-            
-            // Verifica se ci sono filtri attivi
-            const hasFiltri = filtri.commessa || filtri.dipendente || 
-                             filtri.anno || filtri.mese || filtri.giorno || 
-                             filtri.nonConformita;
-            
-            if (!hasFiltri) {
-                // Se non ci sono filtri, usa la data corrente
-                const oggi = new Date().toISOString().split('T')[0];
-                filtri.anno = oggi.split('-')[0];
-                filtri.mese = oggi.split('-')[1];
-                filtri.giorno = oggi.split('-')[2];
+            // 2. ALTRIMENTI USA I DATI DALLO STATE
+            if (stateManager.datiFiltrati && stateManager.datiFiltrati.length > 0) {
+                dati = stateManager.datiFiltrati;
+                console.log(`📦 Uso dati filtrati salvati: ${dati.length} record`);
+            } else {
+                // 3. CARICA DA FIREBASE
+                const filtri = this.getFiltriOreAttivi();
                 
-                // Aggiorna i select
-                document.getElementById('filtroAnno').value = filtri.anno;
-                document.getElementById('filtroMese').value = filtri.mese;
-                this.popolaGiorni();
-                document.getElementById('filtroGiorno').value = filtri.giorno;
+                const hasFiltri = filtri.commessa || filtri.dipendente || 
+                                 filtri.anno || filtri.mese || filtri.giorno || 
+                                 filtri.nonConformita;
+                
+                if (!hasFiltri) {
+                    const oggi = new Date().toISOString().split('T')[0];
+                    filtri.anno = oggi.split('-')[0];
+                    filtri.mese = oggi.split('-')[1];
+                    filtri.giorno = oggi.split('-')[2];
+                    
+                    document.getElementById('filtroAnno').value = filtri.anno;
+                    document.getElementById('filtroMese').value = filtri.mese;
+                    this.popolaGiorni();
+                    document.getElementById('filtroGiorno').value = filtri.giorno;
+                }
+                
+                dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
+                stateManager.datiFiltrati = dati;
+                console.log(`🔄 Caricati ${dati.length} record da Firebase`);
             }
-            
-            dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
-            stateManager.datiFiltrati = dati;
-            console.log(`🔄 Caricati ${dati.length} record con filtri`);
         }
 
-        // 3. SALVA NELLO STATE
-        stateManager.datiTotali.oreLavorate = dati;
-        
-        // 4. AGGIORNA I DATI DELLA PAGINAZIONE
-        this.paginazione.ore.datiTotali = dati;
+        // 4. ORDINA I DATI (data più recente prima)
+        if (dati && dati.length > 0) {
+            dati.sort((a, b) => {
+                if (a.data !== b.data) {
+                    return b.data.localeCompare(a.data);
+                }
+                if (a.commessa !== b.commessa) {
+                    return a.commessa.localeCompare(b.commessa, 'it');
+                }
+                if (a.oraInizio !== b.oraInizio) {
+                    return a.oraInizio.localeCompare(b.oraInizio);
+                }
+                const nomeA = `${a.nomeDipendente} ${a.cognomeDipendente}`;
+                const nomeB = `${b.nomeDipendente} ${b.cognomeDipendente}`;
+                return nomeA.localeCompare(nomeB, 'it');
+            });
+        }
 
-        // 5. OTTIENI I DATI DELLA PAGINA CORRENTE
+        // 5. SALVA NELLO STATE
+        stateManager.datiTotali.oreLavorate = dati || [];
+        
+        // 6. AGGIORNA I DATI DELLA PAGINAZIONE
+        this.paginazione.ore.datiTotali = dati || [];
+
+        // 7. OTTIENI I DATI DELLA PAGINA CORRENTE
         const datiPagina = this.paginazione.ore.getDatiPagina();
         
-        console.log(`📊 Ore - Pagina ${this.paginazione.ore.paginaCorrente}: ${datiPagina.length} record su ${dati.length}`);
+        console.log(`📊 Ore - Pagina ${this.paginazione.ore.paginaCorrente}: ${datiPagina.length} record su ${dati ? dati.length : 0}`);
 
-        // 6. PULISCI LA TABELLA
+        // 8. PULISCI LA TABELLA
         tbody.innerHTML = '';
 
-        // 7. MOSTRA MESSAGGIO SE VUOTO
-        if (datiPagina.length === 0) {
+        // 9. MOSTRA MESSAGGIO SE VUOTO
+        if (!dati || dati.length === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="9" class="text-center py-4 text-muted">
@@ -1608,35 +1629,87 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
                 </tr>
             `;
         } else {
-            // 8. POPOLA LA TABELLA
-            datiPagina.forEach(ore => {
+            // 10. AGGIUNGI RIGA INTESTAZIONE CON CONTEGGIO
+            const headerRow = document.createElement('tr');
+            headerRow.style.background = 'linear-gradient(135deg, #0f172a, #1e293b)';
+            headerRow.innerHTML = `
+                <td colspan="9" class="text-white text-center py-1" style="font-size: 0.8rem;">
+                    <i class="fas fa-list"></i> 
+                    <strong>${dati.length}</strong> record trovati 
+                    <span class="mx-2">•</span> 
+                    <i class="fas fa-calendar"></i> Mostrati <strong>${datiPagina.length}</strong> per pagina
+                    ${stateManager.datiFiltrati ? `<span class="mx-2">•</span> <i class="fas fa-filter"></i> Filtri attivi` : ''}
+                </td>
+            `;
+            tbody.appendChild(headerRow);
+
+            // 11. POPOLA LA TABELLA
+            datiPagina.forEach((ore, index) => {
                 const oreLavorate = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
                 const row = document.createElement('tr');
                 
-                // Evidenzia le non conformità
+                row.style.background = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+                
                 if (ore.nonConformita) {
-                    row.style.backgroundColor = 'rgba(255, 193, 7, 0.1)';
+                    row.style.borderLeft = '4px solid #eab308';
                 }
                 
+                const dataFormattata = Utils.formattaDataItaliana(ore.data);
+                
                 row.innerHTML = `
-                    <td><strong>${Utils.escapeHtml(ore.commessa)}</strong></td>
-                    <td>${Utils.escapeHtml(ore.nomeDipendente)} ${Utils.escapeHtml(ore.cognomeDipendente)}</td>
-                    <td>${ore.data || '-'}</td>
-                    <td>${ore.oraInizio || '-'}</td>
-                    <td>${ore.oraFine || '-'}</td>
-                    <td>${Utils.escapeHtml(ore.descrizione || '-')}</td>
-                    <td class="text-center">
-                        ${ore.nonConformita ? '<span class="badge bg-warning text-dark">⚠️ Sì</span>' : '<span class="badge bg-secondary">No</span>'}
+                    <td>
+                        <div class="d-flex align-items-center gap-1">
+                            <span class="badge ${ore.nonConformita ? 'bg-warning text-dark' : 'bg-secondary'}">
+                                ${ore.nonConformita ? '⚠️' : '✓'}
+                            </span>
+                            <strong>${Utils.escapeHtml(ore.commessa)}</strong>
+                        </div>
                     </td>
-                    <td class="text-center"><strong>${Utils.formattaOreDecimali(oreLavorate)}</strong></td>
+                    <td>
+                        <div class="d-flex flex-column">
+                            <span class="fw-semibold">${Utils.escapeHtml(ore.nomeDipendente)} ${Utils.escapeHtml(ore.cognomeDipendente)}</span>
+                            <small class="text-muted" style="font-size: 0.7rem;">${ore.emailDipendente || ''}</small>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark border" style="font-size: 0.8rem;">
+                            <i class="fas fa-calendar-day"></i> ${dataFormattata}
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size: 0.8rem;">
+                            <i class="fas fa-play"></i> ${ore.oraInizio || '-'}
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-danger bg-opacity-10 text-danger" style="font-size: 0.8rem;">
+                            <i class="fas fa-stop"></i> ${ore.oraFine || '-'}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" 
+                             title="${Utils.escapeHtml(ore.descrizione || '')}">
+                            ${Utils.escapeHtml(ore.descrizione || '-')}
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        ${ore.nonConformita ? 
+                            '<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> Sì</span>' : 
+                            '<span class="badge bg-secondary text-white"><i class="fas fa-check"></i> No</span>'}
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-success" style="font-size: 0.9rem; padding: 4px 12px;">
+                            <i class="fas fa-clock"></i> ${Utils.formattaOreDecimali(oreLavorate)}
+                        </span>
+                    </td>
                     <td class="text-center">
                         <div class="btn-group btn-group-sm" role="group">
-                            <button class="btn btn-warning btn-modifica-ore" 
+                            <button class="btn btn-outline-warning btn-modifica-ore" 
                                     data-id="${ore.id}" 
                                     title="Modifica ore">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="btn btn-danger btn-elimina-ore" 
+                            <button class="btn btn-outline-danger btn-elimina-ore" 
                                     data-id="${ore.id}" 
                                     title="Elimina ore">
                                 <i class="fas fa-trash"></i>
@@ -1646,7 +1719,6 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
                 `;
                 tbody.appendChild(row);
 
-                // EVENT LISTENERS
                 row.querySelector('.btn-modifica-ore')?.addEventListener('click', (e) => {
                     e.preventDefault();
                     this.modificaOreLavorate(ore.id);
@@ -1658,25 +1730,51 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
                 });
             });
 
-            // 9. AGGIUNGI RIGA TOTALE
+            // 12. AGGIUNGI RIGA TOTALE
             const totale = this.calcolaTotaleGenerale(dati);
+            const giorniLavorati = new Set(dati.map(o => o.data)).size;
+            const dipendentiUnici = new Set(dati.map(o => `${o.nomeDipendente} ${o.cognomeDipendente}`)).size;
+            
             const tr = document.createElement('tr');
-            tr.className = 'table-info fw-bold';
+            tr.style.background = 'linear-gradient(135deg, #0f172a, #1e293b)';
+            tr.style.color = 'white';
+            tr.style.fontWeight = 'bold';
             tr.innerHTML = `
-                <td colspan="7" class="text-end">TOTALE GENERALE</td>
-                <td class="text-center">${Utils.formattaOreDecimali(totale)} ore</td>
+                <td colspan="2" class="text-end">
+                    <i class="fas fa-calculator"></i> <strong>TOTALI</strong>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-light text-dark">
+                        <i class="fas fa-calendar"></i> ${giorniLavorati} gg
+                    </span>
+                </td>
+                <td colspan="2" class="text-center">
+                    <span class="badge bg-light text-dark">
+                        <i class="fas fa-users"></i> ${dipendentiUnici} dip.
+                    </span>
+                </td>
+                <td colspan="2" class="text-center">
+                    <span class="badge bg-light text-dark">
+                        <i class="fas fa-file-alt"></i> ${dati.length} record
+                    </span>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-warning text-dark" style="font-size: 1rem; padding: 6px 16px;">
+                        <i class="fas fa-clock"></i> ${Utils.formattaOreDecimali(totale)}
+                    </span>
+                </td>
                 <td></td>
             `;
             tbody.appendChild(tr);
         }
 
-        // 10. RENDERIZZA LA PAGINAZIONE
-        this.paginazione.ore.render(dati, () => {
+        // 13. RENDERIZZA LA PAGINAZIONE
+        this.paginazione.ore.render(dati || [], () => {
             console.log(`🔄 Callback paginazione ore - ricarico`);
             this.aggiornaTabellaOreLavorate(stateManager.datiFiltrati);
         });
 
-        console.log(`✅ Tabella ore aggiornata: ${dati.length} record, pagina ${this.paginazione.ore.paginaCorrente}`);
+        console.log(`✅ Tabella ore aggiornata: ${dati ? dati.length : 0} record`);
 
     } catch (error) {
         console.error('❌ Errore tabella ore:', error);
@@ -1694,6 +1792,7 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
         `;
     }
 }
+
 
     getFiltriOreAttivi() {
         return {
@@ -4497,67 +4596,177 @@ async generaPDFMensile(nomeMese, meseNumero, datiPerDipendente, annoCorrente) {
     // 7.22 PDF
     // ============================================================
 
-    async generaPDFFiltrato() {
-        try {
-            if (typeof window.jspdf === 'undefined') {
-                await this.caricaLibreriePDF();
-            }
-
-            const { jsPDF } = window.jspdf;
-            if (!jsPDF) {
-                NotificationService.error('Librerie PDF non disponibili');
-                return;
-            }
-
-            let dati = stateManager.datiFiltrati;
-            if (!dati || dati.length === 0) {
-                const filtri = this.getFiltriOreAttivi();
-                dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
-            }
-
-            if (!dati || dati.length === 0) {
-                NotificationService.warning('Nessun dato da esportare');
-                return;
-            }
-
-            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-            
-            doc.setFontSize(18);
-            doc.text('Report Ore Lavorate', 14, 20);
-            doc.setFontSize(10);
-            doc.text(`Generato il: ${new Date().toLocaleString('it-IT')}`, 14, 28);
-            doc.text(`Record: ${dati.length}`, 14, 34);
-
-            doc.autoTable({
-                startY: 40,
-                head: [['Commessa', 'Dipendente', 'Data', 'Inizio', 'Fine', 'Descrizione', 'Ore', 'NC']],
-                body: dati.map(ore => [
-                    ore.commessa,
-                    `${ore.nomeDipendente} ${ore.cognomeDipendente}`,
-                    ore.data,
-                    ore.oraInizio,
-                    ore.oraFine,
-                    ore.descrizione || '-',
-                    Utils.formattaOreDecimali(Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine)),
-                    ore.nonConformita ? 'Sì' : 'No'
-                ]),
-                theme: 'grid',
-                styles: { fontSize: 8, cellPadding: 2 },
-                headStyles: { fillColor: [37, 99, 235], textColor: 255 }
-            });
-
-            const totale = this.calcolaTotaleGenerale(dati);
-            doc.setFontSize(12);
-            doc.text(`Totale ore: ${Utils.formattaOreDecimali(totale)}`, 14, doc.lastAutoTable.finalY + 10);
-
-            doc.save(`ore_lavorate_${new Date().toISOString().split('T')[0]}.pdf`);
-            NotificationService.success('PDF generato con successo!');
-
-        } catch (error) {
-            console.error('Errore PDF:', error);
-            NotificationService.error('Errore durante la generazione PDF');
+  async generaPDFFiltrato() {
+    try {
+        if (typeof window.jspdf === 'undefined') {
+            await this.caricaLibreriePDF();
         }
+
+        const { jsPDF } = window.jspdf;
+        if (!jsPDF) {
+            NotificationService.error('Librerie PDF non disponibili');
+            return;
+        }
+
+        let dati = stateManager.datiFiltrati;
+        if (!dati || dati.length === 0) {
+            const filtri = this.getFiltriOreAttivi();
+            dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
+        }
+
+        if (!dati || dati.length === 0) {
+            NotificationService.warning('Nessun dato da esportare');
+            return;
+        }
+
+        // 🔥 ORDINA I DATI PER PDF (data più recente prima)
+        dati.sort((a, b) => {
+            if (a.data !== b.data) return b.data.localeCompare(a.data);
+            if (a.commessa !== b.commessa) return a.commessa.localeCompare(b.commessa, 'it');
+            return a.oraInizio.localeCompare(b.oraInizio);
+        });
+
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const pageWidth = doc.internal.pageSize.getWidth();
+        
+        // ============================================
+        // INTESTAZIONE
+        // ============================================
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, pageWidth, 30, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('📋 REPORT ORE LAVORATE', pageWidth / 2, 14, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Generato il: ${new Date().toLocaleString('it-IT')}`, pageWidth / 2, 22, { align: 'center' });
+        doc.text(`Record: ${dati.length}`, pageWidth / 2, 28, { align: 'center' });
+
+        // ============================================
+        // STATISTICHE RIASSUNTIVE
+        // ============================================
+        const totaleOre = this.calcolaTotaleGenerale(dati);
+        const giorniUnici = new Set(dati.map(o => o.data)).size;
+        const dipendentiUnici = new Set(dati.map(o => `${o.nomeDipendente} ${o.cognomeDipendente}`)).size;
+        const nonConformita = dati.filter(o => o.nonConformita).length;
+
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        
+        const statsY = 36;
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(10, statsY, pageWidth - 20, 18, 2, 2, 'F');
+        
+        doc.setFont('helvetica', 'normal');
+        const stats = [
+            { label: '📅 Giorni', value: giorniUnici },
+            { label: '👥 Dipendenti', value: dipendentiUnici },
+            { label: '⏱️ Ore Totali', value: Utils.formattaOreDecimali(totaleOre) },
+            { label: '⚠️ Non Conformità', value: nonConformita },
+            { label: '📊 Media Giornaliera', value: giorniUnici > 0 ? Utils.formattaOreDecimali(totaleOre / giorniUnici) : '0:00' }
+        ];
+
+        const colWidth = (pageWidth - 20) / stats.length;
+        stats.forEach((stat, index) => {
+            const x = 10 + (index * colWidth);
+            doc.text(stat.label, x + 2, statsY + 6);
+            doc.setFont('helvetica', 'bold');
+            doc.text(stat.value.toString(), x + 2, statsY + 14);
+            doc.setFont('helvetica', 'normal');
+        });
+
+        // ============================================
+        // TABELLA
+        // ============================================
+        const tableData = dati.map(ore => [
+            ore.commessa || '-',
+            `${ore.nomeDipendente || ''} ${ore.cognomeDipendente || ''}`.trim() || '-',
+            ore.data || '-',
+            ore.oraInizio || '-',
+            ore.oraFine || '-',
+            (ore.descrizione || '-').substring(0, 30) + ((ore.descrizione || '').length > 30 ? '...' : ''),
+            ore.nonConformita ? '⚠️ Sì' : '✓ No',
+            Utils.formattaOreDecimali(Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine))
+        ]);
+
+        // Aggiungi riga totale
+        tableData.push([
+            'TOTALE',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            Utils.formattaOreDecimali(totaleOre)
+        ]);
+
+        doc.autoTable({
+            startY: statsY + 24,
+            head: [['Commessa', 'Dipendente', 'Data', 'Inizio', 'Fine', 'Descrizione', 'NC', 'Ore']],
+            body: tableData,
+            theme: 'grid',
+            styles: { fontSize: 7, cellPadding: 2 },
+            headStyles: { 
+                fillColor: [15, 23, 42], 
+                textColor: [255, 255, 255],
+                fontSize: 8,
+                fontStyle: 'bold'
+            },
+            columnStyles: {
+                0: { cellWidth: 30, fontStyle: 'bold' },
+                1: { cellWidth: 28 },
+                2: { cellWidth: 22, halign: 'center' },
+                3: { cellWidth: 16, halign: 'center' },
+                4: { cellWidth: 16, halign: 'center' },
+                5: { cellWidth: 40 },
+                6: { cellWidth: 18, halign: 'center' },
+                7: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }
+            },
+            didParseCell: (data) => {
+                // Evidenzia la riga totale
+                if (data.row.index === tableData.length - 1) {
+                    data.cell.styles.fillColor = [15, 23, 42];
+                    data.cell.styles.textColor = [255, 255, 255];
+                    data.cell.styles.fontStyle = 'bold';
+                }
+                // Evidenzia le non conformità
+                if (data.column.index === 6 && data.cell.raw === '⚠️ Sì') {
+                    data.cell.styles.textColor = [234, 179, 8];
+                    data.cell.styles.fontStyle = 'bold';
+                }
+            }
+        });
+
+        // ============================================
+        // PIÈ DI PAGINA
+        // ============================================
+        const finalY = doc.lastAutoTable.finalY + 8;
+        doc.setFontSize(7);
+        doc.setTextColor(150, 150, 150);
+        doc.text('Union14 - Sistema Gestione Ore Lavorative v2.0', 10, finalY);
+        doc.text(`Pagina 1 - ${new Date().toLocaleString('it-IT')}`, pageWidth - 10, finalY, { align: 'right' });
+
+        // Legenda
+        doc.setTextColor(100, 100, 100);
+        doc.text('Legenda:', 10, finalY + 6);
+        doc.setTextColor(234, 179, 8);
+        doc.text('⚠️', 10 + 20, finalY + 5.5);
+        doc.setTextColor(100, 100, 100);
+        doc.text('= Non Conformità', 10 + 28, finalY + 6);
+
+        doc.save(`ore_lavorate_${new Date().toISOString().split('T')[0]}.pdf`);
+        NotificationService.success('📄 PDF generato con successo!');
+
+    } catch (error) {
+        console.error('Errore PDF:', error);
+        NotificationService.error('Errore durante la generazione PDF: ' + error.message);
     }
+}
 
     async generaPDFRubricaDipendenti() {
         try {
@@ -4918,7 +5127,306 @@ diagnosticaPaginazioni() {
     
     console.log('✅ Diagnostica completata');
 }
+// ============================================================
+// 7.23 ORDINAMENTO TABELLA ORE
+// ============================================================
+
+// ============================================================
+// 7.23 ORDINAMENTO TABELLA ORE - VERSIONE CORRETTA
+// ============================================================
+
+// ============================================================
+// 7.23 ORDINAMENTO TABELLA ORE - VERSIONE DEFINITIVA
+// ============================================================
+
+cambiaOrdineOre(criterio) {
+    console.log(`🔄 [DEBUG] Cambio ordinamento: ${criterio}`);
+    
+    try {
+        // 1. Prendi i dati dalla fonte corretta
+        let dati = [];
+        
+        // Prima prova a prendere i dati filtrati
+        if (stateManager.datiFiltrati && stateManager.datiFiltrati.length > 0) {
+            dati = stateManager.datiFiltrati.slice(); // Copia
+            console.log(`📦 [DEBUG] Usando dati filtrati: ${dati.length} record`);
+        } 
+        // Altrimenti prova a prendere tutti i dati
+        else if (stateManager.datiTotali.oreLavorate && stateManager.datiTotali.oreLavorate.length > 0) {
+            dati = stateManager.datiTotali.oreLavorate.slice(); // Copia
+            console.log(`📦 [DEBUG] Usando tutti i dati: ${dati.length} record`);
+        } 
+        // Se non ci sono dati, carica da Firebase
+        else {
+            console.log('📦 [DEBUG] Caricamento dati da Firebase...');
+            this.firebaseService.getCollection("oreLavorate").then(ore => {
+                stateManager.datiTotali.oreLavorate = ore;
+                stateManager.datiFiltrati = ore.slice();
+                this.cambiaOrdineOre(criterio);
+            }).catch(err => {
+                console.error('❌ Errore caricamento:', err);
+                NotificationService.error('Errore nel caricamento dei dati');
+            });
+            return;
+        }
+        
+        if (dati.length === 0) {
+            NotificationService.warning('Nessun dato da ordinare');
+            return;
+        }
+        
+        console.log(`📊 [DEBUG] Dati prima dell'ordinamento: ${dati.length} record`);
+        console.log('📊 [DEBUG] Primo record:', dati[0]);
+        
+        // 2. Applica l'ordinamento
+        switch(criterio) {
+            case 'data_asc':
+                dati.sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+                NotificationService.info('📅 Ordinati per data (più vecchi prima)');
+                break;
+            case 'data_desc':
+                dati.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+                NotificationService.info('📅 Ordinati per data (più recenti prima)');
+                break;
+            case 'commessa':
+                dati.sort((a, b) => (a.commessa || '').localeCompare(b.commessa || '', 'it'));
+                NotificationService.info('📋 Ordinati per commessa');
+                break;
+            case 'dipendente':
+                dati.sort((a, b) => {
+                    const nomeA = `${a.nomeDipendente || ''} ${a.cognomeDipendente || ''}`.trim();
+                    const nomeB = `${b.nomeDipendente || ''} ${b.cognomeDipendente || ''}`.trim();
+                    return nomeA.localeCompare(nomeB, 'it');
+                });
+                NotificationService.info('👤 Ordinati per dipendente');
+                break;
+            case 'ore':
+                dati.sort((a, b) => {
+                    const oreA = Utils.calcolaOreLavorate(a.oraInizio, a.oraFine);
+                    const oreB = Utils.calcolaOreLavorate(b.oraInizio, b.oraFine);
+                    return oreB - oreA;
+                });
+                NotificationService.info('⏱️ Ordinati per ore (maggiori prima)');
+                break;
+            case 'ore_asc':
+                dati.sort((a, b) => {
+                    const oreA = Utils.calcolaOreLavorate(a.oraInizio, a.oraFine);
+                    const oreB = Utils.calcolaOreLavorate(b.oraInizio, b.oraFine);
+                    return oreA - oreB;
+                });
+                NotificationService.info('⏱️ Ordinati per ore (minori prima)');
+                break;
+            default:
+                dati.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+                NotificationService.info('📅 Ordinamento predefinito');
+        }
+        
+        console.log(`📊 [DEBUG] Dati dopo l'ordinamento: ${dati.length} record`);
+        console.log('📊 [DEBUG] Primo record dopo ordinamento:', dati[0]);
+        
+        // 3. Aggiorna lo state
+        stateManager.datiFiltrati = dati;
+        stateManager.datiTotali.oreLavorate = dati;
+        
+        // 4. Aggiorna la paginazione
+        this.paginazione.ore.datiTotali = dati;
+        this.paginazione.ore.paginaCorrente = 1;
+        
+        // 5. RENDERIZZA DIRETTAMENTE LA TABELLA
+        this.renderizzaTabellaOre(dati);
+        
+        // 6. RENDERIZZA LA PAGINAZIONE
+        this.paginazione.ore.render(dati, () => {
+            console.log('🔄 [DEBUG] Callback paginazione');
+            this.renderizzaTabellaOre(dati);
+        });
+        
+        console.log('✅ [DEBUG] Ordinamento completato con successo');
+        
+    } catch (error) {
+        console.error('❌ [DEBUG] Errore durante l\'ordinamento:', error);
+        NotificationService.error('Errore durante l\'ordinamento: ' + error.message);
+    }
 }
+// ============================================================
+// 7.24 RENDERIZZA TABELLA ORE (METODO SEPARATO)
+// ============================================================
+
+renderizzaTabellaOre(dati) {
+    console.log(`🔄 [DEBUG] Renderizzazione tabella con ${dati ? dati.length : 0} record`);
+    
+    const tbody = document.querySelector('#orelavorateTable tbody');
+    if (!tbody) {
+        console.error('❌ Tbody ore lavorate non trovato');
+        return;
+    }
+
+    if (!dati || dati.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center py-4 text-muted">
+                    <i class="fas fa-clock fa-3x mb-3 d-block"></i>
+                    <h5>Nessuna ore lavorata trovata</h5>
+                    <p class="small">Registra le tue ore usando il form sopra</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    // Ottieni i dati della pagina corrente
+    const datiPagina = this.paginazione.ore.getDatiPagina();
+    
+    // Pulisci la tabella
+    tbody.innerHTML = '';
+
+    // Riga header con conteggio
+    const headerRow = document.createElement('tr');
+    headerRow.style.background = 'linear-gradient(135deg, #0f172a, #1e293b)';
+    headerRow.innerHTML = `
+        <td colspan="9" class="text-white text-center py-1" style="font-size: 0.8rem;">
+            <i class="fas fa-list"></i> 
+            <strong>${dati.length}</strong> record trovati 
+            <span class="mx-2">•</span> 
+            <i class="fas fa-calendar"></i> Mostrati <strong>${datiPagina.length}</strong> per pagina
+            <span class="mx-2">•</span>
+            <i class="fas fa-sort"></i> Ordinamento applicato
+        </td>
+    `;
+    tbody.appendChild(headerRow);
+
+    // Popola la tabella
+    datiPagina.forEach((ore, index) => {
+        const oreLavorate = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+        const row = document.createElement('tr');
+        
+        // Alterna colori
+        row.style.background = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+        
+        // Evidenzia non conformità
+        if (ore.nonConformita) {
+            row.style.borderLeft = '4px solid #eab308';
+        }
+        
+        const dataFormattata = Utils.formattaDataItaliana(ore.data);
+        
+        row.innerHTML = `
+            <td>
+                <div class="d-flex align-items-center gap-1">
+                    <span class="badge ${ore.nonConformita ? 'bg-warning text-dark' : 'bg-secondary'}">
+                        ${ore.nonConformita ? '⚠️' : '✓'}
+                    </span>
+                    <strong>${Utils.escapeHtml(ore.commessa)}</strong>
+                </div>
+            </td>
+            <td>
+                <div class="d-flex flex-column">
+                    <span class="fw-semibold">${Utils.escapeHtml(ore.nomeDipendente)} ${Utils.escapeHtml(ore.cognomeDipendente)}</span>
+                    <small class="text-muted" style="font-size: 0.7rem;">${ore.emailDipendente || ''}</small>
+                </div>
+            </td>
+            <td class="text-center">
+                <span class="badge bg-light text-dark border" style="font-size: 0.8rem;">
+                    <i class="fas fa-calendar-day"></i> ${dataFormattata}
+                </span>
+            </td>
+            <td class="text-center">
+                <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size: 0.8rem;">
+                    <i class="fas fa-play"></i> ${ore.oraInizio || '-'}
+                </span>
+            </td>
+            <td class="text-center">
+                <span class="badge bg-danger bg-opacity-10 text-danger" style="font-size: 0.8rem;">
+                    <i class="fas fa-stop"></i> ${ore.oraFine || '-'}
+                </span>
+            </td>
+            <td>
+                <div style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" 
+                     title="${Utils.escapeHtml(ore.descrizione || '')}">
+                    ${Utils.escapeHtml(ore.descrizione || '-')}
+                </div>
+            </td>
+            <td class="text-center">
+                ${ore.nonConformita ? 
+                    '<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> Sì</span>' : 
+                    '<span class="badge bg-secondary text-white"><i class="fas fa-check"></i> No</span>'}
+            </td>
+            <td class="text-center">
+                <span class="badge bg-success" style="font-size: 0.9rem; padding: 4px 12px;">
+                    <i class="fas fa-clock"></i> ${Utils.formattaOreDecimali(oreLavorate)}
+                </span>
+            </td>
+            <td class="text-center">
+                <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-warning btn-modifica-ore" 
+                            data-id="${ore.id}" 
+                            title="Modifica ore">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-elimina-ore" 
+                            data-id="${ore.id}" 
+                            title="Elimina ore">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+
+        // Event listeners
+        row.querySelector('.btn-modifica-ore')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.modificaOreLavorate(ore.id);
+        });
+        
+        row.querySelector('.btn-elimina-ore')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.eliminaOreLavorate(ore.id);
+        });
+    });
+
+    // Riga totale
+    const totale = this.calcolaTotaleGenerale(dati);
+    const giorniLavorati = new Set(dati.map(o => o.data)).size;
+    const dipendentiUnici = new Set(dati.map(o => `${o.nomeDipendente} ${o.cognomeDipendente}`)).size;
+    
+    const tr = document.createElement('tr');
+    tr.style.background = 'linear-gradient(135deg, #0f172a, #1e293b)';
+    tr.style.color = 'white';
+    tr.style.fontWeight = 'bold';
+    tr.innerHTML = `
+        <td colspan="2" class="text-end">
+            <i class="fas fa-calculator"></i> <strong>TOTALI</strong>
+        </td>
+        <td class="text-center">
+            <span class="badge bg-light text-dark">
+                <i class="fas fa-calendar"></i> ${giorniLavorati} gg
+            </span>
+        </td>
+        <td colspan="2" class="text-center">
+            <span class="badge bg-light text-dark">
+                <i class="fas fa-users"></i> ${dipendentiUnici} dip.
+            </span>
+        </td>
+        <td colspan="2" class="text-center">
+            <span class="badge bg-light text-dark">
+                <i class="fas fa-file-alt"></i> ${dati.length} record
+            </span>
+        </td>
+        <td class="text-center">
+            <span class="badge bg-warning text-dark" style="font-size: 1rem; padding: 6px 16px;">
+                <i class="fas fa-clock"></i> ${Utils.formattaOreDecimali(totale)}
+            </span>
+        </td>
+        <td></td>
+    `;
+    tbody.appendChild(tr);
+    
+    console.log(`✅ [DEBUG] Tabella renderizzata: ${datiPagina.length} record in pagina`);
+}
+}
+
+
 
 // ============================================================
 // 8. INIZIALIZZAZIONE APP
@@ -4929,7 +5437,41 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
     app = new OreLavorateApp();
     window.app = app;
+    
+    // 🔥 ESPONI IL METODO GLOBALMENTE PER I PULSANTI HTML
+    window.cambiaOrdineOre = function(criterio) {
+        if (app && typeof app.cambiaOrdineOre === 'function') {
+            app.cambiaOrdineOre(criterio);
+        } else {
+            console.error('❌ Metodo cambiaOrdineOre non disponibile');
+            // Fallback: ricarica la tabella
+            if (app) {
+                app.aggiornaTabellaOreLavorate();
+            }
+        }
+    };
+    
+    // 🔥 ESPONI ALTRI METODI UTILI
+    window.aggiornaTabellaOreLavorate = function() {
+        if (app) app.aggiornaTabellaOreLavorate();
+    };
+    
+    console.log('✅ Union14 App v2.0 caricata con successo!');
+    console.log('✅ Metodi esposti: cambiaOrdineOre, aggiornaTabellaOreLavorate');
 });
+
+// Aggiungi anche un fallback se la pagina viene caricata senza DOMContentLoaded
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    if (!window.app) {
+        app = new OreLavorateApp();
+        window.app = app;
+        window.cambiaOrdineOre = function(criterio) {
+            if (app && typeof app.cambiaOrdineOre === 'function') {
+                app.cambiaOrdineOre(criterio);
+            }
+        };
+    }
+}
 
 // ============================================================
 // 9. ANIMAZIONI CSS PER NOTIFICHE
