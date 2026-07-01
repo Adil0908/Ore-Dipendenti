@@ -493,6 +493,7 @@ class OreLavorateApp {
         this.grafici = {};
         this.filtroTimeout = null;
         this.salvataggioInCorso = false;
+         this._generazionePDFInCorso = false;
         this.init();
     }
 
@@ -1049,15 +1050,53 @@ async verificaSessione() {
         document.getElementById('commessaForm')?.addEventListener('submit', (e) => this.handleCommessaForm(e));
         document.getElementById('dipendentiForm')?.addEventListener('submit', (e) => this.handleDipendentiForm(e));
         document.getElementById('fornitoreForm')?.addEventListener('submit', (e) => this.aggiungiLavorazioneFornitore(e));
+   // === PULSANTI FILTRI ORE ===
+    const btnResetFiltri = document.getElementById('btnResetFiltri');
+    if (btnResetFiltri) {
+        const newBtn = btnResetFiltri.cloneNode(true);
+        btnResetFiltri.parentNode.replaceChild(newBtn, btnResetFiltri);
+        newBtn.addEventListener('click', () => this.resetFiltriOre());
+    }
 
-        // Filtri ore
-        document.getElementById('filtraOreLavorate')?.addEventListener('submit', (e) => {
+    const btnMostraTutti = document.getElementById('btnMostraTutti');
+    if (btnMostraTutti) {
+        const newBtn = btnMostraTutti.cloneNode(true);
+        btnMostraTutti.parentNode.replaceChild(newBtn, btnMostraTutti);
+        newBtn.addEventListener('click', () => this.mostraTuttiOre());
+    }
+
+    // === 🔥 PULSANTE PDF - UNICO LISTENER ===
+    const btnPDF = document.getElementById('btnScaricaPDF');
+    if (btnPDF) {
+        // Rimuovi TUTTI i listener clonando
+        const newBtnPDF = btnPDF.cloneNode(true);
+        btnPDF.parentNode.replaceChild(newBtnPDF, btnPDF);
+        
+        // Aggiungi un solo listener
+        newBtnPDF.addEventListener('click', function(e) {
             e.preventDefault();
-            this.applicaFiltriOre();
+            e.stopPropagation();
+            console.log('🔄 [PDF] Pulsante cliccato - UNICA VOLTA');
+            
+            // Disabilita il pulsante
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generazione...';
+            
+            // Chiama la funzione
+            if (app && typeof app.generaPDFFiltrato === 'function') {
+                app.generaPDFFiltrato().finally(() => {
+                    // Riabilita dopo il completamento
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-file-pdf"></i> Scarica PDF (come visualizzato)';
+                });
+            } else {
+                this.disabled = false;
+                this.innerHTML = '<i class="fas fa-file-pdf"></i> Scarica PDF (come visualizzato)';
+                NotificationService.error('Funzione PDF non disponibile');
+            }
         });
-        document.getElementById('btnResetFiltri')?.addEventListener('click', () => this.resetFiltriOre());
-        document.getElementById('btnScaricaPDF')?.addEventListener('click', () => this.generaPDFFiltrato());
-        document.getElementById('btnMostraTutti')?.addEventListener('click', () => this.mostraTuttiOre());
+    }
+  
 
         // Filtri monitoraggio
         document.getElementById('filtroNomeCommessa')?.addEventListener('input', () => {
@@ -1252,8 +1291,19 @@ async filtraOrePerGiorno(data) {
 
     async handleOreForm(e) {
         e.preventDefault();
-        if (this.salvataggioInCorso) return;
+        // 🔥 PREVIENE DOPPIO SALVATAGGIO
+    if (this.salvataggioInCorso) {
+        console.log('⚠️ Salvataggio già in corso, salto...');
+        return;
+    }
+    
         this.salvataggioInCorso = true;
+        // Disabilita il pulsante submit
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvataggio...';
+    }
 
         try {
             if (!stateManager.currentUser || stateManager.currentUser.ruolo !== 'dipendente') {
@@ -1290,6 +1340,10 @@ async filtraOrePerGiorno(data) {
             NotificationService.error('Errore durante il salvataggio');
         } finally {
             this.salvataggioInCorso = false;
+             if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save"></i> Salva Ore Lavorate';
+        }
         }
     }
 
@@ -4596,7 +4650,15 @@ async generaPDFMensile(nomeMese, meseNumero, datiPerDipendente, annoCorrente) {
     // 7.22 PDF
     // ============================================================
 
-  async generaPDFFiltrato() {
+async generaPDFFiltrato() {
+    // 🔥 IMPEDISCI GENERAZIONI MULTIPLE
+    if (this._generazionePDFInCorso) {
+        console.log('⚠️ [PDF] Generazione già in corso, salto...');
+        return;
+    }
+    
+    this._generazionePDFInCorso = true;
+    
     try {
         if (typeof window.jspdf === 'undefined') {
             await this.caricaLibreriePDF();
@@ -4605,35 +4667,78 @@ async generaPDFMensile(nomeMese, meseNumero, datiPerDipendente, annoCorrente) {
         const { jsPDF } = window.jspdf;
         if (!jsPDF) {
             NotificationService.error('Librerie PDF non disponibili');
+            this._generazionePDFInCorso = false;
             return;
         }
 
-        let dati = stateManager.datiFiltrati;
-        if (!dati || dati.length === 0) {
+        // 🔥 1. PRENDI I DATI CORRETTI (quelli visualizzati nella tabella)
+        let dati = [];
+        let fonteDati = '';
+        
+        // Prima prova a prendere i dati filtrati (che hanno l'ordinamento applicato)
+        if (stateManager.datiFiltrati && stateManager.datiFiltrati.length > 0) {
+            dati = stateManager.datiFiltrati.slice(); // Copia
+            fonteDati = 'filtrati e ordinati';
+            console.log(`📦 PDF: Usando dati ${fonteDati}: ${dati.length} record`);
+        } 
+        // Altrimenti prova a prendere tutti i dati
+        else if (stateManager.datiTotali.oreLavorate && stateManager.datiTotali.oreLavorate.length > 0) {
+            dati = stateManager.datiTotali.oreLavorate.slice(); // Copia
+            fonteDati = 'tutti (senza filtri)';
+            console.log(`📦 PDF: Usando dati ${fonteDati}: ${dati.length} record`);
+        }
+        // Se non ci sono dati, carica da Firebase
+        else {
             const filtri = this.getFiltriOreAttivi();
+            const hasFiltri = filtri.commessa || filtri.dipendente || 
+                             filtri.anno || filtri.mese || filtri.giorno || 
+                             filtri.nonConformita;
+            
+            if (!hasFiltri) {
+                const oggi = new Date().toISOString().split('T')[0];
+                filtri.anno = oggi.split('-')[0];
+                filtri.mese = oggi.split('-')[1];
+                filtri.giorno = oggi.split('-')[2];
+            }
+            
             dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
+            fonteDati = 'appena caricati da Firebase';
+            console.log(`📦 PDF: Caricati da Firebase: ${dati.length} record`);
         }
 
         if (!dati || dati.length === 0) {
             NotificationService.warning('Nessun dato da esportare');
+            this._generazionePDFInCorso = false;
             return;
         }
 
-        // 🔥 ORDINA I DATI PER PDF (data più recente prima)
-        dati.sort((a, b) => {
-            if (a.data !== b.data) return b.data.localeCompare(a.data);
-            if (a.commessa !== b.commessa) return a.commessa.localeCompare(b.commessa, 'it');
-            return a.oraInizio.localeCompare(b.oraInizio);
-        });
+        // 🔥 2. MANTIENI L'ORDINAMENTO GIÀ APPLICATO
+        if (!stateManager.datiFiltrati || stateManager.datiFiltrati.length === 0) {
+            dati.sort((a, b) => {
+                if (a.data !== b.data) return b.data.localeCompare(a.data);
+                if (a.commessa !== b.commessa) return a.commessa.localeCompare(b.commessa, 'it');
+                if (a.oraInizio !== b.oraInizio) return a.oraInizio.localeCompare(b.oraInizio);
+                const nomeA = `${a.nomeDipendente} ${a.cognomeDipendente}`;
+                const nomeB = `${b.nomeDipendente} ${b.cognomeDipendente}`;
+                return nomeA.localeCompare(nomeB, 'it');
+            });
+        }
+
+        // 🔥 3. CALCOLA STATISTICHE
+        const totaleOre = this.calcolaTotaleGenerale(dati);
+        const giorniUnici = new Set(dati.map(o => o.data)).size;
+        const dipendentiUnici = new Set(dati.map(o => `${o.nomeDipendente} ${o.cognomeDipendente}`)).size;
+        const nonConformita = dati.filter(o => o.nonConformita).length;
+        const commesseUniche = new Set(dati.map(o => o.commessa)).size;
 
         const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
         const pageWidth = doc.internal.pageSize.getWidth();
         
         // ============================================
-        // INTESTAZIONE
+        // 4. INTESTAZIONE
         // ============================================
         doc.setFillColor(15, 23, 42);
-        doc.rect(0, 0, pageWidth, 30, 'F');
+        doc.rect(0, 0, pageWidth, 32, 'F');
         
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(18);
@@ -4643,31 +4748,27 @@ async generaPDFMensile(nomeMese, meseNumero, datiPerDipendente, annoCorrente) {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text(`Generato il: ${new Date().toLocaleString('it-IT')}`, pageWidth / 2, 22, { align: 'center' });
-        doc.text(`Record: ${dati.length}`, pageWidth / 2, 28, { align: 'center' });
+        doc.text(`Record: ${dati.length}  •  ${fonteDati}`, pageWidth / 2, 28, { align: 'center' });
 
         // ============================================
-        // STATISTICHE RIASSUNTIVE
+        // 5. STATISTICHE RIASSUNTIVE
         // ============================================
-        const totaleOre = this.calcolaTotaleGenerale(dati);
-        const giorniUnici = new Set(dati.map(o => o.data)).size;
-        const dipendentiUnici = new Set(dati.map(o => `${o.nomeDipendente} ${o.cognomeDipendente}`)).size;
-        const nonConformita = dati.filter(o => o.nonConformita).length;
-
         doc.setTextColor(0, 0, 0);
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
         
-        const statsY = 36;
+        const statsY = 38;
         doc.setFillColor(241, 245, 249);
-        doc.roundedRect(10, statsY, pageWidth - 20, 18, 2, 2, 'F');
+        doc.roundedRect(10, statsY, pageWidth - 20, 20, 2, 2, 'F');
         
         doc.setFont('helvetica', 'normal');
         const stats = [
-            { label: '📅 Giorni', value: giorniUnici },
+            { label: '📅 Giorni Lavorati', value: giorniUnici },
             { label: '👥 Dipendenti', value: dipendentiUnici },
+            { label: '📋 Commesse', value: commesseUniche },
             { label: '⏱️ Ore Totali', value: Utils.formattaOreDecimali(totaleOre) },
             { label: '⚠️ Non Conformità', value: nonConformita },
-            { label: '📊 Media Giornaliera', value: giorniUnici > 0 ? Utils.formattaOreDecimali(totaleOre / giorniUnici) : '0:00' }
+            { label: '📊 Media/Giorno', value: giorniUnici > 0 ? Utils.formattaOreDecimali(totaleOre / giorniUnici) : '0:00' }
         ];
 
         const colWidth = (pageWidth - 20) / stats.length;
@@ -4675,27 +4776,31 @@ async generaPDFMensile(nomeMese, meseNumero, datiPerDipendente, annoCorrente) {
             const x = 10 + (index * colWidth);
             doc.text(stat.label, x + 2, statsY + 6);
             doc.setFont('helvetica', 'bold');
-            doc.text(stat.value.toString(), x + 2, statsY + 14);
+            doc.text(stat.value.toString(), x + 2, statsY + 15);
             doc.setFont('helvetica', 'normal');
         });
 
         // ============================================
-        // TABELLA
+        // 6. TABELLA
         // ============================================
-        const tableData = dati.map(ore => [
-            ore.commessa || '-',
-            `${ore.nomeDipendente || ''} ${ore.cognomeDipendente || ''}`.trim() || '-',
-            ore.data || '-',
-            ore.oraInizio || '-',
-            ore.oraFine || '-',
-            (ore.descrizione || '-').substring(0, 30) + ((ore.descrizione || '').length > 30 ? '...' : ''),
-            ore.nonConformita ? '⚠️ Sì' : '✓ No',
-            Utils.formattaOreDecimali(Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine))
-        ]);
+        const tableData = dati.map(ore => {
+            const oreLav = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
+            const dataFormattata = Utils.formattaDataItaliana(ore.data);
+            return [
+                ore.commessa || '-',
+                `${ore.nomeDipendente || ''} ${ore.cognomeDipendente || ''}`.trim() || '-',
+                dataFormattata || '-',
+                ore.oraInizio || '-',
+                ore.oraFine || '-',
+                (ore.descrizione || '-').substring(0, 25) + ((ore.descrizione || '').length > 25 ? '...' : ''),
+                ore.nonConformita ? '⚠️ Sì' : '✓ No',
+                Utils.formattaOreDecimali(oreLav)
+            ];
+        });
 
         // Aggiungi riga totale
         tableData.push([
-            'TOTALE',
+            'TOTALE GENERALE',
             '',
             '',
             '',
@@ -4706,66 +4811,144 @@ async generaPDFMensile(nomeMese, meseNumero, datiPerDipendente, annoCorrente) {
         ]);
 
         doc.autoTable({
-            startY: statsY + 24,
+            startY: statsY + 26,
             head: [['Commessa', 'Dipendente', 'Data', 'Inizio', 'Fine', 'Descrizione', 'NC', 'Ore']],
             body: tableData,
             theme: 'grid',
-            styles: { fontSize: 7, cellPadding: 2 },
+            styles: { 
+                fontSize: 7, 
+                cellPadding: 2,
+                valign: 'middle'
+            },
             headStyles: { 
                 fillColor: [15, 23, 42], 
                 textColor: [255, 255, 255],
                 fontSize: 8,
-                fontStyle: 'bold'
+                fontStyle: 'bold',
+                halign: 'center'
             },
             columnStyles: {
-                0: { cellWidth: 30, fontStyle: 'bold' },
-                1: { cellWidth: 28 },
-                2: { cellWidth: 22, halign: 'center' },
-                3: { cellWidth: 16, halign: 'center' },
-                4: { cellWidth: 16, halign: 'center' },
-                5: { cellWidth: 40 },
-                6: { cellWidth: 18, halign: 'center' },
-                7: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }
+                0: { cellWidth: 28, fontStyle: 'bold' },
+                1: { cellWidth: 26 },
+                2: { cellWidth: 20, halign: 'center' },
+                3: { cellWidth: 14, halign: 'center' },
+                4: { cellWidth: 14, halign: 'center' },
+                5: { cellWidth: 38 },
+                6: { cellWidth: 16, halign: 'center' },
+                7: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }
             },
             didParseCell: (data) => {
-                // Evidenzia la riga totale
                 if (data.row.index === tableData.length - 1) {
                     data.cell.styles.fillColor = [15, 23, 42];
                     data.cell.styles.textColor = [255, 255, 255];
                     data.cell.styles.fontStyle = 'bold';
                 }
-                // Evidenzia le non conformità
                 if (data.column.index === 6 && data.cell.raw === '⚠️ Sì') {
                     data.cell.styles.textColor = [234, 179, 8];
                     data.cell.styles.fontStyle = 'bold';
+                }
+                if (data.column.index === 7 && data.row.index < tableData.length - 1) {
+                    const oreStr = data.cell.raw;
+                    if (oreStr) {
+                        const ore = parseFloat(oreStr.replace(':', '.'));
+                        if (ore > 8) {
+                            data.cell.styles.textColor = [220, 38, 38];
+                            data.cell.styles.fontStyle = 'bold';
+                        } else if (ore >= 6) {
+                            data.cell.styles.textColor = [22, 163, 74];
+                        }
+                    }
                 }
             }
         });
 
         // ============================================
-        // PIÈ DI PAGINA
+        // 7. PIÈ DI PAGINA
         // ============================================
-        const finalY = doc.lastAutoTable.finalY + 8;
+        const finalY = doc.lastAutoTable.finalY + 10;
+        
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(10, finalY, pageWidth - 20, 12, 2, 2, 'F');
+        
         doc.setFontSize(7);
-        doc.setTextColor(150, 150, 150);
-        doc.text('Union14 - Sistema Gestione Ore Lavorative v2.0', 10, finalY);
-        doc.text(`Pagina 1 - ${new Date().toLocaleString('it-IT')}`, pageWidth - 10, finalY, { align: 'right' });
-
-        // Legenda
+        doc.setTextColor(50, 50, 50);
+        doc.text(`📊 Riepilogo: ${dati.length} record • ${Utils.formattaOreDecimali(totaleOre)} ore totali • ${giorniUnici} giorni • ${dipendentiUnici} dipendenti`, 15, finalY + 5);
+        
         doc.setTextColor(100, 100, 100);
-        doc.text('Legenda:', 10, finalY + 6);
+        doc.text('Legenda:', 15, finalY + 9);
+        doc.setTextColor(220, 38, 38);
+        doc.text('●', 15 + 20, finalY + 8.5);
+        doc.setTextColor(100, 100, 100);
+        doc.text('Ore > 8h', 15 + 26, finalY + 9);
+        
         doc.setTextColor(234, 179, 8);
-        doc.text('⚠️', 10 + 20, finalY + 5.5);
+        doc.text('●', 15 + 55, finalY + 8.5);
         doc.setTextColor(100, 100, 100);
-        doc.text('= Non Conformità', 10 + 28, finalY + 6);
+        doc.text('Non Conformità', 15 + 61, finalY + 9);
+        
+        doc.setTextColor(22, 163, 74);
+        doc.text('●', 15 + 95, finalY + 8.5);
+        doc.setTextColor(100, 100, 100);
+        doc.text('Ore ≥ 6h', 15 + 101, finalY + 9);
+        
+        const filtriAttivi = this.getFiltriAttiviTesto();
+        if (filtriAttivi) {
+            doc.setTextColor(100, 100, 100);
+            doc.text(`🔍 Filtri: ${filtriAttivi}`, 15 + 140, finalY + 9);
+        }
 
-        doc.save(`ore_lavorate_${new Date().toISOString().split('T')[0]}.pdf`);
-        NotificationService.success('📄 PDF generato con successo!');
+        doc.setFontSize(6);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Union14 - Sistema Gestione Ore Lavorative v2.0  •  ${new Date().toLocaleString('it-IT')}`, 
+                pageWidth - 10, finalY + 9, { align: 'right' });
+
+        // ============================================
+        // 8. SALVA PDF
+        // ============================================
+        const nomeFile = `ore_lavorate_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(nomeFile);
+        
+        NotificationService.success(`📄 PDF generato con ${dati.length} record (${fonteDati})!`);
 
     } catch (error) {
-        console.error('Errore PDF:', error);
+        console.error('❌ Errore PDF:', error);
         NotificationService.error('Errore durante la generazione PDF: ' + error.message);
+    } finally {
+        // 🔥 IMPORTANTE: Resetta il flag alla fine
+        this._generazionePDFInCorso = false;
+        console.log('✅ [PDF] Generazione completata, flag resettato');
     }
+}
+// ============================================================
+// 7.26 FILTRI ATTIVI (per il PDF)
+// ============================================================
+
+getFiltriAttiviTesto() {
+    const filtri = [];
+    
+    const commessa = document.getElementById('filtroCommessa')?.value?.trim();
+    if (commessa) filtri.push(`Commessa: "${commessa}"`);
+    
+    const dipendente = document.getElementById('filtroDipendente')?.value?.trim();
+    if (dipendente) filtri.push(`Dipendente: "${dipendente}"`);
+    
+    const anno = document.getElementById('filtroAnno')?.value;
+    if (anno) filtri.push(`Anno: ${anno}`);
+    
+    const mese = document.getElementById('filtroMese')?.value;
+    if (mese) {
+        const mesi = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
+                     'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+        filtri.push(`Mese: ${mesi[parseInt(mese) - 1]}`);
+    }
+    
+    const giorno = document.getElementById('filtroGiorno')?.value;
+    if (giorno) filtri.push(`Giorno: ${giorno}`);
+    
+    const nonConformita = document.getElementById('filtroNonConformita')?.checked;
+    if (nonConformita) filtri.push('Solo non conformità');
+    
+    return filtri.length > 0 ? filtri.join(' • ') : '';
 }
 
     async generaPDFRubricaDipendenti() {
