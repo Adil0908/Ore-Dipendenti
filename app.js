@@ -2110,18 +2110,17 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
         };
     }
 
-    async applicaFiltriOre() {
+ async applicaFiltriOre() {
     try {
         const filtri = this.getFiltriOreAttivi();
         
-        // 🔥 Se non ci sono filtri attivi, usa la data corrente
+        // Se non ci sono filtri attivi, usa la data corrente
         if (!filtri.anno && !filtri.mese && !filtri.giorno) {
             const oggi = new Date().toISOString().split('T')[0];
             filtri.anno = oggi.split('-')[0];
             filtri.mese = oggi.split('-')[1];
             filtri.giorno = oggi.split('-')[2];
             
-            // Aggiorna i select
             document.getElementById('filtroAnno').value = filtri.anno;
             document.getElementById('filtroMese').value = filtri.mese;
             this.popolaGiorni();
@@ -2130,7 +2129,10 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
         
         const dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
         stateManager.datiFiltrati = dati;
-        await this.aggiornaTabellaOreLavorate(dati);
+        
+        // Usa il nuovo metodo per aggiornare
+        await this.ricaricaDatiOreConFiltri();
+        
         NotificationService.success(`${dati.length} record trovati per ${filtri.giorno}/${filtri.mese}/${filtri.anno}`);
     } catch (error) {
         console.error('Errore filtri:', error);
@@ -2159,70 +2161,148 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
         NotificationService.info('Mostrati tutti i record');
     }
 
-    async modificaOreLavorate(id) {
-        try {
-            const docRef = this.firebaseService.db.collection("oreLavorate").doc(id);
-            const docSnap = await docRef.get();
-            if (!docSnap.exists) {
-                NotificationService.error('Record non trovato');
-                return;
-            }
-
-            const ore = docSnap.data();
-            
-            const nuovaCommessa = prompt("Commessa:", ore.commessa);
-            if (!nuovaCommessa) return;
-            
-            const nuovaData = prompt("Data (YYYY-MM-DD):", ore.data);
-            if (!nuovaData) return;
-            
-            const nuovaOraInizio = prompt("Ora inizio (HH:MM):", ore.oraInizio);
-            if (!nuovaOraInizio) return;
-            
-            const nuovaOraFine = prompt("Ora fine (HH:MM):", ore.oraFine);
-            if (!nuovaOraFine) return;
-            
-            const nuovaDescrizione = prompt("Descrizione:", ore.descrizione);
-            if (!nuovaDescrizione) return;
-            
-            const nuovaNonConformita = confirm("Non conformità? (OK=Sì, Annulla=No)");
-
-            const controllo = await this.controllaOrariGiornata(nuovaData, nuovaOraInizio, nuovaOraFine, id);
-            if (!controllo.valido) {
-                NotificationService.error(controllo.errore);
-                return;
-            }
-
-            await this.firebaseService.updateDocument("oreLavorate", id, {
-                commessa: nuovaCommessa,
-                data: nuovaData,
-                oraInizio: nuovaOraInizio,
-                oraFine: nuovaOraFine,
-                descrizione: nuovaDescrizione,
-                nonConformita: nuovaNonConformita
-            });
-
-            NotificationService.success('Ore modificate con successo!');
-            await this.aggiornaTabellaOreLavorate();
-
-        } catch (error) {
-            console.error('Errore modifica:', error);
-            NotificationService.error('Errore durante la modifica');
+   async modificaOreLavorate(id) {
+    try {
+        const docRef = this.firebaseService.db.collection("oreLavorate").doc(id);
+        const docSnap = await docRef.get();
+        if (!docSnap.exists) {
+            NotificationService.error('Record non trovato');
+            return;
         }
+
+        const ore = docSnap.data();
+        
+        const nuovaCommessa = prompt("Commessa:", ore.commessa);
+        if (!nuovaCommessa) return;
+        
+        const nuovaData = prompt("Data (YYYY-MM-DD):", ore.data);
+        if (!nuovaData) return;
+        
+        const nuovaOraInizio = prompt("Ora inizio (HH:MM):", ore.oraInizio);
+        if (!nuovaOraInizio) return;
+        
+        const nuovaOraFine = prompt("Ora fine (HH:MM):", ore.oraFine);
+        if (!nuovaOraFine) return;
+        
+        const nuovaDescrizione = prompt("Descrizione:", ore.descrizione);
+        if (!nuovaDescrizione) return;
+        
+        const nuovaNonConformita = confirm("Non conformità? (OK=Sì, Annulla=No)");
+
+        const controllo = await this.controllaOrariGiornata(nuovaData, nuovaOraInizio, nuovaOraFine, id);
+        if (!controllo.valido) {
+            NotificationService.error(controllo.errore);
+            return;
+        }
+
+        await this.firebaseService.updateDocument("oreLavorate", id, {
+            commessa: nuovaCommessa,
+            data: nuovaData,
+            oraInizio: nuovaOraInizio,
+            oraFine: nuovaOraFine,
+            descrizione: nuovaDescrizione,
+            nonConformita: nuovaNonConformita
+        });
+
+        NotificationService.success('Ore modificate con successo!');
+        
+        // 🔥 RICARICA I DATI MANTENENDO FILTRI E ORDINAMENTO
+        await this.ricaricaDatiOreConFiltri();
+
+    } catch (error) {
+        console.error('Errore modifica:', error);
+        NotificationService.error('Errore durante la modifica');
     }
+}
+// ============================================================
+// 7.25 RICARICA DATI ORE MANTENENDO FILTRI E ORDINAMENTO
+// ============================================================
+
+async ricaricaDatiOreConFiltri() {
+    console.log('🔄 Ricarica dati ore mantenendo filtri e ordinamento...');
+    
+    try {
+        // 1. Prendi i filtri attuali
+        const filtri = this.getFiltriOreAttivi();
+        
+        // 2. Verifica se ci sono filtri attivi
+        const hasFiltri = filtri.commessa || filtri.dipendente || 
+                         filtri.anno || filtri.mese || filtri.giorno || 
+                         filtri.nonConformita;
+        
+        let dati;
+        
+        if (hasFiltri) {
+            // Se ci sono filtri, ricarica con i filtri
+            dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
+            console.log(`📦 Ricaricati ${dati.length} record con filtri`);
+        } else {
+            // Se non ci sono filtri, carica tutti i dati
+            dati = await this.firebaseService.getCollection("oreLavorate");
+            console.log(`📦 Ricaricati ${dati.length} record (tutti)`);
+        }
+        
+        // 3. Mantieni l'ordinamento esistente
+        // Se c'era un ordinamento applicato, viene mantenuto
+        if (stateManager.datiFiltrati && stateManager.datiFiltrati.length > 0) {
+            // Usa l'ordinamento precedente
+            const ordinamentoPrecedente = this.getOrdinamentoCorrente();
+            if (ordinamentoPrecedente) {
+                dati = this.applicaOrdinamento(dati, ordinamentoPrecedente);
+                console.log(`📊 Ordinamento "${ordinamentoPrecedente}" riapplicato`);
+            }
+        } else {
+            // Ordinamento predefinito: data più recente prima
+            dati.sort((a, b) => {
+                if (a.data !== b.data) return b.data.localeCompare(a.data);
+                if (a.commessa !== b.commessa) return a.commessa.localeCompare(b.commessa, 'it');
+                if (a.oraInizio !== b.oraInizio) return a.oraInizio.localeCompare(b.oraInizio);
+                const nomeA = `${a.nomeDipendente} ${a.cognomeDipendente}`;
+                const nomeB = `${b.nomeDipendente} ${b.cognomeDipendente}`;
+                return nomeA.localeCompare(nomeB, 'it');
+            });
+        }
+        
+        // 4. Aggiorna lo state
+        stateManager.datiFiltrati = dati;
+        stateManager.datiTotali.oreLavorate = dati;
+        
+        // 5. Aggiorna la paginazione
+        this.paginazione.ore.datiTotali = dati;
+        this.paginazione.ore.paginaCorrente = 1;
+        
+        // 6. Renderizza la tabella
+        this.renderizzaTabellaOre(dati);
+        
+        // 7. Renderizza la paginazione
+        this.paginazione.ore.render(dati, () => {
+            console.log('🔄 Callback paginazione - ricarico');
+            this.renderizzaTabellaOre(dati);
+        });
+        
+        console.log('✅ Ricarica completata con successo');
+        
+    } catch (error) {
+        console.error('❌ Errore ricarica:', error);
+        NotificationService.error('Errore durante il ricaricamento dei dati');
+    }
+}
 
     async eliminaOreLavorate(id) {
-        if (!confirm('Sei sicuro di voler eliminare queste ore lavorate?')) return;
+    if (!confirm('Sei sicuro di voler eliminare queste ore lavorate?')) return;
+    
+    try {
+        await this.firebaseService.deleteDocument("oreLavorate", id);
+        NotificationService.success('Ore eliminate con successo!');
         
-        try {
-            await this.firebaseService.deleteDocument("oreLavorate", id);
-            NotificationService.success('Ore eliminate con successo!');
-            await this.aggiornaTabellaOreLavorate();
-        } catch (error) {
-            console.error('Errore eliminazione:', error);
-            NotificationService.error('Errore durante l\'eliminazione');
-        }
+        // 🔥 RICARICA I DATI MANTENENDO FILTRI E ORDINAMENTO
+        await this.ricaricaDatiOreConFiltri();
+        
+    } catch (error) {
+        console.error('Errore eliminazione:', error);
+        NotificationService.error('Errore durante l\'eliminazione');
     }
+}
 
     calcolaTotaleGenerale(oreFiltrate) {
         if (!Array.isArray(oreFiltrate)) return 0;
@@ -2981,46 +3061,49 @@ async aggiornaTabellaFornitori() {
 
 
 
-    async aggiungiLavorazioneFornitore(e) {
-        e.preventDefault();
-        if (this.salvataggioInCorso) return;
-        this.salvataggioInCorso = true;
+  async aggiungiLavorazioneFornitore(e) {
+    e.preventDefault();
+    if (this.salvataggioInCorso) return;
+    this.salvataggioInCorso = true;
 
-        try {
-            const nomeFornitore = document.getElementById('fornitoreNome').value.trim();
-            const commessa = document.getElementById('fornitoreCommessa').value;
-            const costo = parseFloat(document.getElementById('fornitoreCosto').value);
-            const descrizione = document.getElementById('fornitoreDescrizione').value.trim();
-            const data = document.getElementById('fornitoreData').value || new Date().toISOString().split('T')[0];
+    try {
+        const nomeFornitore = document.getElementById('fornitoreNome').value.trim();
+        const commessa = document.getElementById('fornitoreCommessa').value;
+        const costo = parseFloat(document.getElementById('fornitoreCosto').value);
+        const descrizione = document.getElementById('fornitoreDescrizione').value.trim();
+        const data = document.getElementById('fornitoreData').value || new Date().toISOString().split('T')[0];
 
-            if (!nomeFornitore || !commessa || isNaN(costo) || costo <= 0) {
-                NotificationService.error('Compila tutti i campi obbligatori');
-                return;
-            }
-
-            await this.firebaseService.addDocument("fornitoriLavorazioni", {
-                nomeFornitore,
-                commessa,
-                costo,
-                descrizione,
-                data,
-                dataCreazione: new Date().toISOString()
-            });
-
-            NotificationService.success('Lavorazione fornitore aggiunta!');
-            document.getElementById('fornitoreForm').reset();
-            await Promise.all([
-                this.caricaFornitori(),
-                this.aggiornaMonitorCommesse()
-            ]);
-
-        } catch (error) {
-            console.error('Errore aggiunta fornitore:', error);
-            NotificationService.error('Errore durante l\'aggiunta');
-        } finally {
-            this.salvataggioInCorso = false;
+        if (!nomeFornitore || !commessa || isNaN(costo) || costo <= 0) {
+            NotificationService.error('Compila tutti i campi obbligatori');
+            return;
         }
+
+        await this.firebaseService.addDocument("fornitoriLavorazioni", {
+            nomeFornitore,
+            commessa,
+            costo,
+            descrizione,
+            data,
+            dataCreazione: new Date().toISOString()
+        });
+
+        NotificationService.success('Lavorazione fornitore aggiunta!');
+        document.getElementById('fornitoreForm').reset();
+        
+        // 🔥 RICARICA I DATI DEI FORNITORI
+        await this.caricaFornitori();
+        await this.aggiornaMonitorCommesse();
+        
+        // 🔥 RICARICA ANCHE LE ORE SE NECESSARIO (per i costi)
+        await this.ricaricaDatiOreConFiltri();
+
+    } catch (error) {
+        console.error('Errore aggiunta fornitore:', error);
+        NotificationService.error('Errore durante l\'aggiunta');
+    } finally {
+        this.salvataggioInCorso = false;
     }
+}
 
     async modificaLavorazioneFornitore(id) {
         try {
