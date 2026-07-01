@@ -2161,7 +2161,7 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
         NotificationService.info('Mostrati tutti i record');
     }
 
-   async modificaOreLavorate(id) {
+    async modificaOreLavorate(id) {
     try {
         const docRef = this.firebaseService.db.collection("oreLavorate").doc(id);
         const docSnap = await docRef.get();
@@ -2218,77 +2218,9 @@ async aggiornaTabellaOreLavorate(oreFiltrate = null) {
 // 7.25 RICARICA DATI ORE MANTENENDO FILTRI E ORDINAMENTO
 // ============================================================
 
-async ricaricaDatiOreConFiltri() {
-    console.log('🔄 Ricarica dati ore mantenendo filtri e ordinamento...');
-    
-    try {
-        // 1. Prendi i filtri attuali
-        const filtri = this.getFiltriOreAttivi();
-        
-        // 2. Verifica se ci sono filtri attivi
-        const hasFiltri = filtri.commessa || filtri.dipendente || 
-                         filtri.anno || filtri.mese || filtri.giorno || 
-                         filtri.nonConformita;
-        
-        let dati;
-        
-        if (hasFiltri) {
-            // Se ci sono filtri, ricarica con i filtri
-            dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
-            console.log(`📦 Ricaricati ${dati.length} record con filtri`);
-        } else {
-            // Se non ci sono filtri, carica tutti i dati
-            dati = await this.firebaseService.getCollection("oreLavorate");
-            console.log(`📦 Ricaricati ${dati.length} record (tutti)`);
-        }
-        
-        // 3. Mantieni l'ordinamento esistente
-        // Se c'era un ordinamento applicato, viene mantenuto
-        if (stateManager.datiFiltrati && stateManager.datiFiltrati.length > 0) {
-            // Usa l'ordinamento precedente
-            const ordinamentoPrecedente = this.getOrdinamentoCorrente();
-            if (ordinamentoPrecedente) {
-                dati = this.applicaOrdinamento(dati, ordinamentoPrecedente);
-                console.log(`📊 Ordinamento "${ordinamentoPrecedente}" riapplicato`);
-            }
-        } else {
-            // Ordinamento predefinito: data più recente prima
-            dati.sort((a, b) => {
-                if (a.data !== b.data) return b.data.localeCompare(a.data);
-                if (a.commessa !== b.commessa) return a.commessa.localeCompare(b.commessa, 'it');
-                if (a.oraInizio !== b.oraInizio) return a.oraInizio.localeCompare(b.oraInizio);
-                const nomeA = `${a.nomeDipendente} ${a.cognomeDipendente}`;
-                const nomeB = `${b.nomeDipendente} ${b.cognomeDipendente}`;
-                return nomeA.localeCompare(nomeB, 'it');
-            });
-        }
-        
-        // 4. Aggiorna lo state
-        stateManager.datiFiltrati = dati;
-        stateManager.datiTotali.oreLavorate = dati;
-        
-        // 5. Aggiorna la paginazione
-        this.paginazione.ore.datiTotali = dati;
-        this.paginazione.ore.paginaCorrente = 1;
-        
-        // 6. Renderizza la tabella
-        this.renderizzaTabellaOre(dati);
-        
-        // 7. Renderizza la paginazione
-        this.paginazione.ore.render(dati, () => {
-            console.log('🔄 Callback paginazione - ricarico');
-            this.renderizzaTabellaOre(dati);
-        });
-        
-        console.log('✅ Ricarica completata con successo');
-        
-    } catch (error) {
-        console.error('❌ Errore ricarica:', error);
-        NotificationService.error('Errore durante il ricaricamento dei dati');
-    }
-}
 
-    async eliminaOreLavorate(id) {
+
+ async eliminaOreLavorate(id) {
     if (!confirm('Sei sicuro di voler eliminare queste ore lavorate?')) return;
     
     try {
@@ -5942,6 +5874,240 @@ renderizzaTabellaOre(dati) {
     tbody.appendChild(tr);
     
     console.log(`✅ [DEBUG] Tabella renderizzata: ${datiPagina.length} record in pagina`);
+}
+// ============================================================
+// 7.25 RICARICA DATI ORE MANTENENDO FILTRI E ORDINAMENTO
+// ============================================================
+
+async ricaricaDatiOreConFiltri() {
+    console.log('🔄 Ricarica dati ore mantenendo filtri e ordinamento...');
+    
+    try {
+        // 1. Prendi i filtri attuali
+        const filtri = this.getFiltriOreAttivi();
+        
+        // 2. Verifica se ci sono filtri attivi
+        const hasFiltri = filtri.commessa || filtri.dipendente || 
+                         filtri.anno || filtri.mese || filtri.giorno || 
+                         filtri.nonConformita;
+        
+        let dati;
+        
+        if (hasFiltri) {
+            // Se ci sono filtri, ricarica con i filtri
+            dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
+            console.log(`📦 Ricaricati ${dati.length} record con filtri`);
+        } else {
+            // Se non ci sono filtri, carica tutti i dati
+            dati = await this.firebaseService.getCollection("oreLavorate");
+            console.log(`📦 Ricaricati ${dati.length} record (tutti)`);
+        }
+        
+        // 3. Mantieni l'ordinamento esistente
+        // Se c'era un ordinamento applicato, viene mantenuto
+        if (stateManager.datiFiltrati && stateManager.datiFiltrati.length > 0) {
+            // Usa l'ordinamento precedente
+            const ordinamentoPrecedente = this.getOrdinamentoCorrente();
+            if (ordinamentoPrecedente) {
+                dati = this.applicaOrdinamento(dati, ordinamentoPrecedente);
+                console.log(`📊 Ordinamento "${ordinamentoPrecedente}" riapplicato`);
+            }
+        } else {
+            // Ordinamento predefinito: data più recente prima
+            dati.sort((a, b) => {
+                if (a.data !== b.data) return b.data.localeCompare(a.data);
+                if (a.commessa !== b.commessa) return a.commessa.localeCompare(b.commessa, 'it');
+                if (a.oraInizio !== b.oraInizio) return a.oraInizio.localeCompare(b.oraInizio);
+                const nomeA = `${a.nomeDipendente} ${a.cognomeDipendente}`;
+                const nomeB = `${b.nomeDipendente} ${b.cognomeDipendente}`;
+                return nomeA.localeCompare(nomeB, 'it');
+            });
+        }
+        
+        // 4. Aggiorna lo state
+        stateManager.datiFiltrati = dati;
+        stateManager.datiTotali.oreLavorate = dati;
+        
+        // 5. Aggiorna la paginazione
+        this.paginazione.ore.datiTotali = dati;
+        this.paginazione.ore.paginaCorrente = 1;
+        
+        // 6. Renderizza la tabella
+        this.renderizzaTabellaOre(dati);
+        
+        // 7. Renderizza la paginazione
+        this.paginazione.ore.render(dati, () => {
+            console.log('🔄 Callback paginazione - ricarico');
+            this.renderizzaTabellaOre(dati);
+        });
+        
+        console.log('✅ Ricarica completata con successo');
+        
+    } catch (error) {
+        console.error('❌ Errore ricarica:', error);
+        NotificationService.error('Errore durante il ricaricamento dei dati');
+    }
+}
+
+// ============================================================
+// 7.26 METODI PER L'ORDINAMENTO
+// ============================================================
+
+/**
+ * Salva l'ordinamento corrente
+ */
+getOrdinamentoCorrente() {
+    console.log('🔍 Rilevamento ordinamento corrente...');
+    
+    // Verifica se ci sono dati
+    if (!stateManager.datiFiltrati || stateManager.datiFiltrati.length === 0) {
+        console.log('📊 Nessun dato, ordinamento predefinito');
+        return null;
+    }
+    
+    const dati = stateManager.datiFiltrati;
+    
+    // Se solo un record, non possiamo determinare l'ordinamento
+    if (dati.length <= 1) {
+        return null;
+    }
+    
+    // Controlla se è ordinato per data (decrescente - predefinito)
+    let isDataDesc = true;
+    for (let i = 0; i < dati.length - 1; i++) {
+        if (dati[i].data < dati[i + 1].data) {
+            isDataDesc = false;
+            break;
+        }
+    }
+    if (isDataDesc) {
+        console.log('📊 Ordinamento rilevato: data_desc (più recenti)');
+        return 'data_desc';
+    }
+    
+    // Controlla se è ordinato per data (crescente)
+    let isDataAsc = true;
+    for (let i = 0; i < dati.length - 1; i++) {
+        if (dati[i].data > dati[i + 1].data) {
+            isDataAsc = false;
+            break;
+        }
+    }
+    if (isDataAsc) {
+        console.log('📊 Ordinamento rilevato: data_asc (più vecchi)');
+        return 'data_asc';
+    }
+    
+    // Controlla se è ordinato per commessa
+    let isCommessa = true;
+    for (let i = 0; i < dati.length - 1; i++) {
+        if (dati[i].commessa > dati[i + 1].commessa) {
+            isCommessa = false;
+            break;
+        }
+    }
+    if (isCommessa) {
+        console.log('📊 Ordinamento rilevato: commessa');
+        return 'commessa';
+    }
+    
+    // Controlla se è ordinato per dipendente
+    let isDipendente = true;
+    for (let i = 0; i < dati.length - 1; i++) {
+        const nomeA = `${dati[i].nomeDipendente} ${dati[i].cognomeDipendente}`;
+        const nomeB = `${dati[i + 1].nomeDipendente} ${dati[i + 1].cognomeDipendente}`;
+        if (nomeA > nomeB) {
+            isDipendente = false;
+            break;
+        }
+    }
+    if (isDipendente) {
+        console.log('📊 Ordinamento rilevato: dipendente');
+        return 'dipendente';
+    }
+    
+    // Controlla se è ordinato per ore (decrescente)
+    let isOre = true;
+    for (let i = 0; i < dati.length - 1; i++) {
+        const oreA = Utils.calcolaOreLavorate(dati[i].oraInizio, dati[i].oraFine);
+        const oreB = Utils.calcolaOreLavorate(dati[i + 1].oraInizio, dati[i + 1].oraFine);
+        if (oreA < oreB) {
+            isOre = false;
+            break;
+        }
+    }
+    if (isOre) {
+        console.log('📊 Ordinamento rilevato: ore (maggiori prima)');
+        return 'ore';
+    }
+    
+    // Controlla se è ordinato per ore (crescente)
+    let isOreAsc = true;
+    for (let i = 0; i < dati.length - 1; i++) {
+        const oreA = Utils.calcolaOreLavorate(dati[i].oraInizio, dati[i].oraFine);
+        const oreB = Utils.calcolaOreLavorate(dati[i + 1].oraInizio, dati[i + 1].oraFine);
+        if (oreA > oreB) {
+            isOreAsc = false;
+            break;
+        }
+    }
+    if (isOreAsc) {
+        console.log('📊 Ordinamento rilevato: ore_asc (minori prima)');
+        return 'ore_asc';
+    }
+    
+    console.log('📊 Ordinamento non riconosciuto, uso predefinito');
+    return null;
+}
+
+/**
+ * Applica un ordinamento specifico ai dati
+ */
+applicaOrdinamento(dati, criterio) {
+    console.log(`📊 Applico ordinamento: ${criterio}`);
+    const copia = [...dati];
+    
+    switch(criterio) {
+        case 'data_asc':
+            copia.sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+            break;
+        case 'data_desc':
+            copia.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+            break;
+        case 'commessa':
+            copia.sort((a, b) => (a.commessa || '').localeCompare(b.commessa || '', 'it'));
+            break;
+        case 'dipendente':
+            copia.sort((a, b) => {
+                const nomeA = `${a.nomeDipendente || ''} ${a.cognomeDipendente || ''}`.trim();
+                const nomeB = `${b.nomeDipendente || ''} ${b.cognomeDipendente || ''}`.trim();
+                return nomeA.localeCompare(nomeB, 'it');
+            });
+            break;
+        case 'ore':
+            copia.sort((a, b) => {
+                const oreA = Utils.calcolaOreLavorate(a.oraInizio, a.oraFine);
+                const oreB = Utils.calcolaOreLavorate(b.oraInizio, b.oraFine);
+                return oreB - oreA;
+            });
+            break;
+        case 'ore_asc':
+            copia.sort((a, b) => {
+                const oreA = Utils.calcolaOreLavorate(a.oraInizio, a.oraFine);
+                const oreB = Utils.calcolaOreLavorate(b.oraInizio, b.oraFine);
+                return oreA - oreB;
+            });
+            break;
+        default:
+            // Predefinito: data più recente prima
+            copia.sort((a, b) => {
+                if (a.data !== b.data) return b.data.localeCompare(a.data);
+                if (a.commessa !== b.commessa) return a.commessa.localeCompare(b.commessa, 'it');
+                return a.oraInizio.localeCompare(b.oraInizio);
+            });
+    }
+    
+    return copia;
 }
 }
 
