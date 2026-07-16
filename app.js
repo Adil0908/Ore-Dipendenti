@@ -4917,14 +4917,13 @@ async generaPDFMensile(nomeMese, meseNumero, datiPerDipendente, annoCorrente) {
     // ============================================================
 
 async generaPDFFiltrato() {
-    // 🔥 PREVIENE GENERAZIONI MULTIPLE
+    // 🔥 IMPEDISCI GENERAZIONI MULTIPLE
     if (this._generazionePDFInCorso) {
         console.log('⚠️ [PDF] Generazione già in corso, salto...');
         return;
     }
     
     this._generazionePDFInCorso = true;
-    console.log('🔄 [PDF] Inizio generazione...');
     
     try {
         if (typeof window.jspdf === 'undefined') {
@@ -4938,24 +4937,17 @@ async generaPDFFiltrato() {
             return;
         }
 
-        // 🔥 1. PRENDI I DATI CORRETTI (quelli visualizzati nella tabella)
+        // 🔥 1. PRENDI I DATI CORRETTI
         let dati = [];
         let fonteDati = '';
         
-        // Prima prova a prendere i dati filtrati (che hanno l'ordinamento applicato)
         if (stateManager.datiFiltrati && stateManager.datiFiltrati.length > 0) {
-            dati = stateManager.datiFiltrati.slice(); // Copia
+            dati = stateManager.datiFiltrati.slice();
             fonteDati = 'filtrati e ordinati';
-            console.log(`📦 PDF: Usando dati ${fonteDati}: ${dati.length} record`);
-        } 
-        // Altrimenti prova a prendere tutti i dati
-        else if (stateManager.datiTotali.oreLavorate && stateManager.datiTotali.oreLavorate.length > 0) {
-            dati = stateManager.datiTotali.oreLavorate.slice(); // Copia
-            fonteDati = 'tutti (senza filtri)';
-            console.log(`📦 PDF: Usando dati ${fonteDati}: ${dati.length} record`);
-        }
-        // Se non ci sono dati, carica da Firebase
-        else {
+        } else if (stateManager.datiTotali.oreLavorate && stateManager.datiTotali.oreLavorate.length > 0) {
+            dati = stateManager.datiTotali.oreLavorate.slice();
+            fonteDati = 'tutti';
+        } else {
             const filtri = this.getFiltriOreAttivi();
             const hasFiltri = filtri.commessa || filtri.dipendente || 
                              filtri.anno || filtri.mese || filtri.giorno || 
@@ -4969,8 +4961,7 @@ async generaPDFFiltrato() {
             }
             
             dati = await this.firebaseService.getOreLavorateFiltrate(filtri);
-            fonteDati = 'appena caricati da Firebase';
-            console.log(`📦 PDF: Caricati da Firebase: ${dati.length} record`);
+            fonteDati = 'caricati';
         }
 
         if (!dati || dati.length === 0) {
@@ -4979,15 +4970,12 @@ async generaPDFFiltrato() {
             return;
         }
 
-        // 🔥 2. MANTIENI L'ORDINAMENTO GIÀ APPLICATO
+        // 🔥 2. ORDINA I DATI
         if (!stateManager.datiFiltrati || stateManager.datiFiltrati.length === 0) {
             dati.sort((a, b) => {
                 if (a.data !== b.data) return b.data.localeCompare(a.data);
                 if (a.commessa !== b.commessa) return a.commessa.localeCompare(b.commessa, 'it');
-                if (a.oraInizio !== b.oraInizio) return a.oraInizio.localeCompare(b.oraInizio);
-                const nomeA = `${a.nomeDipendente} ${a.cognomeDipendente}`;
-                const nomeB = `${b.nomeDipendente} ${b.cognomeDipendente}`;
-                return nomeA.localeCompare(nomeB, 'it');
+                return a.oraInizio.localeCompare(b.oraInizio);
             });
         }
 
@@ -4998,11 +4986,17 @@ async generaPDFFiltrato() {
         const nonConformita = dati.filter(o => o.nonConformita).length;
         const commesseUniche = new Set(dati.map(o => o.commessa)).size;
 
-        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        // 🔥 4. PDF - ORIENTAMENTO LANDSCAPE PER PIÙ SPAZIO
+        const doc = new jsPDF({ 
+            orientation: 'landscape', 
+            unit: 'mm', 
+            format: 'a4' 
+        });
         const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
         
         // ============================================
-        // 4. INTESTAZIONE
+        // 5. INTESTAZIONE
         // ============================================
         doc.setFillColor(15, 23, 42);
         doc.rect(0, 0, pageWidth, 32, 'F');
@@ -5018,7 +5012,7 @@ async generaPDFFiltrato() {
         doc.text(`Record: ${dati.length}  •  ${fonteDati}`, pageWidth / 2, 28, { align: 'center' });
 
         // ============================================
-        // 5. STATISTICHE RIASSUNTIVE
+        // 6. STATISTICHE RIASSUNTIVE
         // ============================================
         doc.setTextColor(0, 0, 0);
         doc.setFontSize(9);
@@ -5048,18 +5042,25 @@ async generaPDFFiltrato() {
         });
 
         // ============================================
-        // 6. TABELLA
+        // 7. TABELLA ESTESA CON DESCRIZIONI COMPLETE
         // ============================================
+        
+        // Prepara i dati con descrizioni complete (senza troncamento)
         const tableData = dati.map(ore => {
             const oreLav = Utils.calcolaOreLavorate(ore.oraInizio, ore.oraFine);
             const dataFormattata = Utils.formattaDataItaliana(ore.data);
+            const nomeCompleto = `${ore.nomeDipendente || ''} ${ore.cognomeDipendente || ''}`.trim() || '-';
+            
+            // 🔥 DESCRIZIONE COMPLETA (senza tagli)
+            const descrizione = ore.descrizione || '-';
+            
             return [
                 ore.commessa || '-',
-                `${ore.nomeDipendente || ''} ${ore.cognomeDipendente || ''}`.trim() || '-',
+                nomeCompleto,
                 dataFormattata || '-',
                 ore.oraInizio || '-',
                 ore.oraFine || '-',
-                (ore.descrizione || '-').substring(0, 25) + ((ore.descrizione || '').length > 25 ? '...' : ''),
+                descrizione,  // 🔥 DESCRIZIONE COMPLETA
                 ore.nonConformita ? '⚠️ Sì' : '✓ No',
                 Utils.formattaOreDecimali(oreLav)
             ];
@@ -5077,6 +5078,30 @@ async generaPDFFiltrato() {
             Utils.formattaOreDecimali(totaleOre)
         ]);
 
+        // 🔥 CALCOLA LARGHEZZE COLONNE PER SFRUTTARE TUTTO IL FOGLIO
+        const marginX = 8;
+        const tableWidth = pageWidth - (marginX * 2);
+        
+        // Distribuzione percentuale delle colonne
+        const colWidths = {
+            0: 22,   // Commessa
+            1: 24,   // Dipendente
+            2: 18,   // Data
+            3: 14,   // Inizio
+            4: 14,   // Fine
+            5: 55,   // 🔥 DESCRIZIONE (la più larga!)
+            6: 16,   // NC
+            7: 18    // Ore
+        };
+        
+        // Verifica che la somma non superi la larghezza disponibile
+        let totalColWidth = Object.values(colWidths).reduce((a, b) => a + b, 0);
+        if (totalColWidth > tableWidth) {
+            // Riduci proporzionalmente la descrizione
+            const diff = totalColWidth - tableWidth;
+            colWidths[5] = Math.max(30, colWidths[5] - diff);
+        }
+
         doc.autoTable({
             startY: statsY + 26,
             head: [['Commessa', 'Dipendente', 'Data', 'Inizio', 'Fine', 'Descrizione', 'NC', 'Ore']],
@@ -5084,8 +5109,9 @@ async generaPDFFiltrato() {
             theme: 'grid',
             styles: { 
                 fontSize: 7, 
-                cellPadding: 2,
-                valign: 'middle'
+                cellPadding: 2.5,
+                valign: 'middle',
+                lineWidth: 0.1
             },
             headStyles: { 
                 fillColor: [15, 23, 42], 
@@ -5095,25 +5121,34 @@ async generaPDFFiltrato() {
                 halign: 'center'
             },
             columnStyles: {
-                0: { cellWidth: 28, fontStyle: 'bold' },
-                1: { cellWidth: 26 },
-                2: { cellWidth: 20, halign: 'center' },
-                3: { cellWidth: 14, halign: 'center' },
-                4: { cellWidth: 14, halign: 'center' },
-                5: { cellWidth: 38 },
-                6: { cellWidth: 16, halign: 'center' },
-                7: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }
+                0: { cellWidth: colWidths[0], fontStyle: 'bold', halign: 'left' },
+                1: { cellWidth: colWidths[1], halign: 'left' },
+                2: { cellWidth: colWidths[2], halign: 'center' },
+                3: { cellWidth: colWidths[3], halign: 'center' },
+                4: { cellWidth: colWidths[4], halign: 'center' },
+                5: { 
+                    cellWidth: colWidths[5], 
+                    halign: 'left',
+                    fontSize: 6.5,  // 🔥 FONT PIÙ PICCOLO PER LA DESCRIZIONE
+                    cellPadding: 2
+                },
+                6: { cellWidth: colWidths[6], halign: 'center' },
+                7: { cellWidth: colWidths[7], halign: 'center', fontStyle: 'bold' }
             },
             didParseCell: (data) => {
+                // Evidenzia la riga totale
                 if (data.row.index === tableData.length - 1) {
                     data.cell.styles.fillColor = [15, 23, 42];
                     data.cell.styles.textColor = [255, 255, 255];
                     data.cell.styles.fontStyle = 'bold';
+                    data.cell.styles.fontSize = 7.5;
                 }
+                // Evidenzia le non conformità
                 if (data.column.index === 6 && data.cell.raw === '⚠️ Sì') {
                     data.cell.styles.textColor = [234, 179, 8];
                     data.cell.styles.fontStyle = 'bold';
                 }
+                // Colora le ore in base al valore
                 if (data.column.index === 7 && data.row.index < tableData.length - 1) {
                     const oreStr = data.cell.raw;
                     if (oreStr) {
@@ -5126,51 +5161,68 @@ async generaPDFFiltrato() {
                         }
                     }
                 }
+                // 🔥 PERMETTI IL WRAPPING DEL TESTO NELLA DESCRIZIONE
+                if (data.column.index === 5) {
+                    data.cell.styles.cellWidth = 'auto';
+                }
+            },
+            // 🔥 PERMETTI RIGHE PIÙ ALTE PER DESCRIZIONI LUNGHE
+            didDrawCell: (data) => {
+                if (data.column.index === 5 && data.cell.raw && data.cell.raw.length > 30) {
+                    // La riga si adatterà automaticamente all'altezza del testo
+                }
             }
         });
 
         // ============================================
-        // 7. PIÈ DI PAGINA
+        // 8. PIÈ DI PAGINA ESTESO
         // ============================================
-        const finalY = doc.lastAutoTable.finalY + 10;
+        const finalY = Math.min(doc.lastAutoTable.finalY + 10, pageHeight - 20);
         
         doc.setFillColor(241, 245, 249);
-        doc.roundedRect(10, finalY, pageWidth - 20, 12, 2, 2, 'F');
+        doc.roundedRect(10, finalY, pageWidth - 20, 14, 2, 2, 'F');
         
         doc.setFontSize(7);
         doc.setTextColor(50, 50, 50);
         doc.text(`📊 Riepilogo: ${dati.length} record • ${Utils.formattaOreDecimali(totaleOre)} ore totali • ${giorniUnici} giorni • ${dipendentiUnici} dipendenti`, 15, finalY + 5);
         
+        // Legenda estesa
         doc.setTextColor(100, 100, 100);
-        doc.text('Legenda:', 15, finalY + 9);
+        doc.text('Legenda:', 15, finalY + 10);
+        
+        // Ore > 8h
         doc.setTextColor(220, 38, 38);
-        doc.text('●', 15 + 20, finalY + 8.5);
+        doc.text('●', 15 + 20, finalY + 9.5);
         doc.setTextColor(100, 100, 100);
-        doc.text('Ore > 8h', 15 + 26, finalY + 9);
+        doc.text('Ore > 8h', 15 + 26, finalY + 10);
         
+        // Non Conformità
         doc.setTextColor(234, 179, 8);
-        doc.text('●', 15 + 55, finalY + 8.5);
+        doc.text('●', 15 + 55, finalY + 9.5);
         doc.setTextColor(100, 100, 100);
-        doc.text('Non Conformità', 15 + 61, finalY + 9);
+        doc.text('Non Conformità', 15 + 61, finalY + 10);
         
+        // Ore ≥ 6h
         doc.setTextColor(22, 163, 74);
-        doc.text('●', 15 + 95, finalY + 8.5);
+        doc.text('●', 15 + 95, finalY + 9.5);
         doc.setTextColor(100, 100, 100);
-        doc.text('Ore ≥ 6h', 15 + 101, finalY + 9);
+        doc.text('Ore ≥ 6h', 15 + 101, finalY + 10);
         
+        // Filtri attivi
         const filtriAttivi = this.getFiltriAttiviTesto();
         if (filtriAttivi) {
             doc.setTextColor(100, 100, 100);
-            doc.text(`🔍 Filtri: ${filtriAttivi}`, 15 + 140, finalY + 9);
+            doc.text(`🔍 Filtri: ${filtriAttivi}`, 15 + 145, finalY + 10);
         }
 
+        // Copyright
         doc.setFontSize(6);
         doc.setTextColor(150, 150, 150);
         doc.text(`Union14 - Sistema Gestione Ore Lavorative v2.0  •  ${new Date().toLocaleString('it-IT')}`, 
-                pageWidth - 10, finalY + 9, { align: 'right' });
+                pageWidth - 10, finalY + 10, { align: 'right' });
 
         // ============================================
-        // 8. SALVA PDF
+        // 9. SALVA PDF
         // ============================================
         const nomeFile = `ore_lavorate_${new Date().toISOString().split('T')[0]}.pdf`;
         doc.save(nomeFile);
@@ -5181,11 +5233,9 @@ async generaPDFFiltrato() {
         console.error('❌ Errore PDF:', error);
         NotificationService.error('Errore durante la generazione PDF: ' + error.message);
     } finally {
-        // 🔥 IMPORTANTE: Resetta il flag alla fine
         this._generazionePDFInCorso = false;
         console.log('✅ [PDF] Generazione completata, flag resettato');
     }
-     this._generazionePDFInCorso = false;
 }
 // ============================================================
 // 7.26 FILTRI ATTIVI (per il PDF)
